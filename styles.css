@@ -364,6 +364,20 @@ input[type="radio"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20px;
+}
+
+.results-heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.results-heading h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 22px;
+  letter-spacing: -0.025em;
 }
 
 .step-number-light {
@@ -456,7 +470,7 @@ input[type="radio"] {
 }
 
 .yield-row {
-  margin-bottom: 34px;
+  margin-bottom: 24px;
 }
 
 .yield-row > strong {
@@ -471,45 +485,87 @@ input[type="radio"] {
   color: #ffb9b9;
 }
 
-.details-card dt {
-  display: block;
-  margin-bottom: 8px;
-  color: rgba(255, 255, 255, 0.58);
-  font-size: 12px;
-}
-
-.details-card {
-  padding: 22px;
+.summary-card {
+  display: grid;
+  margin: 0 0 22px;
+  padding: 8px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.07);
 }
 
-.details-card h3 {
-  margin: 0 0 17px;
+.summary-card > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+}
+
+.summary-card > div + div {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.summary-card dt,
+.summary-card dd {
+  margin: 0;
+}
+
+.summary-card dt {
+  color: rgba(255, 255, 255, 0.58);
   font-size: 13px;
+  font-weight: 650;
+}
+
+.summary-card dd {
+  flex: 0 0 auto;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  text-align: right;
+}
+
+.summary-card dd.positive-value {
+  color: var(--lime);
+}
+
+.summary-card dd.negative-value {
+  color: #ffb9b9;
+}
+
+.details-card {
+  padding: 28px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .details-card dl {
   display: grid;
-  gap: 13px;
+  gap: 18px;
   margin: 0;
 }
 
 .details-card dl > div {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
 }
 
 .details-card dt {
   margin: 0;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 16px;
+  line-height: 1.35;
 }
 
 .details-card dd {
+  flex: 0 0 auto;
   margin: 0;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 700;
+  line-height: 1.35;
   text-align: right;
 }
 
@@ -521,7 +577,7 @@ input[type="radio"] {
 
 .details-card .detail-final dt {
   color: #fff;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -612,6 +668,26 @@ input[type="radio"] {
 
   .yield-row > strong {
     font-size: 56px;
+  }
+
+  .summary-card {
+    padding: 6px 20px;
+  }
+
+  .summary-card > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+    padding: 15px 0;
+  }
+
+  .summary-card dd {
+    font-size: 21px;
+    text-align: left;
+  }
+
+  .details-card {
+    padding: 22px;
   }
 
 }

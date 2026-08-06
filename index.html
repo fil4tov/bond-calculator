@@ -214,7 +214,10 @@
 
         <aside class="results-panel" aria-labelledby="results-title">
           <div class="results-topline">
-            <span class="step-number step-number-light">02</span>
+            <div class="results-heading">
+              <span class="step-number step-number-light">02</span>
+              <h2 id="results-title">Итог</h2>
+            </div>
             <span id="scenario-label" class="scenario-label">До погашения</span>
           </div>
 
@@ -222,7 +225,7 @@
             <div class="empty-icon" aria-hidden="true">
               <span></span><span></span><span></span>
             </div>
-            <h2 id="results-title">Ваш результат</h2>
+            <h2>Ваш результат</h2>
             <p>Заполните параметры — здесь появится прогноз доходности</p>
           </div>
 
@@ -232,24 +235,26 @@
               <strong id="annual-yield">0,00%</strong>
             </div>
 
+            <dl class="summary-card">
+              <div>
+                <dt>Сумма вложения</dt>
+                <dd id="investment">0 ₽</dd>
+              </div>
+              <div>
+                <dt>Прибыль за весь срок</dt>
+                <dd id="total-profit">0 ₽</dd>
+              </div>
+            </dl>
+
             <div class="details-card">
-              <h3>Детали расчёта</h3>
               <dl>
                 <div>
                   <dt>Срок владения</dt>
                   <dd id="holding-period">0 лет</dd>
                 </div>
                 <div>
-                  <dt>Сумма вложения</dt>
-                  <dd id="investment">0 ₽</dd>
-                </div>
-                <div>
                   <dt>Доход в год</dt>
                   <dd id="annual-income">0 ₽</dd>
-                </div>
-                <div>
-                  <dt>Прибыль за весь срок</dt>
-                  <dd id="total-profit">0 ₽</dd>
                 </div>
                 <div>
                   <dt>Доход/убыток от цены при выходе</dt>
