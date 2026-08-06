@@ -513,8 +513,8 @@ input[type="radio"] {
 
 .summary-card dt {
   color: rgba(255, 255, 255, 0.58);
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 16px;
+  font-weight: 400;
 }
 
 .summary-card dd {
@@ -569,16 +569,18 @@ input[type="radio"] {
   text-align: right;
 }
 
-.details-card .detail-final {
-  margin-top: 4px;
-  padding-top: 15px;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-}
-
 .details-card .detail-final dt {
   color: #fff;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 400;
+}
+
+.details-card .detail-final dd {
+  font-size: 22px;
+}
+
+#investment {
+  font-size: 22px;
 }
 
 .positive-value { color: var(--lime); }
@@ -684,6 +686,14 @@ input[type="radio"] {
   .summary-card dd {
     font-size: 21px;
     text-align: left;
+  }
+
+  .details-card .detail-final dd {
+    font-size: 21px;
+  }
+
+  #investment {
+    font-size: 21px;
   }
 
   .details-card {
