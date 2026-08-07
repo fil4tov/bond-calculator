@@ -813,6 +813,7 @@ input[type="radio"] {
   display: flex;
   align-items: center;
   gap: 7px;
+  min-height: 2.7em;
   color: rgba(255, 255, 255, 0.62);
   font-size: 13px;
   font-weight: 650;
@@ -1073,6 +1074,10 @@ input[type="radio"] {
     padding: 18px 0 0;
     border-top: 1px solid rgba(255, 255, 255, 0.16);
     border-left: 0;
+  }
+
+  .yield-metric-label {
+    min-height: 0;
   }
 
   .yield-metric:first-child {
