@@ -198,6 +198,7 @@ function calculateBond({
   const annualYield = (annualIncome / investment) * 100;
   const couponIncomeTotal = annualCoupons * holdingYears;
   const totalProfit = couponIncomeTotal + priceDifference;
+  const annualYieldWithPrice = (totalProfit / holdingYears / investment) * 100;
   const finalAmount = investment + totalProfit;
 
   return {
@@ -210,6 +211,7 @@ function calculateBond({
     annualYield,
     couponIncomeTotal,
     totalProfit,
+    annualYieldWithPrice,
     finalAmount,
     holdingYears,
   };
@@ -230,7 +232,7 @@ function initCalculator() {
   const holdingYears = document.querySelector("#holding-years");
   const holdingMonths = document.querySelector("#holding-months");
   const salePrice = document.querySelector("#sale-price");
-  const formError = document.querySelector("#form-error");
+  const clearFormButton = document.querySelector("#clear-form");
   const emptyResults = document.querySelector("#empty-results");
   const calculatedResults = document.querySelector("#calculated-results");
   const scenarioLabel = document.querySelector("#scenario-label");
@@ -250,6 +252,72 @@ function initCalculator() {
   const quantityFormatter = new Intl.NumberFormat("ru-RU", {
     maximumFractionDigits: 0,
   });
+
+  const inputNumberFormatters = {
+    decimal: new Intl.NumberFormat("ru-RU", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+      useGrouping: true,
+    }),
+    integer: new Intl.NumberFormat("ru-RU", {
+      maximumFractionDigits: 0,
+      useGrouping: true,
+    }),
+  };
+
+  const numericInputs = Array.from(form.querySelectorAll('input[type="number"]'));
+
+  function parseInputNumber(input) {
+    const normalizedValue = input.value
+      .replace(/[\s\u00a0\u202f]/g, "")
+      .replace(",", ".");
+
+    return normalizedValue === "" ? Number.NaN : Number(normalizedValue);
+  }
+
+  function formatEditableNumber(value) {
+    if (!Number.isFinite(value)) {
+      return "";
+    }
+
+    return String(Number(value.toFixed(2)));
+  }
+
+  function formatNumericInput(input) {
+    const value = parseInputNumber(input);
+
+    if (!Number.isFinite(value)) {
+      input.value = "";
+      return;
+    }
+
+    const formatter = input.step === "1"
+      ? inputNumberFormatters.integer
+      : inputNumberFormatters.decimal;
+
+    input.type = "text";
+    input.value = formatter.format(value);
+  }
+
+  function prepareNumericInputForEditing(input) {
+    const value = parseInputNumber(input);
+
+    input.type = "number";
+    input.value = Number.isFinite(value) ? formatEditableNumber(value) : "";
+  }
+
+  function setNumericInputValue(input, value) {
+    if (!Number.isFinite(value)) {
+      input.value = "";
+      return;
+    }
+
+    input.value = formatEditableNumber(value);
+
+    if (document.activeElement !== input) {
+      formatNumericInput(input);
+    }
+  }
 
   function toLocalDateInputValue(date) {
     const year = date.getFullYear();
@@ -279,26 +347,18 @@ function initCalculator() {
     return document.querySelector('input[name="purchaseMode"]:checked').value === "amount";
   }
 
-  function formatInputMoney(value) {
-    if (!Number.isFinite(value)) {
-      return "";
-    }
-
-    return String(Number(value.toFixed(2)));
-  }
-
   function syncPurchaseFields() {
     const purchaseByAmount = isPurchaseByAmount();
-    const purchasePrice = Number(purchasePriceInput.value);
+    const purchasePrice = parseInputNumber(purchasePriceInput);
 
-    quantityInput.readOnly = purchaseByAmount;
-    investmentAmountInput.readOnly = !purchaseByAmount;
+    quantityInput.disabled = purchaseByAmount;
+    investmentAmountInput.disabled = !purchaseByAmount;
     quantityInput.required = !purchaseByAmount;
     investmentAmountInput.required = purchaseByAmount;
     purchaseRemainder.hidden = !purchaseByAmount;
 
     if (purchaseByAmount) {
-      const investmentAmount = Number(investmentAmountInput.value);
+      const investmentAmount = parseInputNumber(investmentAmountInput);
       const quantity =
         Number.isFinite(investmentAmount) && investmentAmount > 0 && purchasePrice > 0
           ? calculatePurchasableQuantity(investmentAmount, purchasePrice)
@@ -308,7 +368,7 @@ function initCalculator() {
           ? calculateInvestmentRemainder(investmentAmount, purchasePrice, quantity)
           : null;
 
-      quantityInput.value = quantity === null ? "" : String(quantity);
+      setNumericInputValue(quantityInput, quantity === null ? Number.NaN : quantity);
       purchaseRemainderValue.textContent =
         remainder === null ? "—" : currencyFormatter.format(remainder);
       return;
@@ -316,11 +376,64 @@ function initCalculator() {
 
     purchaseRemainderValue.textContent = "—";
 
-    const quantity = Number(quantityInput.value);
-    investmentAmountInput.value =
+    const quantity = parseInputNumber(quantityInput);
+    const investmentAmount =
       Number.isInteger(quantity) && quantity > 0 && purchasePrice > 0
-        ? formatInputMoney(calculateInvestmentAmount(purchasePrice, quantity))
-        : "";
+        ? calculateInvestmentAmount(purchasePrice, quantity)
+        : Number.NaN;
+
+    setNumericInputValue(investmentAmountInput, investmentAmount);
+  }
+
+  function getFieldError(input) {
+    const field = input.closest(".field");
+
+    if (!field) {
+      return null;
+    }
+
+    const errorId = `${input.id}-error`;
+    let error = document.getElementById(errorId);
+
+    if (!error) {
+      error = document.createElement("span");
+      error.id = errorId;
+      error.className = "field-error";
+      error.setAttribute("role", "alert");
+      error.hidden = true;
+      field.append(error);
+    }
+
+    return error;
+  }
+
+  function clearFieldError(input) {
+    input.removeAttribute("aria-invalid");
+
+    const error = document.getElementById(`${input.id}-error`);
+
+    if (!error) {
+      return;
+    }
+
+    error.textContent = "";
+    error.hidden = true;
+
+    const describedBy = (input.getAttribute("aria-describedby") || "")
+      .split(/\s+/)
+      .filter((id) => id && id !== error.id);
+
+    if (describedBy.length > 0) {
+      input.setAttribute("aria-describedby", describedBy.join(" "));
+    } else {
+      input.removeAttribute("aria-describedby");
+    }
+  }
+
+  function clearValidationErrors() {
+    for (const input of form.querySelectorAll("input")) {
+      clearFieldError(input);
+    }
   }
 
   function updateScenarioFields() {
@@ -333,20 +446,19 @@ function initCalculator() {
     holdingMonths.required = !holdToMaturity;
     salePrice.required = !holdToMaturity;
     scenarioLabel.textContent = holdToMaturity ? "До погашения" : "Продажа";
-    formError.textContent = "";
-
-    for (const input of form.querySelectorAll('[aria-invalid="true"]')) {
-      input.removeAttribute("aria-invalid");
-    }
+    clearValidationErrors();
   }
 
   function parseNumber(selector) {
-    return Number(document.querySelector(selector).value);
+    return parseInputNumber(document.querySelector(selector));
   }
 
   function calculateHoldingYears() {
     if (!isHoldingToMaturity()) {
-      return combineHoldingPeriod(Number(holdingYears.value), Number(holdingMonths.value));
+      return combineHoldingPeriod(
+        parseInputNumber(holdingYears),
+        parseInputNumber(holdingMonths),
+      );
     }
 
     const today = new Date();
@@ -357,7 +469,19 @@ function initCalculator() {
 
   function markInvalid(input, message) {
     input.setAttribute("aria-invalid", "true");
-    formError.textContent = message;
+    const error = getFieldError(input);
+
+    if (error) {
+      error.textContent = message;
+      error.hidden = false;
+
+      const describedBy = new Set(
+        (input.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean),
+      );
+      describedBy.add(error.id);
+      input.setAttribute("aria-describedby", Array.from(describedBy).join(" "));
+    }
+
     input.focus();
   }
 
@@ -402,8 +526,8 @@ function initCalculator() {
     }
 
     if (!isHoldingToMaturity()) {
-      const yearsValue = Number(holdingYears.value);
-      const monthsValue = Number(holdingMonths.value);
+      const yearsValue = parseInputNumber(holdingYears);
+      const monthsValue = parseInputNumber(holdingMonths);
 
       if (!Number.isInteger(yearsValue) || yearsValue < 0) {
         markInvalid(holdingYears, "Количество лет должно быть целым неотрицательным числом");
@@ -444,11 +568,14 @@ function initCalculator() {
     emptyResults.hidden = true;
     calculatedResults.hidden = false;
 
-    const yieldRow = document.querySelector(".yield-row");
-    const isLoss = result.annualIncome < 0;
-    yieldRow.classList.toggle("loss", isLoss);
+    const annualYieldWithPriceMetric = document.querySelector(
+      "#annual-yield-with-price-metric",
+    );
+    annualYieldWithPriceMetric.classList.toggle("loss", result.annualYieldWithPrice < 0);
 
     document.querySelector("#annual-yield").textContent = `${percentFormatter.format(result.annualYield)}%`;
+    document.querySelector("#annual-yield-with-price").textContent =
+      `${percentFormatter.format(result.annualYieldWithPrice)}%`;
     setSignedValue(document.querySelector("#annual-income"), result.annualIncome);
     document.querySelector("#final-amount").textContent = currencyFormatter.format(result.finalAmount);
     document.querySelector("#investment").textContent = currencyFormatter.format(result.investment);
@@ -459,13 +586,23 @@ function initCalculator() {
     setSignedValue(document.querySelector("#total-income"), result.totalProfit);
   }
 
+  function handleClearForm() {
+    for (const input of form.querySelectorAll('input:not([type="radio"])')) {
+      input.value = "";
+    }
+
+    clearValidationErrors();
+    syncPurchaseFields();
+
+    calculatedResults.hidden = true;
+    emptyResults.hidden = false;
+
+    document.querySelector("#nominal").focus();
+  }
+
   function handleSubmit(event) {
     event.preventDefault();
-    formError.textContent = "";
-
-    for (const input of form.querySelectorAll('[aria-invalid="true"]')) {
-      input.removeAttribute("aria-invalid");
-    }
+    clearValidationErrors();
 
     syncPurchaseFields();
 
@@ -480,7 +617,7 @@ function initCalculator() {
       coupon: parseNumber("#coupon"),
       paymentsPerYear: parseNumber("#payments-per-year"),
       holdingYears: calculateHoldingYears(),
-      exitPrice: holdToMaturity ? parseNumber("#nominal") : Number(salePrice.value),
+      exitPrice: holdToMaturity ? parseNumber("#nominal") : parseInputNumber(salePrice),
     };
 
     if (!validate(values)) {
@@ -504,15 +641,26 @@ function initCalculator() {
 
   syncPurchaseFields();
 
+  for (const input of numericInputs) {
+    formatNumericInput(input);
+
+    input.addEventListener("focus", () => {
+      prepareNumericInputForEditing(input);
+    });
+
+    input.addEventListener("blur", () => {
+      formatNumericInput(input);
+    });
+  }
+
   for (const radio of purchaseModeRadios) {
     radio.addEventListener("change", () => {
       if (radio.checked) {
         savePurchaseMode(radio.value);
       }
       syncPurchaseFields();
-      quantityInput.removeAttribute("aria-invalid");
-      investmentAmountInput.removeAttribute("aria-invalid");
-      formError.textContent = "";
+      clearFieldError(quantityInput);
+      clearFieldError(investmentAmountInput);
     });
   }
 
@@ -534,8 +682,7 @@ function initCalculator() {
 
   for (const input of form.querySelectorAll("input")) {
     input.addEventListener("input", () => {
-      input.removeAttribute("aria-invalid");
-      formError.textContent = "";
+      clearFieldError(input);
     });
   }
 
@@ -546,6 +693,7 @@ function initCalculator() {
     }
   });
 
+  clearFormButton.addEventListener("click", handleClearForm);
   form.addEventListener("submit", handleSubmit);
 }
 

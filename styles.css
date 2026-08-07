@@ -8,8 +8,8 @@
   --card-border: rgba(23, 35, 30, 0.08);
   --field-label: #3d4a44;
   --input-bg: #fff;
-  --readonly-bg: #f1f2ee;
-  --readonly-text: #68736d;
+  --disabled-bg: #f1f2ee;
+  --disabled-text: #68736d;
   --input-hover: #afb8b2;
   --invalid-bg: #fffafa;
   --input-unit: #8a948f;
@@ -44,8 +44,8 @@
   --card-border: rgba(214, 237, 225, 0.1);
   --field-label: #cbd8d1;
   --input-bg: #172720;
-  --readonly-bg: #13211b;
-  --readonly-text: #82948b;
+  --disabled-bg: #13211b;
+  --disabled-text: #82948b;
   --input-hover: #587064;
   --invalid-bg: #321f21;
   --input-unit: #91a299;
@@ -220,6 +220,10 @@ input[type="radio"] {
   margin-bottom: 34px;
 }
 
+.panel-heading-copy {
+  min-width: 0;
+}
+
 .step-number {
   display: inline-grid;
   flex: 0 0 auto;
@@ -259,6 +263,7 @@ input[type="radio"] {
 
 .field {
   display: grid;
+  align-content: start;
   min-width: 0;
   gap: 9px;
 }
@@ -317,12 +322,17 @@ input[type="radio"] {
   background: var(--invalid-bg);
 }
 
-.input-wrap input[readonly],
-.input-wrap input[readonly]:hover {
+.input-wrap input:disabled,
+.input-wrap input:disabled:hover {
   border-color: var(--line);
-  background: var(--readonly-bg);
-  color: var(--readonly-text);
-  cursor: default;
+  background: var(--disabled-bg);
+  color: var(--disabled-text);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.input-wrap input:disabled + .input-unit {
+  color: var(--disabled-text);
 }
 
 .input-unit {
@@ -427,7 +437,12 @@ input[type="radio"] {
 }
 
 .segmented-control.purchase-mode-control {
-  width: 224px;
+  grid-template-columns: auto auto;
+  width: 340px;
+}
+
+.purchase-mode-control label {
+  white-space: nowrap;
 }
 
 .segmented-control input {
@@ -476,12 +491,59 @@ input[type="radio"] {
   font-weight: 500;
 }
 
-.form-error {
-  min-height: 18px;
-  margin: 14px 0 4px;
+.field-error {
+  margin: -2px 0 0;
   color: var(--loss);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1.35;
+}
+
+.field-error[hidden] {
+  display: none;
+}
+
+.clear-button {
+  display: grid;
+  flex: 0 0 auto;
+  align-self: center;
+  width: 42px;
+  height: 42px;
+  margin-left: auto;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.clear-button:hover {
+  transform: translateY(-1px);
+  border-color: var(--input-hover);
+  background: var(--green-soft);
+}
+
+.clear-button:active {
+  transform: translateY(0);
+}
+
+.clear-button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.clear-button-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
 }
 
 .calculate-button {
@@ -490,6 +552,7 @@ input[type="radio"] {
   justify-content: space-between;
   width: 100%;
   min-height: 58px;
+  margin-top: 18px;
   padding: 7px 8px 7px 22px;
   border: 0;
   border-radius: 14px;
@@ -523,12 +586,18 @@ input[type="radio"] {
   place-items: center;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.13);
-  font-size: 22px;
+}
+
+.button-arrow-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 
 .results-panel {
   position: relative;
-  overflow: hidden;
+  z-index: 1;
+  overflow: visible;
   background:
     radial-gradient(circle at 94% 5%, rgba(201, 242, 124, 0.18), transparent 18rem),
     var(--results-bg);
@@ -720,19 +789,70 @@ input[type="radio"] {
   visibility: visible;
 }
 
-.yield-row {
+.yield-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-bottom: 24px;
 }
 
-.yield-row > strong {
+.yield-metric {
+  min-width: 0;
+}
+
+.yield-metric:first-child {
+  padding-right: 28px;
+}
+
+.yield-metric + .yield-metric {
+  padding-left: 28px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.yield-metric-label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.yield-metric .yield-tooltip {
+  position: static;
+}
+
+.yield-metric .yield-tooltip-text {
+  left: 0;
+  width: 270px;
+  transform: translateY(4px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.yield-metric:last-child .yield-tooltip-text {
+  right: 0;
+  left: auto;
+}
+
+.yield-metric .yield-tooltip:hover .yield-tooltip-text,
+.yield-metric .yield-tooltip:focus-within .yield-tooltip-text {
+  transform: translateY(0);
+}
+
+.yield-metric > strong {
+  display: block;
+  margin-top: 10px;
   color: var(--lime);
-  font-size: clamp(48px, 6vw, 70px);
+  font-size: clamp(40px, 4.5vw, 56px);
   font-weight: 650;
   letter-spacing: -0.06em;
   line-height: 1;
+  white-space: nowrap;
 }
 
-.yield-row.loss > strong {
+.yield-metric.loss > strong {
   color: #ffb9b9;
 }
 
@@ -746,6 +866,7 @@ input[type="radio"] {
 }
 
 .summary-card > div {
+  position: relative;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -779,15 +900,23 @@ input[type="radio"] {
   vertical-align: middle;
 }
 
+.summary-card .yield-tooltip {
+  position: relative;
+}
+
 .summary-card .yield-tooltip-text {
-  right: 0;
-  left: auto;
-  transform: translate(0, 4px);
+  bottom: calc(100% + 9px);
+  left: 50%;
+  width: 270px;
+  max-width: min(270px, calc(100vw - 48px));
+  transform: translate(-50%, 4px);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .summary-card .yield-tooltip:hover .yield-tooltip-text,
 .summary-card .yield-tooltip:focus-within .yield-tooltip-text {
-  transform: translate(0, 0);
+  transform: translate(-50%, 0);
 }
 
 .summary-card dd {
@@ -927,12 +1056,36 @@ input[type="radio"] {
     width: 100%;
   }
 
+  .segmented-control.purchase-mode-control {
+    width: 100%;
+  }
+
   .calculated-results {
     padding-top: 44px;
   }
 
-  .yield-row > strong {
-    font-size: 56px;
+  .yield-comparison {
+    grid-template-columns: 1fr;
+  }
+
+  .yield-metric + .yield-metric {
+    margin: 18px 0 0;
+    padding: 18px 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+    border-left: 0;
+  }
+
+  .yield-metric:first-child {
+    padding-right: 0;
+  }
+
+  .yield-metric:last-child .yield-tooltip-text {
+    right: auto;
+    left: 0;
+  }
+
+  .yield-metric > strong {
+    font-size: 52px;
   }
 
   .summary-card {
