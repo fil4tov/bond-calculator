@@ -5,13 +5,65 @@
   --paper: #f5f3ed;
   --card: #fffefb;
   --line: #dcded8;
+  --card-border: rgba(23, 35, 30, 0.08);
+  --field-label: #3d4a44;
+  --input-bg: #fff;
+  --input-hover: #afb8b2;
+  --invalid-bg: #fffafa;
+  --input-unit: #8a948f;
+  --divider: #ecece8;
+  --segment-bg: #eeefeb;
+  --segment-active: #fff;
+  --segment-active-text: #154535;
+  --hint: #85908a;
+  --focus-ring: rgba(34, 95, 73, 0.12);
+  --toggle-bg: rgba(255, 254, 251, 0.72);
+  --toggle-icon-bg: #e5f0e9;
+  --glow-primary: rgba(201, 242, 124, 0.24);
+  --glow-secondary: rgba(34, 95, 73, 0.1);
   --green: #225f49;
   --green-dark: #154535;
   --green-soft: #dfece5;
+  --accent-text: #225f49;
+  --results-bg: #154535;
   --lime: #c9f27c;
   --loss: #a23a3a;
   --loss-soft: #f8dddd;
   --shadow: 0 28px 70px rgba(23, 35, 30, 0.1);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #edf5f0;
+  --muted: #9caca4;
+  --paper: #09110e;
+  --card: #111d18;
+  --line: #34463d;
+  --card-border: rgba(214, 237, 225, 0.1);
+  --field-label: #cbd8d1;
+  --input-bg: #172720;
+  --input-hover: #587064;
+  --invalid-bg: #321f21;
+  --input-unit: #91a299;
+  --divider: #2b3c34;
+  --segment-bg: #192720;
+  --segment-active: #2b3d34;
+  --segment-active-text: #d9f4e5;
+  --hint: #82948b;
+  --focus-ring: rgba(142, 217, 175, 0.2);
+  --toggle-bg: rgba(22, 37, 30, 0.82);
+  --toggle-icon-bg: #2b4437;
+  --glow-primary: rgba(129, 190, 145, 0.12);
+  --glow-secondary: rgba(63, 133, 99, 0.12);
+  --green: #2f805f;
+  --green-dark: #236649;
+  --green-soft: #233b30;
+  --accent-text: #91d9b1;
+  --results-bg: #0d382a;
+  --lime: #c9f27c;
+  --loss: #ef8585;
+  --loss-soft: #432426;
+  --shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -27,12 +79,13 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--ink);
-  background:
-    radial-gradient(circle at 8% 6%, rgba(201, 242, 124, 0.24), transparent 24rem),
-    radial-gradient(circle at 93% 28%, rgba(34, 95, 73, 0.1), transparent 28rem),
-    var(--paper);
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(circle at 8% 6%, var(--glow-primary), transparent 24rem),
+    radial-gradient(circle at 93% 28%, var(--glow-secondary), transparent 28rem);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: color 220ms ease, background-color 220ms ease;
 }
 
 button,
@@ -53,16 +106,23 @@ input[type="radio"] {
 }
 
 .hero {
-  max-width: 760px;
   margin-bottom: 40px;
+}
+
+.hero-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
 }
 
 .eyebrow {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 22px;
-  color: var(--green);
+  margin-bottom: 0;
+  color: var(--accent-text);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.16em;
@@ -72,10 +132,51 @@ input[type="radio"] {
 .eyebrow span {
   width: 26px;
   height: 2px;
-  background: var(--green);
+  background: var(--accent-text);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  min-height: 42px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--toggle-bg);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(23, 35, 30, 0.08);
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.theme-toggle:hover {
+  transform: translateY(-1px);
+  border-color: var(--input-hover);
+}
+
+.theme-toggle:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.theme-toggle-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--toggle-icon-bg);
+  color: var(--accent-text);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .hero h1 {
+  max-width: 760px;
   margin: 0;
   font-size: clamp(42px, 6vw, 72px);
   font-weight: 650;
@@ -96,10 +197,11 @@ input[type="radio"] {
   grid-template-columns: minmax(0, 1.08fr) minmax(380px, 0.92fr);
   overflow: hidden;
   min-height: 710px;
-  border: 1px solid rgba(23, 35, 30, 0.08);
+  border: 1px solid var(--card-border);
   border-radius: 28px;
   background: var(--card);
   box-shadow: var(--shadow);
+  transition: background-color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
 }
 
 .form-panel,
@@ -122,7 +224,7 @@ input[type="radio"] {
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 50%;
-  color: var(--green);
+  color: var(--accent-text);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -162,7 +264,7 @@ input[type="radio"] {
 
 .field-label,
 .holding-choice legend {
-  color: #3d4a44;
+  color: var(--field-label);
   font-size: 13px;
   font-weight: 650;
 }
@@ -179,7 +281,7 @@ input[type="radio"] {
   border: 1px solid var(--line);
   border-radius: 12px;
   outline: none;
-  background: #fff;
+  background: var(--input-bg);
   color: var(--ink);
   font-size: 16px;
   font-weight: 620;
@@ -191,17 +293,17 @@ input[type="radio"] {
 }
 
 .input-wrap input:hover {
-  border-color: #afb8b2;
+  border-color: var(--input-hover);
 }
 
 .input-wrap input:focus {
   border-color: var(--green);
-  box-shadow: 0 0 0 4px rgba(34, 95, 73, 0.12);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 .input-wrap input[aria-invalid="true"] {
   border-color: var(--loss);
-  background: #fffafa;
+  background: var(--invalid-bg);
 }
 
 .input-unit {
@@ -209,7 +311,7 @@ input[type="radio"] {
   top: 50%;
   right: 15px;
   transform: translateY(-50%);
-  color: #8a948f;
+  color: var(--input-unit);
   font-size: 13px;
   font-weight: 650;
   pointer-events: none;
@@ -223,8 +325,8 @@ input[type="radio"] {
   margin: 30px 0 21px;
   padding: 20px 0;
   border: 0;
-  border-top: 1px solid #ecece8;
-  border-bottom: 1px solid #ecece8;
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
 }
 
 .holding-choice legend {
@@ -239,7 +341,7 @@ input[type="radio"] {
   width: 154px;
   padding: 4px;
   border-radius: 11px;
-  background: #eeefeb;
+  background: var(--segment-bg);
 }
 
 .segmented-control input {
@@ -261,13 +363,13 @@ input[type="radio"] {
 }
 
 .segmented-control input:checked + label {
-  background: #fff;
-  color: var(--green-dark);
+  background: var(--segment-active);
+  color: var(--segment-active-text);
   box-shadow: 0 3px 10px rgba(23, 35, 30, 0.1);
 }
 
 .segmented-control input:focus-visible + label {
-  outline: 3px solid rgba(34, 95, 73, 0.25);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -277,13 +379,13 @@ input[type="radio"] {
 
 .field-hint {
   margin: 8px 0 0;
-  color: #85908a;
+  color: var(--hint);
   font-size: 12px;
 }
 
 .input-hint {
   margin-top: -3px;
-  color: #85908a;
+  color: var(--hint);
   font-size: 11px;
   font-weight: 500;
 }
@@ -324,7 +426,7 @@ input[type="radio"] {
 }
 
 .calculate-button:focus-visible {
-  outline: 3px solid rgba(34, 95, 73, 0.25);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
 }
 
@@ -343,8 +445,9 @@ input[type="radio"] {
   overflow: hidden;
   background:
     radial-gradient(circle at 94% 5%, rgba(201, 242, 124, 0.18), transparent 18rem),
-    var(--green-dark);
+    var(--results-bg);
   color: #fff;
+  transition: background-color 220ms ease;
 }
 
 .results-panel::after {

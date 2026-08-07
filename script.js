@@ -2,6 +2,56 @@
 
 const DAYS_IN_YEAR = 365.2425;
 const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
+const THEME_STORAGE_KEY = "bond-theme";
+
+function getStoredTheme() {
+  try {
+    const theme = localStorage.getItem(THEME_STORAGE_KEY);
+    return theme === "light" || theme === "dark" ? theme : null;
+  } catch {
+    return null;
+  }
+}
+
+function getSystemTheme() {
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(theme, toggle) {
+  const isDark = theme === "dark";
+  document.documentElement.dataset.theme = theme;
+  toggle.setAttribute("aria-pressed", String(isDark));
+  toggle.setAttribute("aria-label", isDark ? "Включить светлую тему" : "Включить тёмную тему");
+  toggle.querySelector(".theme-toggle-icon").textContent = isDark ? "☀" : "☾";
+}
+
+function initThemeToggle() {
+  const toggle = document.querySelector("#theme-toggle");
+  const systemTheme = window.matchMedia?.("(prefers-color-scheme: dark)");
+  let hasManualChoice = getStoredTheme() !== null;
+  const initialTheme = document.documentElement.dataset.theme || getStoredTheme() || getSystemTheme();
+
+  applyTheme(initialTheme, toggle);
+
+  toggle.addEventListener("click", () => {
+    const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    hasManualChoice = true;
+
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    } catch {
+      // Тема всё равно переключится в текущей вкладке.
+    }
+
+    applyTheme(nextTheme, toggle);
+  });
+
+  systemTheme?.addEventListener("change", (event) => {
+    if (!hasManualChoice) {
+      applyTheme(event.matches ? "dark" : "light", toggle);
+    }
+  });
+}
 
 function pluralizeRu(value, forms) {
   const normalized = Math.abs(value) % 100;
@@ -321,6 +371,7 @@ function initCalculator() {
 }
 
 if (typeof document !== "undefined") {
+  initThemeToggle();
   initCalculator();
 }
 

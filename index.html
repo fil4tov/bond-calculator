@@ -8,13 +8,36 @@
       content="Калькулятор годовой доходности облигаций с учетом купонов и разницы между ценой покупки и ценой выхода."
     />
     <title>Калькулятор доходности облигаций</title>
+    <script>
+      (() => {
+        try {
+          const savedTheme = localStorage.getItem("bond-theme");
+          const systemTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          document.documentElement.dataset.theme =
+            savedTheme === "dark" || savedTheme === "light" ? savedTheme : systemTheme;
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="styles.css" />
     <script src="script.js" defer></script>
   </head>
   <body>
     <main class="page-shell">
       <header class="hero">
-        <div class="eyebrow"><span aria-hidden="true"></span> Облигации</div>
+        <div class="hero-toolbar">
+          <div class="eyebrow"><span aria-hidden="true"></span> Облигации</div>
+          <button
+            id="theme-toggle"
+            class="theme-toggle"
+            type="button"
+            aria-label="Включить тёмную тему"
+            aria-pressed="false"
+          >
+            <span class="theme-toggle-icon" aria-hidden="true">☾</span>
+          </button>
+        </div>
         <h1>Рассчитайте реальную<br />доходность вложения</h1>
         <p>
           Учтём купоны, срок владения и разницу между ценой покупки и ценой
