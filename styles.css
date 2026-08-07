@@ -564,12 +564,74 @@ input[type="radio"] {
 }
 
 .result-kicker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin: 0 0 10px;
   color: rgba(255, 255, 255, 0.62);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.yield-tooltip {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.yield-tooltip-trigger {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: help;
+}
+
+.yield-tooltip-trigger:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+
+.yield-tooltip-text {
+  position: absolute;
+  z-index: 3;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  width: max-content;
+  max-width: min(270px, calc(100vw - 48px));
+  padding: 9px 11px;
+  transform: translate(-50%, 4px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9px;
+  background: #0b2b21;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: normal;
+  line-height: 1.35;
+  text-transform: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease, visibility 160ms ease;
+}
+
+.yield-tooltip:hover .yield-tooltip-text,
+.yield-tooltip:focus-within .yield-tooltip-text {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  visibility: visible;
 }
 
 .yield-row {
@@ -615,9 +677,23 @@ input[type="radio"] {
 }
 
 .summary-card dt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   color: rgba(255, 255, 255, 0.58);
   font-size: 16px;
   font-weight: 400;
+}
+
+.summary-card .yield-tooltip-text {
+  right: 0;
+  left: auto;
+  transform: translate(0, 4px);
+}
+
+.summary-card .yield-tooltip:hover .yield-tooltip-text,
+.summary-card .yield-tooltip:focus-within .yield-tooltip-text {
+  transform: translate(0, 0);
 }
 
 .summary-card dd {
@@ -673,13 +749,7 @@ input[type="radio"] {
   text-align: right;
 }
 
-.details-card .detail-final dt {
-  color: #fff;
-  font-size: 16px;
-  font-weight: 400;
-}
-
-.details-card .detail-final dd {
+#final-amount {
   font-size: 22px;
 }
 
@@ -792,7 +862,7 @@ input[type="radio"] {
     text-align: left;
   }
 
-  .details-card .detail-final dd {
+  #final-amount {
     font-size: 21px;
   }
 

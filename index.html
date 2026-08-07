@@ -253,7 +253,20 @@
           </div>
 
           <div id="calculated-results" class="calculated-results" hidden>
-            <p class="result-kicker">Годовая доходность</p>
+            <div class="result-kicker">
+              <span>Годовая доходность</span>
+              <span class="yield-tooltip">
+                <button
+                  type="button"
+                  class="yield-tooltip-trigger"
+                  aria-label="Пояснение к годовой доходности"
+                  aria-describedby="yield-tooltip-text"
+                >?</button>
+                <span id="yield-tooltip-text" class="yield-tooltip-text" role="tooltip">
+                  без учета дохода/убытка от цены при выходе
+                </span>
+              </span>
+            </div>
             <div class="yield-row">
               <strong id="annual-yield">0,00%</strong>
             </div>
@@ -268,7 +281,24 @@
                 <dd id="coupon-income-total">0 ₽</dd>
               </div>
               <div>
-                <dt>Доход/убыток от цены при выходе</dt>
+                <dt>
+                  <span>Доход/убыток от цены при выходе</span>
+                  <span class="yield-tooltip">
+                    <button
+                      type="button"
+                      class="yield-tooltip-trigger"
+                      aria-label="Пояснение к доходу или убытку от цены при выходе"
+                      aria-describedby="price-result-tooltip-text"
+                    >?</button>
+                    <span
+                      id="price-result-tooltip-text"
+                      class="yield-tooltip-text"
+                      role="tooltip"
+                    >
+                      (цена выкупа − цена покупки) × количество облигаций
+                    </span>
+                  </span>
+                </dt>
                 <dd id="price-result">0 ₽</dd>
               </div>
               <div>
@@ -287,7 +317,7 @@
                   <dt>Сумма вложения</dt>
                   <dd id="investment">0 ₽</dd>
                 </div>
-                <div class="detail-final">
+                <div>
                   <dt>Итоговая сумма</dt>
                   <dd id="final-amount">0 ₽</dd>
                 </div>
