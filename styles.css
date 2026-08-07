@@ -104,7 +104,7 @@ input[type="radio"] {
 }
 
 .page-shell {
-  width: min(1180px, calc(100% - 40px));
+  width: min(1280px, calc(100% - 40px));
   margin: 0 auto;
   padding: 68px 0 80px;
 }
@@ -177,6 +177,11 @@ input[type="radio"] {
   color: var(--accent-text);
   font-size: 16px;
   line-height: 1;
+}
+
+:root[data-theme="light"] .theme-toggle-icon {
+  background: var(--accent-text);
+  color: var(--toggle-icon-bg);
 }
 
 .hero h1 {
@@ -760,6 +765,9 @@ input[type="radio"] {
 .yield-tooltip-text {
   position: absolute;
   z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
   bottom: calc(100% + 9px);
   left: 50%;
   width: max-content;
@@ -771,7 +779,7 @@ input[type="radio"] {
   background: #0b2b21;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
   color: #fff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   letter-spacing: normal;
   line-height: 1.35;
@@ -782,8 +790,23 @@ input[type="radio"] {
   transition: opacity 160ms ease, transform 160ms ease, visibility 160ms ease;
 }
 
+.tooltip-operator-icon {
+  display: inline-block;
+  width: 1.2em;
+  height: 1.35em;
+  margin: 0 0.18em;
+  overflow: visible;
+  fill: currentColor;
+  vertical-align: -0.12em;
+}
+
+.tooltip-multiply-icon {
+  width: 1em;
+  height: 1em;
+}
+
 .yield-tooltip:hover .yield-tooltip-text,
-.yield-tooltip:focus-within .yield-tooltip-text {
+.yield-tooltip-trigger:focus-visible + .yield-tooltip-text {
   transform: translate(-50%, 0);
   opacity: 1;
   visibility: visible;
@@ -838,7 +861,7 @@ input[type="radio"] {
 }
 
 .yield-metric .yield-tooltip:hover .yield-tooltip-text,
-.yield-metric .yield-tooltip:focus-within .yield-tooltip-text {
+.yield-metric .yield-tooltip-trigger:focus-visible + .yield-tooltip-text {
   transform: translateY(0);
 }
 
@@ -916,7 +939,7 @@ input[type="radio"] {
 }
 
 .summary-card .yield-tooltip:hover .yield-tooltip-text,
-.summary-card .yield-tooltip:focus-within .yield-tooltip-text {
+.summary-card .yield-tooltip-trigger:focus-visible + .yield-tooltip-text {
   transform: translate(-50%, 0);
 }
 
@@ -1007,7 +1030,7 @@ input[type="radio"] {
 
 @media (max-width: 580px) {
   .page-shell {
-    width: min(100% - 24px, 1180px);
+    width: min(100% - 24px, 1280px);
     padding: 34px 0 46px;
   }
 
