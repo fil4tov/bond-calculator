@@ -3,6 +3,7 @@
 const DAYS_IN_YEAR = 365.2425;
 const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
 const THEME_STORAGE_KEY = "bond-theme";
+const PURCHASE_MODE_STORAGE_KEY = "bond-purchase-mode";
 
 function getStoredTheme() {
   try {
@@ -10,6 +11,23 @@ function getStoredTheme() {
     return theme === "light" || theme === "dark" ? theme : null;
   } catch {
     return null;
+  }
+}
+
+function getStoredPurchaseMode() {
+  try {
+    const mode = localStorage.getItem(PURCHASE_MODE_STORAGE_KEY);
+    return mode === "quantity" || mode === "amount" ? mode : null;
+  } catch {
+    return null;
+  }
+}
+
+function savePurchaseMode(mode) {
+  try {
+    localStorage.setItem(PURCHASE_MODE_STORAGE_KEY, mode);
+  } catch {
+    // Выбранный режим всё равно применяется в текущей вкладке.
   }
 }
 
@@ -142,6 +160,24 @@ function calculateInvestmentAmount(purchasePrice, quantity) {
   return (toKopecks(purchasePrice) * quantity) / 100;
 }
 
+function calculateInvestmentRemainder(investmentAmount, purchasePrice, quantity) {
+  if (
+    !Number.isFinite(investmentAmount) ||
+    !Number.isFinite(purchasePrice) ||
+    !Number.isInteger(quantity) ||
+    investmentAmount < 0 ||
+    purchasePrice <= 0 ||
+    quantity < 0
+  ) {
+    return null;
+  }
+
+  const remainderInKopecks =
+    toKopecks(investmentAmount) - toKopecks(purchasePrice) * quantity;
+
+  return remainderInKopecks >= 0 ? remainderInKopecks / 100 : null;
+}
+
 /**
  * Рассчитывает купонную доходность и отдельный результат от цены выхода.
  * Все денежные значения относятся к одной облигации, кроме результатов.
@@ -186,6 +222,8 @@ function initCalculator() {
   const purchasePriceInput = document.querySelector("#purchase-price");
   const quantityInput = document.querySelector("#quantity");
   const investmentAmountInput = document.querySelector("#investment-amount");
+  const purchaseRemainder = document.querySelector("#purchase-remainder");
+  const purchaseRemainderValue = document.querySelector("#purchase-remainder-value");
   const maturityFields = document.querySelector("#maturity-fields");
   const saleFields = document.querySelector("#sale-fields");
   const maturityDate = document.querySelector("#maturity-date");
@@ -257,15 +295,26 @@ function initCalculator() {
     investmentAmountInput.readOnly = !purchaseByAmount;
     quantityInput.required = !purchaseByAmount;
     investmentAmountInput.required = purchaseByAmount;
+    purchaseRemainder.hidden = !purchaseByAmount;
 
     if (purchaseByAmount) {
       const investmentAmount = Number(investmentAmountInput.value);
-      quantityInput.value =
+      const quantity =
         Number.isFinite(investmentAmount) && investmentAmount > 0 && purchasePrice > 0
-          ? String(calculatePurchasableQuantity(investmentAmount, purchasePrice))
-          : "";
+          ? calculatePurchasableQuantity(investmentAmount, purchasePrice)
+          : null;
+      const remainder =
+        quantity !== null && quantity >= 1
+          ? calculateInvestmentRemainder(investmentAmount, purchasePrice, quantity)
+          : null;
+
+      quantityInput.value = quantity === null ? "" : String(quantity);
+      purchaseRemainderValue.textContent =
+        remainder === null ? "—" : currencyFormatter.format(remainder);
       return;
     }
+
+    purchaseRemainderValue.textContent = "—";
 
     const quantity = Number(quantityInput.value);
     investmentAmountInput.value =
@@ -443,10 +492,23 @@ function initCalculator() {
 
   setDateDefaults();
   updateScenarioFields();
+
+  const storedPurchaseMode = getStoredPurchaseMode();
+  const storedPurchaseModeRadio = Array.from(purchaseModeRadios).find(
+    (radio) => radio.value === storedPurchaseMode,
+  );
+
+  if (storedPurchaseModeRadio) {
+    storedPurchaseModeRadio.checked = true;
+  }
+
   syncPurchaseFields();
 
   for (const radio of purchaseModeRadios) {
     radio.addEventListener("change", () => {
+      if (radio.checked) {
+        savePurchaseMode(radio.value);
+      }
       syncPurchaseFields();
       quantityInput.removeAttribute("aria-invalid");
       investmentAmountInput.removeAttribute("aria-invalid");
@@ -495,6 +557,7 @@ if (typeof document !== "undefined") {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     calculateBond,
+    calculateInvestmentRemainder,
     calculatePurchasableQuantity,
     combineHoldingPeriod,
     formatHoldingPeriod,
