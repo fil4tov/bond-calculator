@@ -85,7 +85,8 @@ function calculateBond({
   const priceDifference = (exitPrice - purchasePrice) * quantity;
   const annualIncome = annualCoupons;
   const annualYield = (annualIncome / investment) * 100;
-  const totalProfit = annualCoupons * holdingYears + priceDifference;
+  const couponIncomeTotal = annualCoupons * holdingYears;
+  const totalProfit = couponIncomeTotal + priceDifference;
   const finalAmount = investment + totalProfit;
 
   return {
@@ -95,6 +96,7 @@ function calculateBond({
     priceDifference,
     annualIncome,
     annualYield,
+    couponIncomeTotal,
     totalProfit,
     finalAmount,
     holdingYears,
@@ -265,7 +267,7 @@ function initCalculator() {
     document.querySelector("#investment").textContent = currencyFormatter.format(result.investment);
     document.querySelector("#holding-period").textContent = formatHoldingPeriod(result.holdingYears);
     setSignedValue(document.querySelector("#price-result"), result.priceDifference);
-    setSignedValue(document.querySelector("#total-profit"), result.totalProfit);
+    setSignedValue(document.querySelector("#coupon-income-total"), result.couponIncomeTotal);
   }
 
   function handleSubmit(event) {
