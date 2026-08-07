@@ -236,6 +236,7 @@ function initCalculator() {
   const emptyResults = document.querySelector("#empty-results");
   const calculatedResults = document.querySelector("#calculated-results");
   const scenarioLabel = document.querySelector("#scenario-label");
+  let hasSuccessfulCalculation = false;
 
   const currencyFormatter = new Intl.NumberFormat("ru-RU", {
     style: "currency",
@@ -467,7 +468,7 @@ function initCalculator() {
     return (endDate.getTime() - today.getTime()) / (MILLISECONDS_IN_DAY * DAYS_IN_YEAR);
   }
 
-  function markInvalid(input, message) {
+  function markInvalid(input, message, { focus = true } = {}) {
     input.setAttribute("aria-invalid", "true");
     const error = getFieldError(input);
 
@@ -482,10 +483,20 @@ function initCalculator() {
       input.setAttribute("aria-describedby", Array.from(describedBy).join(" "));
     }
 
-    input.focus();
+    if (focus) {
+      input.focus();
+    }
   }
 
-  function validate(values) {
+  function validate(values, { showErrors = true, focusInvalid = true } = {}) {
+    function reject(input, message) {
+      if (showErrors) {
+        markInvalid(input, message, { focus: focusInvalid });
+      }
+
+      return false;
+    }
+
     const standardFields = [
       ["#nominal", values.nominal, "Введите номинал больше нуля"],
       ["#purchase-price", values.purchasePrice, "Введите цену облигации больше нуля"],
@@ -496,33 +507,28 @@ function initCalculator() {
       const input = document.querySelector(selector);
       const mustBeInteger = selector === "#payments-per-year";
       if (!Number.isFinite(value) || value <= 0 || (mustBeInteger && !Number.isInteger(value))) {
-        markInvalid(input, message);
-        return false;
+        return reject(input, message);
       }
     }
 
     if (values.purchaseByAmount) {
       if (!Number.isFinite(values.investmentAmount) || values.investmentAmount <= 0) {
-        markInvalid(investmentAmountInput, "Введите сумму вложения больше нуля");
-        return false;
+        return reject(investmentAmountInput, "Введите сумму вложения больше нуля");
       }
 
       if (!Number.isInteger(values.quantity) || values.quantity < 1) {
-        markInvalid(
+        return reject(
           investmentAmountInput,
           "Этой суммы недостаточно для покупки хотя бы одной облигации",
         );
-        return false;
       }
     } else if (!Number.isInteger(values.quantity) || values.quantity < 1) {
-      markInvalid(quantityInput, "Введите целое количество облигаций");
-      return false;
+      return reject(quantityInput, "Введите целое количество облигаций");
     }
 
     const couponInput = document.querySelector("#coupon");
     if (!Number.isFinite(values.coupon) || values.coupon < 0) {
-      markInvalid(couponInput, "Купон не может быть отрицательным");
-      return false;
+      return reject(couponInput, "Купон не может быть отрицательным");
     }
 
     if (!isHoldingToMaturity()) {
@@ -530,29 +536,31 @@ function initCalculator() {
       const monthsValue = parseInputNumber(holdingMonths);
 
       if (!Number.isInteger(yearsValue) || yearsValue < 0) {
-        markInvalid(holdingYears, "Количество лет должно быть целым неотрицательным числом");
-        return false;
+        return reject(
+          holdingYears,
+          "Количество лет должно быть целым неотрицательным числом",
+        );
       }
 
       if (!Number.isInteger(monthsValue) || monthsValue < 0 || monthsValue > 11) {
-        markInvalid(holdingMonths, "Количество месяцев должно быть целым числом от 0 до 11");
-        return false;
+        return reject(
+          holdingMonths,
+          "Количество месяцев должно быть целым числом от 0 до 11",
+        );
       }
     }
 
     if (!Number.isFinite(values.holdingYears) || values.holdingYears <= 0) {
-      markInvalid(
+      return reject(
         isHoldingToMaturity() ? maturityDate : holdingYears,
         isHoldingToMaturity()
           ? "Дата погашения должна быть позже сегодняшней"
           : "Введите срок владения больше нуля",
       );
-      return false;
     }
 
     if (!Number.isFinite(values.exitPrice) || values.exitPrice <= 0) {
-      markInvalid(salePrice, "Введите ожидаемую цену продажи больше нуля");
-      return false;
+      return reject(salePrice, "Введите ожидаемую цену продажи больше нуля");
     }
 
     return true;
@@ -586,29 +594,11 @@ function initCalculator() {
     setSignedValue(document.querySelector("#total-income"), result.totalProfit);
   }
 
-  function handleClearForm() {
-    for (const input of form.querySelectorAll('input:not([type="radio"])')) {
-      input.value = "";
-    }
-
-    clearValidationErrors();
-    syncPurchaseFields();
-
-    calculatedResults.hidden = true;
-    emptyResults.hidden = false;
-
-    document.querySelector("#nominal").focus();
-  }
-
-  function handleSubmit(event) {
-    event.preventDefault();
-    clearValidationErrors();
-
-    syncPurchaseFields();
-
+  function collectValues() {
     const holdToMaturity = isHoldingToMaturity();
     const purchaseByAmount = isPurchaseByAmount();
-    const values = {
+
+    return {
       nominal: parseNumber("#nominal"),
       purchasePrice: parseNumber("#purchase-price"),
       quantity: parseNumber("#quantity"),
@@ -619,12 +609,48 @@ function initCalculator() {
       holdingYears: calculateHoldingYears(),
       exitPrice: holdToMaturity ? parseNumber("#nominal") : parseInputNumber(salePrice),
     };
+  }
 
-    if (!validate(values)) {
-      return;
+  function calculateAndRender({ showErrors, focusInvalid = showErrors }) {
+    syncPurchaseFields();
+    const values = collectValues();
+
+    if (!validate(values, { showErrors, focusInvalid })) {
+      return false;
     }
 
     renderResults(calculateBond(values));
+    return true;
+  }
+
+  function recalculateIfActive() {
+    if (hasSuccessfulCalculation) {
+      calculateAndRender({ showErrors: true, focusInvalid: false });
+    }
+  }
+
+  function handleClearForm() {
+    for (const input of form.querySelectorAll('input:not([type="radio"])')) {
+      input.value = "";
+    }
+
+    clearValidationErrors();
+    syncPurchaseFields();
+
+    calculatedResults.hidden = true;
+    emptyResults.hidden = false;
+    hasSuccessfulCalculation = false;
+
+    document.querySelector("#nominal").focus();
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    clearValidationErrors();
+
+    if (calculateAndRender({ showErrors: true })) {
+      hasSuccessfulCalculation = true;
+    }
   }
 
   setDateDefaults();
@@ -685,6 +711,18 @@ function initCalculator() {
       clearFieldError(input);
     });
   }
+
+  form.addEventListener("input", (event) => {
+    if (!event.target.matches('input[type="radio"]')) {
+      recalculateIfActive();
+    }
+  });
+
+  form.addEventListener("change", (event) => {
+    if (event.target.matches('input[type="radio"]')) {
+      recalculateIfActive();
+    }
+  });
 
   form.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && event.target.matches('input:not([type="radio"])')) {
