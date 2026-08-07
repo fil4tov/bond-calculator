@@ -123,7 +123,7 @@ input[type="radio"] {
   gap: 10px;
   margin-bottom: 0;
   color: var(--accent-text);
-  font-size: 12px;
+  font-size: 24px;
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
