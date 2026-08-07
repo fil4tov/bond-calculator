@@ -236,7 +236,12 @@ function initCalculator() {
   const emptyResults = document.querySelector("#empty-results");
   const calculatedResults = document.querySelector("#calculated-results");
   const scenarioLabel = document.querySelector("#scenario-label");
+  const yieldComparison = document.querySelector(".yield-comparison");
+  const yieldValueElements = Array.from(yieldComparison.querySelectorAll(".yield-metric > strong"));
   let hasSuccessfulCalculation = false;
+  let yieldFitAnimationFrame = null;
+
+  const MIN_YIELD_FONT_SIZE = 28;
 
   const currencyFormatter = new Intl.NumberFormat("ru-RU", {
     style: "currency",
@@ -572,6 +577,67 @@ function initCalculator() {
     element.classList.toggle("negative-value", value < 0);
   }
 
+  function resetYieldValueFit() {
+    if (yieldFitAnimationFrame !== null) {
+      cancelAnimationFrame(yieldFitAnimationFrame);
+      yieldFitAnimationFrame = null;
+    }
+
+    yieldComparison.style.removeProperty("--yield-value-font-size");
+
+    for (const element of yieldValueElements) {
+      element.classList.remove("yield-value-wrap");
+    }
+  }
+
+  function fitYieldValues() {
+    yieldFitAnimationFrame = null;
+
+    if (calculatedResults.hidden) {
+      return;
+    }
+
+    yieldComparison.style.removeProperty("--yield-value-font-size");
+
+    for (const element of yieldValueElements) {
+      element.classList.remove("yield-value-wrap");
+    }
+
+    const baseFontSize = Math.min(
+      ...yieldValueElements.map((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
+    );
+    const widthScale = Math.min(
+      1,
+      ...yieldValueElements.map((element) => {
+        if (element.scrollWidth <= element.clientWidth) {
+          return 1;
+        }
+
+        return (element.clientWidth - 1) / element.scrollWidth;
+      }),
+    );
+    const fittedFontSize = Math.max(
+      MIN_YIELD_FONT_SIZE,
+      Math.floor(baseFontSize * widthScale * 100) / 100,
+    );
+
+    if (fittedFontSize < baseFontSize) {
+      yieldComparison.style.setProperty("--yield-value-font-size", `${fittedFontSize}px`);
+    }
+
+    for (const element of yieldValueElements) {
+      element.classList.toggle("yield-value-wrap", element.scrollWidth > element.clientWidth + 1);
+    }
+  }
+
+  function scheduleYieldValueFit() {
+    if (yieldFitAnimationFrame !== null) {
+      cancelAnimationFrame(yieldFitAnimationFrame);
+    }
+
+    yieldFitAnimationFrame = requestAnimationFrame(fitYieldValues);
+  }
+
   function renderResults(result) {
     emptyResults.hidden = true;
     calculatedResults.hidden = false;
@@ -592,6 +658,7 @@ function initCalculator() {
     setSignedValue(document.querySelector("#price-result"), result.priceDifference);
     setSignedValue(document.querySelector("#coupon-income-total"), result.couponIncomeTotal);
     setSignedValue(document.querySelector("#total-income"), result.totalProfit);
+    scheduleYieldValueFit();
   }
 
   function collectValues() {
@@ -640,6 +707,7 @@ function initCalculator() {
     calculatedResults.hidden = true;
     emptyResults.hidden = false;
     hasSuccessfulCalculation = false;
+    resetYieldValueFit();
 
     document.querySelector("#nominal").focus();
   }
@@ -733,6 +801,7 @@ function initCalculator() {
 
   clearFormButton.addEventListener("click", handleClearForm);
   form.addEventListener("submit", handleSubmit);
+  window.addEventListener("resize", scheduleYieldValueFit);
 }
 
 if (typeof document !== "undefined") {
