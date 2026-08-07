@@ -318,6 +318,7 @@ function initCalculator() {
     document.querySelector("#holding-period").textContent = formatHoldingPeriod(result.holdingYears);
     setSignedValue(document.querySelector("#price-result"), result.priceDifference);
     setSignedValue(document.querySelector("#coupon-income-total"), result.couponIncomeTotal);
+    setSignedValue(document.querySelector("#total-income"), result.totalProfit);
   }
 
   function handleSubmit(event) {
