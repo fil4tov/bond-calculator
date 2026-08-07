@@ -117,6 +117,31 @@ function combineHoldingPeriod(years, months) {
   return years + months / 12;
 }
 
+function toKopecks(value) {
+  return Math.round((value + Number.EPSILON) * 100);
+}
+
+function calculatePurchasableQuantity(investmentAmount, purchasePrice) {
+  if (
+    !Number.isFinite(investmentAmount) ||
+    !Number.isFinite(purchasePrice) ||
+    investmentAmount <= 0 ||
+    purchasePrice <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.floor(toKopecks(investmentAmount) / toKopecks(purchasePrice));
+}
+
+function calculateInvestmentAmount(purchasePrice, quantity) {
+  if (!Number.isFinite(purchasePrice) || !Number.isInteger(quantity) || quantity < 0) {
+    return 0;
+  }
+
+  return (toKopecks(purchasePrice) * quantity) / 100;
+}
+
 /**
  * Рассчитывает купонную доходность и отдельный результат от цены выхода.
  * Все денежные значения относятся к одной облигации, кроме результатов.
@@ -130,7 +155,7 @@ function calculateBond({
   holdingYears,
   exitPrice,
 }) {
-  const investment = purchasePrice * quantity;
+  const investment = calculateInvestmentAmount(purchasePrice, quantity);
   const annualCoupons = coupon * paymentsPerYear * quantity;
   const priceDifference = (exitPrice - purchasePrice) * quantity;
   const annualIncome = annualCoupons;
@@ -141,6 +166,7 @@ function calculateBond({
 
   return {
     nominal,
+    quantity,
     investment,
     annualCoupons,
     priceDifference,
@@ -155,7 +181,11 @@ function calculateBond({
 
 function initCalculator() {
   const form = document.querySelector("#bond-form");
+  const purchaseModeRadios = document.querySelectorAll('input[name="purchaseMode"]');
   const holdRadios = document.querySelectorAll('input[name="holdToMaturity"]');
+  const purchasePriceInput = document.querySelector("#purchase-price");
+  const quantityInput = document.querySelector("#quantity");
+  const investmentAmountInput = document.querySelector("#investment-amount");
   const maturityFields = document.querySelector("#maturity-fields");
   const saleFields = document.querySelector("#sale-fields");
   const maturityDate = document.querySelector("#maturity-date");
@@ -177,6 +207,10 @@ function initCalculator() {
   const percentFormatter = new Intl.NumberFormat("ru-RU", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  });
+
+  const quantityFormatter = new Intl.NumberFormat("ru-RU", {
+    maximumFractionDigits: 0,
   });
 
   function toLocalDateInputValue(date) {
@@ -201,6 +235,43 @@ function initCalculator() {
 
   function isHoldingToMaturity() {
     return document.querySelector('input[name="holdToMaturity"]:checked').value === "yes";
+  }
+
+  function isPurchaseByAmount() {
+    return document.querySelector('input[name="purchaseMode"]:checked').value === "amount";
+  }
+
+  function formatInputMoney(value) {
+    if (!Number.isFinite(value)) {
+      return "";
+    }
+
+    return String(Number(value.toFixed(2)));
+  }
+
+  function syncPurchaseFields() {
+    const purchaseByAmount = isPurchaseByAmount();
+    const purchasePrice = Number(purchasePriceInput.value);
+
+    quantityInput.readOnly = purchaseByAmount;
+    investmentAmountInput.readOnly = !purchaseByAmount;
+    quantityInput.required = !purchaseByAmount;
+    investmentAmountInput.required = purchaseByAmount;
+
+    if (purchaseByAmount) {
+      const investmentAmount = Number(investmentAmountInput.value);
+      quantityInput.value =
+        Number.isFinite(investmentAmount) && investmentAmount > 0 && purchasePrice > 0
+          ? String(calculatePurchasableQuantity(investmentAmount, purchasePrice))
+          : "";
+      return;
+    }
+
+    const quantity = Number(quantityInput.value);
+    investmentAmountInput.value =
+      Number.isInteger(quantity) && quantity > 0 && purchasePrice > 0
+        ? formatInputMoney(calculateInvestmentAmount(purchasePrice, quantity))
+        : "";
   }
 
   function updateScenarioFields() {
@@ -245,17 +316,34 @@ function initCalculator() {
     const standardFields = [
       ["#nominal", values.nominal, "Введите номинал больше нуля"],
       ["#purchase-price", values.purchasePrice, "Введите цену облигации больше нуля"],
-      ["#quantity", values.quantity, "Введите целое количество облигаций"],
       ["#payments-per-year", values.paymentsPerYear, "Введите целое количество выплат в год"],
     ];
 
     for (const [selector, value, message] of standardFields) {
       const input = document.querySelector(selector);
-      const mustBeInteger = selector === "#quantity" || selector === "#payments-per-year";
+      const mustBeInteger = selector === "#payments-per-year";
       if (!Number.isFinite(value) || value <= 0 || (mustBeInteger && !Number.isInteger(value))) {
         markInvalid(input, message);
         return false;
       }
+    }
+
+    if (values.purchaseByAmount) {
+      if (!Number.isFinite(values.investmentAmount) || values.investmentAmount <= 0) {
+        markInvalid(investmentAmountInput, "Введите сумму вложения больше нуля");
+        return false;
+      }
+
+      if (!Number.isInteger(values.quantity) || values.quantity < 1) {
+        markInvalid(
+          investmentAmountInput,
+          "Этой суммы недостаточно для покупки хотя бы одной облигации",
+        );
+        return false;
+      }
+    } else if (!Number.isInteger(values.quantity) || values.quantity < 1) {
+      markInvalid(quantityInput, "Введите целое количество облигаций");
+      return false;
     }
 
     const couponInput = document.querySelector("#coupon");
@@ -315,6 +403,7 @@ function initCalculator() {
     setSignedValue(document.querySelector("#annual-income"), result.annualIncome);
     document.querySelector("#final-amount").textContent = currencyFormatter.format(result.finalAmount);
     document.querySelector("#investment").textContent = currencyFormatter.format(result.investment);
+    document.querySelector("#result-quantity").textContent = `${quantityFormatter.format(result.quantity)} шт.`;
     document.querySelector("#holding-period").textContent = formatHoldingPeriod(result.holdingYears);
     setSignedValue(document.querySelector("#price-result"), result.priceDifference);
     setSignedValue(document.querySelector("#coupon-income-total"), result.couponIncomeTotal);
@@ -329,11 +418,16 @@ function initCalculator() {
       input.removeAttribute("aria-invalid");
     }
 
+    syncPurchaseFields();
+
     const holdToMaturity = isHoldingToMaturity();
+    const purchaseByAmount = isPurchaseByAmount();
     const values = {
       nominal: parseNumber("#nominal"),
       purchasePrice: parseNumber("#purchase-price"),
       quantity: parseNumber("#quantity"),
+      investmentAmount: parseNumber("#investment-amount"),
+      purchaseByAmount,
       coupon: parseNumber("#coupon"),
       paymentsPerYear: parseNumber("#payments-per-year"),
       holdingYears: calculateHoldingYears(),
@@ -349,10 +443,32 @@ function initCalculator() {
 
   setDateDefaults();
   updateScenarioFields();
+  syncPurchaseFields();
+
+  for (const radio of purchaseModeRadios) {
+    radio.addEventListener("change", () => {
+      syncPurchaseFields();
+      quantityInput.removeAttribute("aria-invalid");
+      investmentAmountInput.removeAttribute("aria-invalid");
+      formError.textContent = "";
+    });
+  }
 
   for (const radio of holdRadios) {
     radio.addEventListener("change", updateScenarioFields);
   }
+
+  purchasePriceInput.addEventListener("input", syncPurchaseFields);
+  quantityInput.addEventListener("input", () => {
+    if (!isPurchaseByAmount()) {
+      syncPurchaseFields();
+    }
+  });
+  investmentAmountInput.addEventListener("input", () => {
+    if (isPurchaseByAmount()) {
+      syncPurchaseFields();
+    }
+  });
 
   for (const input of form.querySelectorAll("input")) {
     input.addEventListener("input", () => {
@@ -377,5 +493,10 @@ if (typeof document !== "undefined") {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { calculateBond, combineHoldingPeriod, formatHoldingPeriod };
+  module.exports = {
+    calculateBond,
+    calculatePurchasableQuantity,
+    combineHoldingPeriod,
+    formatHoldingPeriod,
+  };
 }

@@ -58,7 +58,7 @@
           <div class="form-grid">
             <label class="field">
               <span class="field-label">Номинал облигации</span>
-              <span class="input-wrap">
+              <span class="input-wrap input-wrap-unit-ruble">
                 <input
                   id="nominal"
                   name="nominal"
@@ -78,7 +78,7 @@
                 Цена облигации
                 <small id="purchase-price-hint" class="input-hint">(с учётом НКД и комиссий)</small>
               </span>
-              <span class="input-wrap">
+              <span class="input-wrap input-wrap-unit-ruble">
                 <input
                   id="purchase-price"
                   name="purchasePrice"
@@ -94,25 +94,8 @@
             </label>
 
             <label class="field">
-              <span class="field-label">Количество облигаций</span>
-              <span class="input-wrap">
-                <input
-                  id="quantity"
-                  name="quantity"
-                  type="number"
-                  value="100"
-                  min="1"
-                  step="1"
-                  inputmode="numeric"
-                  required
-                />
-                <span class="input-unit">шт.</span>
-              </span>
-            </label>
-
-            <label class="field">
               <span class="field-label">Величина купона</span>
-              <span class="input-wrap">
+              <span class="input-wrap input-wrap-unit-ruble">
                 <input
                   id="coupon"
                   name="coupon"
@@ -127,9 +110,9 @@
               </span>
             </label>
 
-            <label class="field field-wide">
+            <label class="field">
               <span class="field-label">Количество выплат в год</span>
-              <span class="input-wrap">
+              <span class="input-wrap input-wrap-unit-count">
                 <input
                   id="payments-per-year"
                   name="paymentsPerYear"
@@ -144,6 +127,65 @@
               </span>
             </label>
           </div>
+
+          <section class="purchase-section" aria-labelledby="purchase-section-title">
+            <fieldset class="purchase-choice">
+              <legend id="purchase-section-title">Рассчитать покупку по</legend>
+              <div class="segmented-control purchase-mode-control">
+                <input
+                  id="purchase-by-quantity"
+                  type="radio"
+                  name="purchaseMode"
+                  value="quantity"
+                  checked
+                />
+                <label for="purchase-by-quantity">Количеству</label>
+                <input
+                  id="purchase-by-amount"
+                  type="radio"
+                  name="purchaseMode"
+                  value="amount"
+                />
+                <label for="purchase-by-amount">Сумме</label>
+              </div>
+            </fieldset>
+
+            <div class="purchase-grid">
+              <label class="field">
+                <span class="field-label">Количество облигаций</span>
+                <span class="input-wrap input-wrap-unit-count">
+                  <input
+                    id="quantity"
+                    name="quantity"
+                    type="number"
+                    value="100"
+                    min="1"
+                    step="1"
+                    inputmode="numeric"
+                    required
+                  />
+                  <span class="input-unit">шт.</span>
+                </span>
+              </label>
+
+              <label class="field">
+                <span class="field-label">Сумма вложения</span>
+                <span class="input-wrap input-wrap-unit-ruble">
+                  <input
+                    id="investment-amount"
+                    name="investmentAmount"
+                    type="number"
+                    value="95000"
+                    min="0.01"
+                    step="0.01"
+                    inputmode="decimal"
+                    readonly
+                  />
+                  <span class="input-unit">₽</span>
+                </span>
+              </label>
+            </div>
+          </section>
 
           <fieldset class="holding-choice">
             <legend>Держать до погашения?</legend>
@@ -179,7 +221,7 @@
           <div id="sale-fields" class="conditional-fields conditional-grid" hidden>
             <label class="field">
               <span class="field-label">Срок владения</span>
-              <span class="input-wrap">
+              <span class="input-wrap input-wrap-unit-years">
                 <input
                   id="holding-years"
                   name="holdingYears"
@@ -195,7 +237,7 @@
 
             <label class="field">
               <span class="field-label">Месяцев</span>
-              <span class="input-wrap">
+              <span class="input-wrap input-wrap-unit-months">
                 <input
                   id="holding-months"
                   name="holdingMonths"
@@ -212,7 +254,7 @@
 
             <label class="field field-wide">
               <span class="field-label">Ожидаемая цена продажи</span>
-              <span class="input-wrap">
+              <span class="input-wrap input-wrap-unit-ruble">
                 <input
                   id="sale-price"
                   name="salePrice"
@@ -312,6 +354,10 @@
                 <div>
                   <dt>Срок владения</dt>
                   <dd id="holding-period">0 лет</dd>
+                </div>
+                <div>
+                  <dt>Количество облигаций</dt>
+                  <dd id="result-quantity">0 шт.</dd>
                 </div>
                 <div>
                   <dt>Сумма вложения</dt>
