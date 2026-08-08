@@ -7,6 +7,7 @@ const {
   calculatePresetYields,
   containsDisallowedMinus,
   deserializePresetStore,
+  formatPaymentFrequency,
   isValidNumericDraft,
   normalizePresetName,
   sortPresets,
@@ -65,6 +66,13 @@ test("calculatePresetYields returns coupon and total annual yields for a saved c
   assert.ok(yields);
   assert.equal(Number(yields.annualYield.toFixed(2)), 9.47);
   assert.equal(Number(yields.annualYieldWithPrice.toFixed(2)), 10.53);
+});
+
+test("formatPaymentFrequency describes the interval between coupon payments", () => {
+  assert.equal(formatPaymentFrequency(2), "(каждые 6 месяцев)");
+  assert.equal(formatPaymentFrequency(4), "(каждые 3 месяца)");
+  assert.equal(formatPaymentFrequency(12), "(каждый месяц)");
+  assert.equal(formatPaymentFrequency(5), "(каждые 2,4 месяца)");
 });
 
 test("sortPresets sorts Russian names alphabetically without case sensitivity", () => {

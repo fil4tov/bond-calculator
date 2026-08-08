@@ -230,6 +230,24 @@ function formatHoldingPeriod(holdingYears) {
   return parts.join(" ") || "0 дней";
 }
 
+function formatPaymentFrequency(paymentsPerYear) {
+  if (!Number.isFinite(paymentsPerYear) || paymentsPerYear <= 0) {
+    return "";
+  }
+
+  const months = 12 / paymentsPerYear;
+
+  if (Math.abs(months - 1) < Number.EPSILON) {
+    return "(каждый месяц)";
+  }
+
+  const formattedMonths = new Intl.NumberFormat("ru-RU", {
+    maximumFractionDigits: 2,
+  }).format(months);
+  const monthForm = pluralizeRu(months, ["месяц", "месяца", "месяцев"]);
+  return `(каждые ${formattedMonths} ${monthForm})`;
+}
+
 function combineHoldingPeriod(years, months) {
   return years + months / 12;
 }
@@ -292,6 +310,7 @@ function calculateBond({
 }) {
   const investment = calculateInvestmentAmount(purchasePrice, quantity);
   const annualCoupons = coupon * paymentsPerYear * quantity;
+  const paymentAmount = coupon * quantity;
   const priceDifference = (exitPrice - purchasePrice) * quantity;
   const annualIncome = annualCoupons;
   const annualYield = (annualIncome / investment) * 100;
@@ -305,6 +324,8 @@ function calculateBond({
     quantity,
     investment,
     annualCoupons,
+    paymentAmount,
+    paymentsPerYear,
     priceDifference,
     annualIncome,
     annualYield,
@@ -1025,6 +1046,10 @@ function initCalculator() {
     document.querySelector("#annual-yield-with-price").textContent =
       `${percentFormatter.format(result.annualYieldWithPrice)}%`;
     setSignedValue(document.querySelector("#annual-income"), result.annualIncome);
+    document.querySelector("#payment-frequency").textContent =
+      formatPaymentFrequency(result.paymentsPerYear);
+    document.querySelector("#payment-amount").textContent =
+      currencyFormatter.format(result.paymentAmount);
     document.querySelector("#final-amount").textContent = currencyFormatter.format(result.finalAmount);
     document.querySelector("#investment").textContent = currencyFormatter.format(result.investment);
     document.querySelector("#result-quantity").textContent = `${quantityFormatter.format(result.quantity)} шт.`;
@@ -1239,6 +1264,7 @@ if (typeof module !== "undefined" && module.exports) {
     containsDisallowedMinus,
     deserializePresetStore,
     formatHoldingPeriod,
+    formatPaymentFrequency,
     isValidNumericDraft,
     normalizePresetName,
     sortPresets,
