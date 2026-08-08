@@ -1,0 +1,8 @@
+.control { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; min-width: 210px; padding: 4px; border-radius: 12px; background: var(--segment-bg); }
+.control span { display: contents; }
+.control input { position: absolute; opacity: 0; pointer-events: none; }
+.control label { display: grid; min-height: 36px; padding: 7px 14px; place-items: center; border-radius: 9px; color: var(--muted); font-size: 13px; font-weight: 750; text-align: center; cursor: pointer; transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease; }
+.control input:checked + label { color: var(--segment-active-text); background: var(--segment-active); box-shadow: 0 4px 12px rgba(23, 35, 30, 0.08); }
+.control input:focus-visible + label { outline: 3px solid var(--focus-ring); }
+.compact { min-width: 180px; }
+@media (max-width: 580px) { .control { width: 100%; } }
