@@ -45,6 +45,9 @@ test("isValidNumericDraft allows a trailing decimal separator while editing", ()
   assert.equal(isValidNumericDraft("950.25"), true);
   assert.equal(isValidNumericDraft(".5"), true);
   assert.equal(isValidNumericDraft(""), true);
+  assert.equal(isValidNumericDraft("1 083,22"), true);
+  assert.equal(isValidNumericDraft("1\u00a0083,22"), true);
+  assert.equal(isValidNumericDraft("1\u202f083,22"), true);
   assert.equal(isValidNumericDraft("950.."), false);
   assert.equal(isValidNumericDraft("950-"), false);
   assert.equal(isValidNumericDraft("abc"), false);

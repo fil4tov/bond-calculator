@@ -14,7 +14,12 @@ function containsDisallowedMinus(value) {
 }
 
 function isValidNumericDraft(value) {
-  return typeof value === "string" && /^\d*(?:[.,]\d*)?$/.test(value);
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const withoutGroupingSpaces = value.replace(/[\s\u00a0\u202f]/g, "");
+  return /^\d*(?:[.,]\d*)?$/.test(withoutGroupingSpaces);
 }
 
 function normalizePresetName(name) {
