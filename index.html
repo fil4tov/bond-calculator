@@ -28,15 +28,64 @@
       <header class="hero">
         <div class="hero-toolbar">
           <div class="eyebrow"><span aria-hidden="true"></span> Облигации</div>
-          <button
-            id="theme-toggle"
-            class="theme-toggle"
-            type="button"
-            aria-label="Включить тёмную тему"
-            aria-pressed="false"
-          >
-            <span class="theme-toggle-icon" aria-hidden="true">☾</span>
-          </button>
+          <div class="hero-actions">
+            <div class="presets-menu">
+              <button
+                id="presets-toggle"
+                class="toolbar-button"
+                type="button"
+                aria-label="Открыть сохранённые расчёты"
+                aria-expanded="false"
+                aria-controls="presets-dropdown"
+              >
+                <svg
+                  class="toolbar-button-icon"
+                  stroke="currentColor"
+                  fill="currentColor"
+                  stroke-width="0"
+                  viewBox="0 0 24 24"
+                  height="200px"
+                  width="200px"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <g id="Circle_List"><g><path d="M20.438,6.062h-9a.5.5,0,0,1,0-1h9a.5.5,0,0,1,0,1Z"></path><path d="M20.438,12.5h-9a.5.5,0,0,1,0-1h9a.5.5,0,0,1,0,1Z"></path><path d="M20.438,18.935h-9a.5.5,0,1,1,0-1h9a.5.5,0,0,1,0,1Z"></path><path d="M5.562,8.062a2.5,2.5,0,1,1,2.5-2.5A2.5,2.5,0,0,1,5.562,8.062Zm0-4a1.5,1.5,0,1,0,1.5,1.5A1.5,1.5,0,0,0,5.562,4.062Z"></path><path d="M5.562,14.5a2.5,2.5,0,1,1,2.5-2.5A2.5,2.5,0,0,1,5.562,14.5Zm0-4a1.5,1.5,0,1,0,1.5,1.5A1.5,1.5,0,0,0,5.562,10.5Z"></path><path d="M5.562,20.938a2.5,2.5,0,1,1,2.5-2.5A2.5,2.5,0,0,1,5.562,20.938Zm0-4a1.5,1.5,0,1,0,1.5,1.5A1.5,1.5,0,0,0,5.562,16.938Z"></path></g></g>
+                </svg>
+              </button>
+              <div id="presets-dropdown" class="presets-dropdown" hidden>
+                <div class="presets-dropdown-heading">
+                  <div>
+                    <span>Сохранённые расчёты</span>
+                    <strong id="presets-count">0</strong>
+                  </div>
+                </div>
+                <div id="presets-list" class="presets-list"></div>
+                <div id="presets-empty" class="presets-empty">
+                  <span class="presets-empty-icon" aria-hidden="true">
+                    <svg
+                      stroke="currentColor"
+                      fill="currentColor"
+                      stroke-width="0"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <g id="Circle_List_Empty"><g><path d="M20.438,6.062h-9a.5.5,0,0,1,0-1h9a.5.5,0,0,1,0,1Z"></path><path d="M20.438,12.5h-9a.5.5,0,0,1,0-1h9a.5.5,0,0,1,0,1Z"></path><path d="M20.438,18.935h-9a.5.5,0,1,1,0-1h9a.5.5,0,0,1,0,1Z"></path><path d="M5.562,8.062a2.5,2.5,0,1,1,2.5-2.5A2.5,2.5,0,0,1,5.562,8.062Zm0-4a1.5,1.5,0,1,0,1.5,1.5A1.5,1.5,0,0,0,5.562,4.062Z"></path><path d="M5.562,14.5a2.5,2.5,0,1,1,2.5-2.5A2.5,2.5,0,0,1,5.562,14.5Zm0-4a1.5,1.5,0,1,0,1.5,1.5A1.5,1.5,0,0,0,5.562,10.5Z"></path><path d="M5.562,20.938a2.5,2.5,0,1,1,2.5-2.5A2.5,2.5,0,0,1,5.562,20.938Zm0-4a1.5,1.5,0,1,0,1.5,1.5A1.5,1.5,0,0,0,5.562,16.938Z"></path></g></g>
+                    </svg>
+                  </span>
+                  <strong>Здесь пока пусто</strong>
+                </div>
+              </div>
+            </div>
+            <button
+              id="theme-toggle"
+              class="theme-toggle toolbar-button"
+              type="button"
+              aria-label="Включить тёмную тему"
+              aria-pressed="false"
+            >
+              <span class="theme-toggle-icon" aria-hidden="true">☾</span>
+            </button>
+          </div>
         </div>
         <h1>Рассчитайте реальную<br />доходность вложения</h1>
         <p>
@@ -71,6 +120,25 @@
               </svg>
             </button>
           </div>
+
+          <section class="bond-name-section">
+            <label class="field field-wide" for="bond-name">
+              <span id="bond-name-label" class="field-label">
+                Название облигации
+                <small class="input-hint">(обязательно только для сохранения)</small>
+              </span>
+              <span class="input-wrap input-wrap-text">
+                <input
+                  id="bond-name"
+                  name="bondName"
+                  type="text"
+                  maxlength="80"
+                  placeholder="Например, ОФЗ 26238"
+                  autocomplete="off"
+                />
+              </span>
+            </label>
+          </section>
 
           <div class="form-grid">
             <label class="field">
@@ -300,19 +368,21 @@
             </label>
           </div>
 
-          <button type="submit" class="calculate-button">
-            <span>Рассчитать доходность</span>
-            <span class="button-arrow" aria-hidden="true">
-              <svg
-                class="button-arrow-icon"
-                viewBox="0 0 448 512"
-                fill="currentColor"
-                focusable="false"
-              >
-                <path d="M438.6 278.6c12.5-12.5 12.5-32.8 0-45.3l-160-160c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L338.8 224 32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l306.7 0L233.4 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l160-160z"></path>
-              </svg>
-            </span>
-          </button>
+          <div class="panel-action">
+            <button type="submit" class="calculate-button">
+              <span>Рассчитать доходность</span>
+              <span class="button-arrow" aria-hidden="true">
+                <svg
+                  class="button-arrow-icon"
+                  viewBox="0 0 448 512"
+                  fill="currentColor"
+                  focusable="false"
+                >
+                  <path d="M438.6 278.6c12.5-12.5 12.5-32.8 0-45.3l-160-160c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L338.8 224 32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l306.7 0L233.4 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l160-160z"></path>
+                </svg>
+              </span>
+            </button>
+          </div>
         </form>
 
         <aside class="results-panel" aria-labelledby="results-title">
@@ -468,6 +538,18 @@
               Расчёт ориентировочный: без налогов и
               реинвестирования купонов.
             </p>
+          </div>
+
+          <div id="save-calculation-action" class="panel-action" hidden>
+            <button id="save-calculation" class="save-calculation-button" type="button">
+              <span class="save-calculation-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M5 4h11l3 3v13H5V4Zm3 0v6h8V4M8 20v-6h8v6"></path>
+                </svg>
+              </span>
+              <span id="save-calculation-label">Сохранить расчёт</span>
+            </button>
+            <span id="save-status" class="visually-hidden" aria-live="polite"></span>
           </div>
         </aside>
       </section>

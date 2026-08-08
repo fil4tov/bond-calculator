@@ -139,6 +139,15 @@ input[type="radio"] {
   background: var(--accent-text);
 }
 
+.hero-actions {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar-button,
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -157,14 +166,200 @@ input[type="radio"] {
   transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
 }
 
+.toolbar-button:hover,
 .theme-toggle:hover {
   transform: translateY(-1px);
   border-color: var(--input-hover);
 }
 
+.toolbar-button:focus-visible,
 .theme-toggle:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
+}
+
+.toolbar-button-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+  stroke: none;
+}
+
+.presets-menu {
+  position: relative;
+}
+
+.presets-dropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: min(380px, calc(100vw - 40px));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: 0 24px 60px rgba(14, 28, 22, 0.2);
+  color: var(--ink);
+}
+
+.presets-dropdown[hidden] {
+  display: none;
+}
+
+.presets-dropdown-heading {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.presets-dropdown-heading > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.presets-dropdown-heading span {
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+}
+
+.presets-dropdown-heading strong {
+  display: grid;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 7px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--accent-text);
+  font-size: 12px;
+}
+
+.presets-list {
+  max-height: 340px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--input-hover) transparent;
+  scrollbar-width: thin;
+}
+
+.preset-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.preset-row:last-child {
+  border-bottom: 0;
+}
+
+.preset-load-button,
+.preset-delete-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.preset-load-button {
+  min-width: 0;
+  padding: 9px 11px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.preset-load-button:hover,
+.preset-load-button:focus-visible {
+  outline: none;
+  background: var(--green-soft);
+}
+
+.preset-name {
+  display: block;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-meta {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-delete-button {
+  display: grid;
+  width: 38px;
+  min-height: 38px;
+  align-self: center;
+  padding: 0;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--muted);
+}
+
+.preset-delete-button:hover,
+.preset-delete-button:focus-visible {
+  outline: none;
+  background: var(--loss-soft);
+  color: var(--loss);
+}
+
+.preset-delete-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.presets-empty {
+  display: grid;
+  justify-items: center;
+  padding: 30px 24px 32px;
+  text-align: center;
+}
+
+.presets-empty[hidden] {
+  display: none;
+}
+
+.presets-empty-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 12px;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--green-soft);
+  color: var(--accent-text);
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.presets-empty-icon svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+.presets-empty strong {
+  font-size: 14px;
 }
 
 .theme-toggle-icon {
@@ -198,7 +393,7 @@ input[type="radio"] {
   margin: 24px 0 0;
   color: var(--muted);
   font-size: 18px;
-  line-height: 1.55;
+  line-height: 1.45;
 }
 
 .calculator {
@@ -215,7 +410,20 @@ input[type="radio"] {
 
 .form-panel,
 .results-panel {
+  display: flex;
+  flex-direction: column;
   padding: 42px;
+}
+
+.panel-action {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+.panel-action[hidden] {
+  display: none;
 }
 
 .panel-heading {
@@ -266,6 +474,14 @@ input[type="radio"] {
   gap: 21px 16px;
 }
 
+.bond-name-section {
+  margin-bottom: 28px;
+  padding: 18px;
+  border: 1px solid var(--divider);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--green-soft) 45%, transparent);
+}
+
 .field {
   display: grid;
   align-content: start;
@@ -311,6 +527,16 @@ input[type="radio"] {
 
 .input-wrap-date input {
   padding-right: 15px;
+}
+
+.input-wrap-text input {
+  padding-right: 15px;
+}
+
+.input-wrap-text input::placeholder {
+  color: var(--input-unit);
+  font-weight: 500;
+  opacity: 0.82;
 }
 
 .input-wrap input:hover {
@@ -557,7 +783,7 @@ input[type="radio"] {
   justify-content: space-between;
   width: 100%;
   min-height: 58px;
-  margin-top: 18px;
+  margin-top: 0;
   padding: 7px 8px 7px 22px;
   border: 0;
   border-radius: 14px;
@@ -1016,6 +1242,78 @@ input[type="radio"] {
   line-height: 1.55;
 }
 
+.save-calculation-button {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 58px;
+  margin-top: 0;
+  padding: 10px 18px;
+  border: 1px solid rgba(201, 242, 124, 0.5);
+  border-radius: 14px;
+  background: var(--lime);
+  color: #153d2f;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(4, 24, 17, 0.22);
+  transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.save-calculation-button[hidden] {
+  display: none;
+}
+
+.save-calculation-button:hover {
+  transform: translateY(-1px);
+  background: #d4fa8e;
+  box-shadow: 0 16px 32px rgba(4, 24, 17, 0.27);
+}
+
+.save-calculation-button:active {
+  transform: translateY(0);
+}
+
+.save-calculation-button:focus-visible {
+  outline: 3px solid rgba(201, 242, 124, 0.32);
+  outline-offset: 3px;
+}
+
+.save-calculation-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(21, 61, 47, 0.1);
+}
+
+.save-calculation-icon svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .page-shell {
     padding-top: 48px;
@@ -1050,6 +1348,28 @@ input[type="radio"] {
 
   .hero p {
     font-size: 16px;
+  }
+
+  .hero-toolbar {
+    align-items: flex-start;
+  }
+
+  .eyebrow {
+    padding-top: 8px;
+    font-size: 19px;
+  }
+
+  .presets-dropdown {
+    position: fixed;
+    top: 88px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: calc(100vh - 108px);
+  }
+
+  .presets-list {
+    max-height: min(340px, calc(100vh - 250px));
   }
 
   .calculator {

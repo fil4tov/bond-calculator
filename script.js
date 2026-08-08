@@ -4,6 +4,105 @@ const DAYS_IN_YEAR = 365.2425;
 const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
 const THEME_STORAGE_KEY = "bond-theme";
 const PURCHASE_MODE_STORAGE_KEY = "bond-purchase-mode";
+const PRESETS_STORAGE_KEY = "bond-calculation-presets";
+const PRESETS_STORAGE_VERSION = 1;
+const presetNameCollator = new Intl.Collator("ru", { sensitivity: "base" });
+const DISALLOWED_MINUS_PATTERN = /[-−–—]/;
+
+function containsDisallowedMinus(value) {
+  return typeof value === "string" && DISALLOWED_MINUS_PATTERN.test(value);
+}
+
+function isValidNumericDraft(value) {
+  return typeof value === "string" && /^\d*(?:[.,]\d*)?$/.test(value);
+}
+
+function normalizePresetName(name) {
+  return typeof name === "string" ? name.trim().toLocaleLowerCase("ru-RU") : "";
+}
+
+function sortPresets(items) {
+  return [...items].sort((first, second) =>
+    presetNameCollator.compare(first.name, second.name)
+      || first.name.localeCompare(second.name, "ru"),
+  );
+}
+
+function upsertPreset(items, preset) {
+  const name = typeof preset.name === "string" ? preset.name.trim() : "";
+  const normalizedName = normalizePresetName(name);
+  const existing = items.find((item) => normalizePresetName(item.name) === normalizedName);
+  const nextPreset = {
+    ...preset,
+    id: existing?.id || preset.id,
+    name,
+    normalizedName,
+  };
+
+  return sortPresets([
+    ...items.filter((item) => normalizePresetName(item.name) !== normalizedName),
+    nextPreset,
+  ]);
+}
+
+function deserializePresetStore(serialized) {
+  if (!serialized) {
+    return [];
+  }
+
+  try {
+    const store = JSON.parse(serialized);
+
+    if (store?.version !== PRESETS_STORAGE_VERSION || !Array.isArray(store.items)) {
+      return [];
+    }
+
+    const validItems = store.items
+      .filter((item) =>
+        item
+        && typeof item.id === "string"
+        && typeof item.name === "string"
+        && item.name.trim() !== ""
+        && item.fields
+        && typeof item.fields === "object"
+        && !Array.isArray(item.fields),
+      )
+      .map((item) => ({
+        ...item,
+        name: item.name.trim().slice(0, 80),
+        normalizedName: normalizePresetName(item.name.trim().slice(0, 80)),
+      }));
+
+    return sortPresets(validItems);
+  } catch {
+    return [];
+  }
+}
+
+function readPresets() {
+  try {
+    return deserializePresetStore(localStorage.getItem(PRESETS_STORAGE_KEY));
+  } catch {
+    return [];
+  }
+}
+
+function writePresets(items) {
+  try {
+    localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify({
+      version: PRESETS_STORAGE_VERSION,
+      items,
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function createPresetId() {
+  return globalThis.crypto?.randomUUID?.()
+    || `preset-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 function getStoredTheme() {
   try {
@@ -217,8 +316,65 @@ function calculateBond({
   };
 }
 
+function calculatePresetYields(fields, now = new Date()) {
+  if (!fields || typeof fields !== "object") {
+    return null;
+  }
+
+  let holdingYears;
+
+  if (fields.holdToMaturity === "yes") {
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    const maturityDate = new Date(`${fields.maturityDate}T00:00:00`);
+    holdingYears = (maturityDate.getTime() - today.getTime())
+      / (MILLISECONDS_IN_DAY * DAYS_IN_YEAR);
+  } else {
+    holdingYears = combineHoldingPeriod(fields.holdingYears, fields.holdingMonths);
+  }
+
+  const exitPrice = fields.holdToMaturity === "yes" ? fields.nominal : fields.salePrice;
+  const hasValidValues =
+    Number.isFinite(fields.nominal)
+    && fields.nominal > 0
+    && Number.isFinite(fields.purchasePrice)
+    && fields.purchasePrice > 0
+    && Number.isInteger(fields.quantity)
+    && fields.quantity > 0
+    && Number.isFinite(fields.coupon)
+    && fields.coupon >= 0
+    && Number.isInteger(fields.paymentsPerYear)
+    && fields.paymentsPerYear > 0
+    && Number.isFinite(holdingYears)
+    && holdingYears > 0
+    && Number.isFinite(exitPrice)
+    && exitPrice > 0;
+
+  if (!hasValidValues) {
+    return null;
+  }
+
+  const result = calculateBond({
+    nominal: fields.nominal,
+    purchasePrice: fields.purchasePrice,
+    quantity: fields.quantity,
+    coupon: fields.coupon,
+    paymentsPerYear: fields.paymentsPerYear,
+    holdingYears,
+    exitPrice,
+  });
+
+  return Number.isFinite(result.annualYield) && Number.isFinite(result.annualYieldWithPrice)
+    ? {
+        annualYield: result.annualYield,
+        annualYieldWithPrice: result.annualYieldWithPrice,
+      }
+    : null;
+}
+
 function initCalculator() {
   const form = document.querySelector("#bond-form");
+  const bondNameInput = document.querySelector("#bond-name");
   const purchaseModeRadios = document.querySelectorAll('input[name="purchaseMode"]');
   const holdRadios = document.querySelectorAll('input[name="holdToMaturity"]');
   const purchasePriceInput = document.querySelector("#purchase-price");
@@ -235,11 +391,23 @@ function initCalculator() {
   const clearFormButton = document.querySelector("#clear-form");
   const emptyResults = document.querySelector("#empty-results");
   const calculatedResults = document.querySelector("#calculated-results");
+  const saveCalculationAction = document.querySelector("#save-calculation-action");
+  const saveCalculationButton = document.querySelector("#save-calculation");
+  const saveCalculationLabel = document.querySelector("#save-calculation-label");
+  const saveStatus = document.querySelector("#save-status");
+  const presetsMenu = document.querySelector(".presets-menu");
+  const presetsToggle = document.querySelector("#presets-toggle");
+  const presetsDropdown = document.querySelector("#presets-dropdown");
+  const presetsList = document.querySelector("#presets-list");
+  const presetsCount = document.querySelector("#presets-count");
+  const presetsEmpty = document.querySelector("#presets-empty");
   const scenarioLabel = document.querySelector("#scenario-label");
   const yieldComparison = document.querySelector(".yield-comparison");
   const yieldValueElements = Array.from(yieldComparison.querySelectorAll(".yield-metric > strong"));
+  let presets = readPresets();
   let hasSuccessfulCalculation = false;
   let yieldFitAnimationFrame = null;
+  let saveFeedbackTimeout = null;
 
   const MIN_YIELD_FONT_SIZE = 28;
 
@@ -308,7 +476,7 @@ function initCalculator() {
   function prepareNumericInputForEditing(input) {
     const value = parseInputNumber(input);
 
-    input.type = "number";
+    input.type = "text";
     input.value = Number.isFinite(value) ? formatEditableNumber(value) : "";
   }
 
@@ -323,6 +491,212 @@ function initCalculator() {
     if (document.activeElement !== input) {
       formatNumericInput(input);
     }
+  }
+
+  function setPresetsMenuOpen(isOpen, { returnFocus = false } = {}) {
+    presetsDropdown.hidden = !isOpen;
+    presetsToggle.setAttribute("aria-expanded", String(isOpen));
+    presetsToggle.setAttribute(
+      "aria-label",
+      isOpen ? "Закрыть сохранённые расчёты" : "Открыть сохранённые расчёты",
+    );
+
+    if (returnFocus) {
+      presetsToggle.focus();
+    }
+  }
+
+  function formatPresetMeta(preset) {
+    const yields = calculatePresetYields(preset.fields);
+
+    return yields
+      ? `${percentFormatter.format(yields.annualYield)}% | ${percentFormatter.format(yields.annualYieldWithPrice)}%`
+      : "Доходность недоступна";
+  }
+
+  function handleDeletePreset(preset) {
+    if (!window.confirm(`Удалить сохранённый расчёт «${preset.name}»?`)) {
+      return;
+    }
+
+    const nextPresets = presets.filter((item) => item.id !== preset.id);
+
+    if (!writePresets(nextPresets)) {
+      window.alert("Не удалось удалить расчёт. Проверьте, доступно ли локальное хранилище браузера.");
+      return;
+    }
+
+    presets = nextPresets;
+    renderPresets();
+  }
+
+  function renderPresets() {
+    presets = sortPresets(presets);
+    presetsList.replaceChildren();
+    presetsCount.textContent = String(presets.length);
+    presetsList.hidden = presets.length === 0;
+    presetsEmpty.hidden = presets.length > 0;
+
+    for (const preset of presets) {
+      const row = document.createElement("div");
+      row.className = "preset-row";
+
+      const loadButton = document.createElement("button");
+      loadButton.className = "preset-load-button";
+      loadButton.type = "button";
+      loadButton.setAttribute("aria-label", `Загрузить расчёт «${preset.name}»`);
+
+      const name = document.createElement("span");
+      name.className = "preset-name";
+      name.textContent = preset.name;
+
+      const meta = document.createElement("span");
+      meta.className = "preset-meta";
+      meta.textContent = formatPresetMeta(preset);
+
+      loadButton.append(name, meta);
+      loadButton.addEventListener("click", () => restorePreset(preset));
+
+      const deleteButton = document.createElement("button");
+      deleteButton.className = "preset-delete-button";
+      deleteButton.type = "button";
+      deleteButton.title = `Удалить «${preset.name}»`;
+      deleteButton.setAttribute("aria-label", `Удалить расчёт «${preset.name}»`);
+      deleteButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"></path></svg>';
+      deleteButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        handleDeletePreset(preset);
+      });
+
+      row.append(loadButton, deleteButton);
+      presetsList.append(row);
+    }
+  }
+
+  function collectPresetFields() {
+    return {
+      nominal: parseInputNumber(document.querySelector("#nominal")),
+      purchasePrice: parseInputNumber(purchasePriceInput),
+      coupon: parseInputNumber(document.querySelector("#coupon")),
+      paymentsPerYear: parseInputNumber(document.querySelector("#payments-per-year")),
+      purchaseMode: isPurchaseByAmount() ? "amount" : "quantity",
+      quantity: parseInputNumber(quantityInput),
+      investmentAmount: parseInputNumber(investmentAmountInput),
+      holdToMaturity: isHoldingToMaturity() ? "yes" : "no",
+      maturityDate: maturityDate.value,
+      holdingYears: parseInputNumber(holdingYears),
+      holdingMonths: parseInputNumber(holdingMonths),
+      salePrice: parseInputNumber(salePrice),
+    };
+  }
+
+  function restorePreset(preset) {
+    const { fields } = preset;
+    const numericFields = [
+      ["#nominal", "nominal"],
+      ["#purchase-price", "purchasePrice"],
+      ["#coupon", "coupon"],
+      ["#payments-per-year", "paymentsPerYear"],
+      ["#quantity", "quantity"],
+      ["#investment-amount", "investmentAmount"],
+      ["#holding-years", "holdingYears"],
+      ["#holding-months", "holdingMonths"],
+      ["#sale-price", "salePrice"],
+    ];
+
+    bondNameInput.value = preset.name;
+
+    const purchaseMode = fields.purchaseMode === "amount" ? "amount" : "quantity";
+    const purchaseModeRadio = Array.from(purchaseModeRadios)
+      .find((radio) => radio.value === purchaseMode);
+    purchaseModeRadio.checked = true;
+
+    const holdMode = fields.holdToMaturity === "no" ? "no" : "yes";
+    const holdModeRadio = Array.from(holdRadios).find((radio) => radio.value === holdMode);
+    holdModeRadio.checked = true;
+
+    for (const [selector, fieldName] of numericFields) {
+      setNumericInputValue(document.querySelector(selector), fields[fieldName]);
+    }
+
+    maturityDate.value = typeof fields.maturityDate === "string" ? fields.maturityDate : "";
+    savePurchaseMode(purchaseMode);
+    updateScenarioFields();
+    syncPurchaseFields();
+    clearValidationErrors();
+
+    calculatedResults.hidden = true;
+    emptyResults.hidden = false;
+    saveCalculationAction.hidden = true;
+    hasSuccessfulCalculation = false;
+    resetYieldValueFit();
+
+    if (calculateAndRender({ showErrors: true, focusInvalid: false })) {
+      hasSuccessfulCalculation = true;
+      saveCalculationAction.hidden = false;
+    }
+
+    setPresetsMenuOpen(false);
+    bondNameInput.focus();
+  }
+
+  function showSaveFeedback() {
+    window.clearTimeout(saveFeedbackTimeout);
+    saveCalculationLabel.textContent = "Расчёт сохранён";
+    saveStatus.textContent = "Расчёт сохранён";
+
+    saveFeedbackTimeout = window.setTimeout(() => {
+      saveCalculationLabel.textContent = "Сохранить расчёт";
+      saveStatus.textContent = "";
+    }, 1800);
+  }
+
+  function handleSaveCalculation() {
+    clearValidationErrors();
+    const name = bondNameInput.value.trim();
+
+    if (!name) {
+      markInvalid(bondNameInput, "Введите название облигации, чтобы сохранить расчёт");
+      return;
+    }
+
+    if (!calculateAndRender({ showErrors: true })) {
+      return;
+    }
+
+    hasSuccessfulCalculation = true;
+    saveCalculationAction.hidden = false;
+
+    const normalizedName = normalizePresetName(name);
+    const existing = presets.find((preset) => preset.normalizedName === normalizedName);
+
+    if (
+      existing
+      && !window.confirm(
+        `Пресет «${existing.name}» уже существует. Сохранение перезапишет его. Продолжить?`,
+      )
+    ) {
+      return;
+    }
+
+    const preset = {
+      id: existing?.id || createPresetId(),
+      name,
+      normalizedName,
+      updatedAt: new Date().toISOString(),
+      fields: collectPresetFields(),
+    };
+    const nextPresets = upsertPreset(presets, preset);
+
+    if (!writePresets(nextPresets)) {
+      window.alert("Не удалось сохранить расчёт. Проверьте, доступно ли локальное хранилище браузера.");
+      return;
+    }
+
+    presets = nextPresets;
+    bondNameInput.value = name;
+    renderPresets();
+    showSaveFeedback();
   }
 
   function toLocalDateInputValue(date) {
@@ -706,10 +1080,15 @@ function initCalculator() {
 
     calculatedResults.hidden = true;
     emptyResults.hidden = false;
+    saveCalculationAction.hidden = true;
     hasSuccessfulCalculation = false;
     resetYieldValueFit();
+    setPresetsMenuOpen(false);
+    window.clearTimeout(saveFeedbackTimeout);
+    saveCalculationLabel.textContent = "Сохранить расчёт";
+    saveStatus.textContent = "";
 
-    document.querySelector("#nominal").focus();
+    bondNameInput.focus();
   }
 
   function handleSubmit(event) {
@@ -718,6 +1097,7 @@ function initCalculator() {
 
     if (calculateAndRender({ showErrors: true })) {
       hasSuccessfulCalculation = true;
+      saveCalculationAction.hidden = false;
     }
   }
 
@@ -734,9 +1114,30 @@ function initCalculator() {
   }
 
   syncPurchaseFields();
+  renderPresets();
 
   for (const input of numericInputs) {
     formatNumericInput(input);
+
+    input.addEventListener("keydown", (event) => {
+      if (containsDisallowedMinus(event.key)) {
+        event.preventDefault();
+      }
+    });
+
+    input.addEventListener("beforeinput", (event) => {
+      if (event.data === null) {
+        return;
+      }
+
+      const selectionStart = input.selectionStart ?? input.value.length;
+      const selectionEnd = input.selectionEnd ?? selectionStart;
+      const nextValue = `${input.value.slice(0, selectionStart)}${event.data}${input.value.slice(selectionEnd)}`;
+
+      if (containsDisallowedMinus(event.data) || !isValidNumericDraft(nextValue)) {
+        event.preventDefault();
+      }
+    });
 
     input.addEventListener("focus", () => {
       prepareNumericInputForEditing(input);
@@ -781,7 +1182,7 @@ function initCalculator() {
   }
 
   form.addEventListener("input", (event) => {
-    if (!event.target.matches('input[type="radio"]')) {
+    if (!event.target.matches('input[type="radio"]') && event.target !== bondNameInput) {
       recalculateIfActive();
     }
   });
@@ -800,6 +1201,25 @@ function initCalculator() {
   });
 
   clearFormButton.addEventListener("click", handleClearForm);
+  saveCalculationButton.addEventListener("click", handleSaveCalculation);
+  presetsToggle.addEventListener("click", () => {
+    const isOpening = presetsDropdown.hidden;
+    if (isOpening) {
+      renderPresets();
+    }
+    setPresetsMenuOpen(isOpening);
+  });
+  document.addEventListener("click", (event) => {
+    if (!presetsDropdown.hidden && !presetsMenu.contains(event.target)) {
+      setPresetsMenuOpen(false);
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !presetsDropdown.hidden) {
+      event.preventDefault();
+      setPresetsMenuOpen(false, { returnFocus: true });
+    }
+  });
   form.addEventListener("submit", handleSubmit);
   window.addEventListener("resize", scheduleYieldValueFit);
 }
@@ -814,7 +1234,14 @@ if (typeof module !== "undefined" && module.exports) {
     calculateBond,
     calculateInvestmentRemainder,
     calculatePurchasableQuantity,
+    calculatePresetYields,
     combineHoldingPeriod,
+    containsDisallowedMinus,
+    deserializePresetStore,
     formatHoldingPeriod,
+    isValidNumericDraft,
+    normalizePresetName,
+    sortPresets,
+    upsertPreset,
   };
 }
