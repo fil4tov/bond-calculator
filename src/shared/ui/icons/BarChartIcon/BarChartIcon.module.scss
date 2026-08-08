@@ -1,0 +1,22 @@
+.icon {
+  display: flex;
+  width: 70px;
+  height: 70px;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.icon > span {
+  width: 7px;
+  border-radius: 4px 4px 1px 1px;
+  background: var(--lime);
+}
+
+.shortBar { height: 12px; opacity: 0.5; }
+.mediumBar { height: 22px; opacity: 0.72; }
+.tallBar { height: 32px; }
