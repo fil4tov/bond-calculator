@@ -24,62 +24,69 @@ def test_coupon_period_days_are_inferred_from_frequency(
     assert infer_coupon_period_days(frequency) == expected_days
 
 
-def test_monthly_moex_schedule_uses_continuous_30_day_periods() -> None:
+@pytest.mark.parametrize(
+    ("placement", "maturity", "payments_per_year", "coupon_period_days", "expected"),
+    [
+        (
+            date(2025, 4, 22),
+            date(2028, 4, 6),
+            12,
+            30,
+            (date(2025, 4, 22), date(2025, 5, 22), date(2025, 6, 21)),
+        ),
+        (
+            date(2025, 9, 12),
+            date(2028, 8, 27),
+            12,
+            30,
+            (date(2025, 9, 12), date(2025, 10, 12), date(2025, 11, 11)),
+        ),
+        (
+            date(2026, 7, 3),
+            date(2029, 6, 17),
+            12,
+            30,
+            (date(2026, 7, 3), date(2026, 8, 2), date(2026, 9, 1)),
+        ),
+        (
+            date(2024, 5, 15),
+            date(2040, 5, 16),
+            2,
+            182,
+            (date(2024, 5, 15), date(2024, 12, 4), date(2025, 6, 4)),
+        ),
+    ],
+)
+def test_supplied_moex_schedules_have_exact_fixed_day_boundaries(
+    placement: date,
+    maturity: date,
+    payments_per_year: int,
+    coupon_period_days: int,
+    expected: tuple[date, date, date],
+) -> None:
     count = _period_count(
-        placement_date=date(2025, 9, 12),
-        maturity_date=date(2028, 8, 27),
-        payments_per_year=12,
+        placement_date=placement,
+        maturity_date=maturity,
+        payments_per_year=payments_per_year,
     )
     first = _period_at(
-        placement_date=date(2025, 9, 12),
-        maturity_date=date(2028, 8, 27),
-        payments_per_year=12,
-        coupon_period_days=30,
+        placement_date=placement,
+        maturity_date=maturity,
+        payments_per_year=payments_per_year,
+        coupon_period_days=coupon_period_days,
         index=0,
         period_count=count,
     )
     second = _period_at(
-        placement_date=date(2025, 9, 12),
-        maturity_date=date(2028, 8, 27),
-        payments_per_year=12,
-        coupon_period_days=30,
+        placement_date=placement,
+        maturity_date=maturity,
+        payments_per_year=payments_per_year,
+        coupon_period_days=coupon_period_days,
         index=1,
         period_count=count,
     )
-    assert count == 36
-    assert (first.start, first.end) == (date(2025, 9, 12), date(2025, 10, 12))
-    assert (second.start, second.end) == (date(2025, 10, 12), date(2025, 11, 11))
 
-
-def test_ofz_schedule_has_long_first_period_then_182_day_periods() -> None:
-    count = _period_count(
-        placement_date=date(2024, 5, 15),
-        maturity_date=date(2040, 5, 16),
-        payments_per_year=2,
-    )
-    first = _period_at(
-        placement_date=date(2024, 5, 15),
-        maturity_date=date(2040, 5, 16),
-        payments_per_year=2,
-        coupon_period_days=182,
-        index=0,
-        period_count=count,
-    )
-    second = _period_at(
-        placement_date=date(2024, 5, 15),
-        maturity_date=date(2040, 5, 16),
-        payments_per_year=2,
-        coupon_period_days=182,
-        index=1,
-        period_count=count,
-    )
-    assert count == 32
-    assert (first.start, first.end, (first.end - first.start).days) == (
-        date(2024, 5, 15), date(2024, 12, 4), 203
-    )
-    assert (second.start, second.end, (second.end - second.start).days) == (
-        date(2024, 12, 4), date(2025, 6, 4), 182
-    )
+    assert (first.start, first.end, second.end) == expected
 
 
 def test_coupon_schedule_uses_fixed_day_intervals() -> None:
@@ -91,6 +98,32 @@ def test_coupon_schedule_uses_fixed_day_intervals() -> None:
         after=date(2026, 8, 31),
         through=date(2027, 8, 31),
     ) == (date(2027, 3, 2), date(2027, 8, 31))
+
+
+def test_coupon_dates_between_searches_then_visits_only_the_requested_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_period_at = calculations._period_at
+    period_at_calls = 0
+
+    def counting_period_at(**kwargs: object) -> calculations.CouponPeriod:
+        nonlocal period_at_calls
+        period_at_calls += 1
+        return original_period_at(**kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(calculations, "_period_at", counting_period_at)
+
+    dates = coupon_dates_between(
+        placement_date=date(2025, 9, 12),
+        maturity_date=date(2028, 8, 27),
+        payments_per_year=12,
+        coupon_period_days=30,
+        after=date(2025, 10, 13),
+        through=date(2025, 12, 11),
+    )
+
+    assert dates == (date(2025, 11, 11), date(2025, 12, 11))
+    assert period_at_calls <= 12
 
 
 def test_paid_coupons_use_actual_payment_date() -> None:

@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     UniqueConstraint,
     Uuid,
@@ -38,7 +39,7 @@ class Bond(Base):
     payments_per_year: Mapped[int] = mapped_column(Integer, nullable=False)
     placement_date: Mapped[date] = mapped_column(Date, nullable=False)
     maturity_date: Mapped[date] = mapped_column(Date, nullable=False)
-    coupon_period_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    coupon_period_days: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

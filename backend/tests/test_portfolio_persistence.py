@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import SmallInteger, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -31,6 +31,10 @@ def bond_data(name: str) -> BondCreate:
             "purchase_date": (today - timedelta(days=1)).isoformat(),
         }
     )
+
+
+def test_coupon_period_days_uses_small_integer_metadata() -> None:
+    assert type(Bond.__table__.c.coupon_period_days.type) is SmallInteger
 
 
 @pytest.mark.asyncio

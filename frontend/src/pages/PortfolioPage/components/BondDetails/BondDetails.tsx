@@ -29,7 +29,7 @@ export function BondDetails({ bond }: { bond: BondPortfolioItem }) {
         <div><dt>Номинал</dt><dd>{formatMoney(bond.nominal)}</dd></div>
         <div><dt>Купон</dt><dd>{formatMoney(bond.couponAmount)}</dd></div>
         <div><dt>Выплат в год</dt><dd>{bond.paymentsPerYear}</dd></div>
-        <div><dt>Купонный период</dt><dd>{bond.couponPeriodDays} дня</dd></div>
+        <div><dt>Купонный период</dt><dd>{formatDayCount(bond.couponPeriodDays)}</dd></div>
         <div><dt>Дата размещения</dt><dd>{formatDate(bond.placementDate)}</dd></div>
         <div><dt>Дата погашения</dt><dd>{formatDate(bond.maturityDate)}</dd></div>
       </dl>

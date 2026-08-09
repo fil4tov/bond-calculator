@@ -182,22 +182,29 @@ def coupon_dates_between(
         maturity_date=maturity_date,
         payments_per_year=payments_per_year,
     )
-    return tuple(
-        period.pay_date
-        for index in range(count)
-        if after
-        < (
-            period := _period_at(
-                placement_date=placement_date,
-                maturity_date=maturity_date,
-                payments_per_year=payments_per_year,
-                coupon_period_days=coupon_period_days,
-                index=index,
-                period_count=count,
-            )
-        ).pay_date
-        <= through
+    index = _first_period_index(
+        placement_date=placement_date,
+        maturity_date=maturity_date,
+        payments_per_year=payments_per_year,
+        coupon_period_days=coupon_period_days,
+        predicate="pay_after",
+        bound=after,
     )
+    dates: list[date] = []
+    while index < count:
+        period = _period_at(
+            placement_date=placement_date,
+            maturity_date=maturity_date,
+            payments_per_year=payments_per_year,
+            coupon_period_days=coupon_period_days,
+            index=index,
+            period_count=count,
+        )
+        if period.pay_date > through:
+            break
+        dates.append(period.pay_date)
+        index += 1
+    return tuple(dates)
 
 
 def _remaining_calendar_parts(today: date, maturity_date: date) -> tuple[int, int, int]:

@@ -138,6 +138,70 @@ async def test_coupon_period_days_rejects_out_of_contract_values(
     assert "coupon_period_days" in response.json()["field_errors"]
 
 
+@pytest.mark.parametrize(
+    ("placement", "maturity"),
+    [
+        (date(2025, 8, 10), date(2028, 8, 10)),
+        (date.min, date.max),
+    ],
+    ids=["ordinary", "extreme-dates"],
+)
+@pytest.mark.asyncio
+async def test_incompatible_coupon_period_is_a_field_validation_error_for_any_date_range(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    placement: date,
+    maturity: date,
+) -> None:
+    monkeypatch.setattr(clock, "utc_today", lambda: date(2026, 8, 10))
+    await register(client, f"IncompatiblePeriod{placement.year}")
+    payload = {
+        "name": "Incompatible period",
+        "coupon_amount": "35.40",
+        "nominal": "1000.00",
+        "payments_per_year": 12,
+        "placement_date": placement.isoformat(),
+        "maturity_date": maturity.isoformat(),
+        "coupon_period_days": 366,
+        "amount_spent": "1000.00",
+        "quantity": 1,
+        "purchase_date": placement.isoformat(),
+    }
+
+    response = await client.post("/api/portfolio/bonds", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "validation_error"
+    assert "coupon_period_days" in response.json()["field_errors"]
+
+
+@pytest.mark.asyncio
+async def test_create_returns_exact_fixed_day_coupon_boundaries(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(clock, "utc_today", lambda: date(2025, 10, 13))
+    await register(client, "ExactFixedDaySchedule")
+    payload = {
+        "name": "Exact fixed-day schedule",
+        "coupon_amount": "35.40",
+        "nominal": "1000.00",
+        "payments_per_year": 12,
+        "placement_date": "2025-09-12",
+        "maturity_date": "2028-08-27",
+        "coupon_period_days": 30,
+        "amount_spent": "1000.00",
+        "quantity": 1,
+        "purchase_date": "2025-09-12",
+    }
+
+    response = await client.post("/api/portfolio/bonds", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["next_coupon"]["period_start"] == "2025-10-12"
+    assert response.json()["next_coupon"]["period_end"] == "2025-11-11"
+
+
 @pytest.mark.asyncio
 async def test_zero_coupon_has_no_next_payment_in_api(client: AsyncClient) -> None:
     await register(client, "ZeroCouponOwner")

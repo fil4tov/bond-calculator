@@ -1,5 +1,5 @@
 import re
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
@@ -95,8 +95,8 @@ class BondCreate(BaseModel):
             maturity_date=maturity,
             payments_per_year=frequency,
         )
-        first_end = maturity - timedelta(days=resolved * (count - 1))
-        if first_end <= placement:
+        lifetime_days = (maturity - placement).days
+        if resolved * (count - 1) >= lifetime_days:
             raise ValueError("coupon_period_days is incompatible with bond dates")
         return resolved
 

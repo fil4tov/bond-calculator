@@ -58,7 +58,7 @@ test('creates a portfolio bond and updates its aggregate through the purchase en
   const detailsDialog = page.getByRole('dialog', { name: bondName });
   await expect(detailsDialog.getByText('Вложенная сумма')).toBeVisible();
   await expect(detailsDialog.getByText('Годовая купонная доходность')).toBeVisible();
-  await expect(detailsDialog.getByText('30 дня')).toBeVisible();
+  await expect(detailsDialog.getByText('30 дней')).toBeVisible();
   await expect(detailsDialog.getByText(/Купонный период: .+ — .+/)).toBeVisible();
   await detailsDialog.getByRole('button', { name: 'Закрыть окно' }).click();
   await expect(detailsTrigger).toBeFocused();

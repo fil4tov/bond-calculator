@@ -286,7 +286,8 @@ describe('PortfolioPage', () => {
 
   it('opens complete bond details by click and keyboard and restores focus', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
+    const monthlyBond = { ...activeBond, coupon_period_days: 30 };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [monthlyBond] })));
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
     const detailsTrigger = within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' });
@@ -301,7 +302,7 @@ describe('PortfolioPage', () => {
       Array.from(within(dialog).getByText('Номинал').closest('dl')!.querySelectorAll('dt'))
         .map((label) => label.textContent),
     ).toEqual(['Номинал', 'Купон', 'Выплат в год', 'Купонный период', 'Дата размещения', 'Дата погашения']);
-    expect(within(dialog).getByText('Купонный период').parentElement).toHaveTextContent('Купонный период182 дня');
+    expect(within(dialog).getByText('Купонный период').parentElement).toHaveTextContent('Купонный период30 дней');
     expect(
       Array.from(within(dialog).getByText('Вложенная сумма').closest('dl')!.querySelectorAll('dt'))
         .map((label) => label.textContent),
