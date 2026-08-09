@@ -63,6 +63,16 @@ def _period_count(
     return max(1, int(raw_count.quantize(Decimal("1"), rounding=ROUND_HALF_UP)))
 
 
+def coupon_period_count(
+    *, placement_date: date, maturity_date: date, payments_per_year: int
+) -> int:
+    return _period_count(
+        placement_date=placement_date,
+        maturity_date=maturity_date,
+        payments_per_year=payments_per_year,
+    )
+
+
 def _period_at(
     *,
     placement_date: date,
