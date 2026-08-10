@@ -1,0 +1,25 @@
+.details { display: grid; gap: 22px; }
+.status { display: inline-flex; width: fit-content; align-items: center; gap: 8px; color: var(--accent-text); font-size: 11px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
+.status::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 5px var(--green-soft); content: ''; }
+.statusMatured { color: var(--muted); }
+.statusMatured::before { box-shadow: none; }
+
+.issueGrid, .metricsGrid { display: grid; margin: 0; border: 1px solid var(--divider); border-radius: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; }
+.issueGrid > div, .metricsGrid > div { min-width: 0; padding: 16px 18px; }
+.issueGrid > div:nth-child(even), .metricsGrid > div:nth-child(even) { border-left: 1px solid var(--divider); }
+.issueGrid > div:nth-child(n + 3), .metricsGrid > div:nth-child(n + 3) { border-top: 1px solid var(--divider); }
+.metricsGrid > div:last-child { grid-column: 1 / -1; }
+.issueGrid dt, .metricsGrid dt { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.issueGrid dd, .metricsGrid dd { margin: 8px 0 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+.nextCoupon { padding: 18px 20px; border-radius: 16px; color: #154535; background: linear-gradient(120deg, #dfece5, var(--lime)); }
+.nextCoupon span { display: block; font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+.nextCoupon strong { display: block; margin-top: 9px; font-size: 26px; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.nextCoupon p { margin: 5px 0 0; font-size: 13px; font-weight: 650; }
+.redeemedCoupon { color: var(--muted); background: var(--disabled-bg); font-weight: 750; }
+
+@media (max-width: 580px) {
+  .issueGrid, .metricsGrid { grid-template-columns: 1fr; }
+  .issueGrid > div:nth-child(even), .metricsGrid > div:nth-child(even) { border-left: 0; }
+  .issueGrid > div:nth-child(n + 2), .metricsGrid > div:nth-child(n + 2) { border-top: 1px solid var(--divider); }
+}

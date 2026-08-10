@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bonds}
+      POSTGRES_USER: ${POSTGRES_USER:-bonds}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bonds_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bonds} -d ${POSTGRES_DB:-bonds}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bonds}:${POSTGRES_PASSWORD:-bonds_dev_password}@postgres:5432/${POSTGRES_DB:-bonds}
+      SESSION_DAYS: ${SESSION_DAYS:-30}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

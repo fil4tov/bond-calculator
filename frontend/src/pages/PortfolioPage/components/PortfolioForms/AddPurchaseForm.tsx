@@ -1,0 +1,119 @@
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+
+import { useAddPortfolioPurchase } from '#entities/bondPortfolio';
+import type { BondPortfolioItem } from '#entities/bondPortfolio';
+import { ApiError } from '#shared/api';
+import { parseFormattedNumber } from '#shared/lib/number';
+import { Button, ControlledNumberField, TextField } from '#shared/ui';
+
+import { canonicalDecimal, todayInputValue, validateMoney, validateQuantity } from '../../utils';
+import styles from './PortfolioForms.module.scss';
+
+interface AddPurchaseFormValues {
+  amountSpent: string;
+  quantity: string;
+  purchaseDate: string;
+}
+
+interface AddPurchaseFormProps {
+  userId: string;
+  bond: BondPortfolioItem;
+  onSuccess: () => void;
+  onBusyChange: (busy: boolean) => void;
+}
+
+const FIELD_MAP: Record<string, keyof AddPurchaseFormValues> = {
+  amount_spent: 'amountSpent', quantity: 'quantity', purchase_date: 'purchaseDate',
+};
+
+export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPurchaseFormProps) {
+  const today = todayInputValue();
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const mutation = useAddPortfolioPurchase(userId);
+  const {
+    control, register, handleSubmit, setError,
+    formState: { errors, isValid, isSubmitting },
+  } = useForm<AddPurchaseFormValues>({
+    mode: 'onChange',
+    defaultValues: { amountSpent: '', quantity: '', purchaseDate: today },
+  });
+  const busy = isSubmitting || mutation.isPending;
+
+  useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
+
+  const submit = handleSubmit(async (values) => {
+    setSubmitError(null);
+    try {
+      await mutation.mutateAsync({
+        bondId: bond.id,
+        input: {
+          amountSpent: canonicalDecimal(values.amountSpent),
+          quantity: parseFormattedNumber(values.quantity),
+          purchaseDate: values.purchaseDate,
+        },
+      });
+      onSuccess();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        Object.entries(error.fieldErrors ?? {}).forEach(([field, message]) => {
+          const mappedField = FIELD_MAP[field];
+          if (mappedField) setError(mappedField, { type: 'server', message });
+        });
+        if (!error.fieldErrors) setSubmitError(error.message);
+      } else {
+        setSubmitError('Не удалось добавить покупку. Проверьте подключение и попробуйте снова.');
+      }
+    }
+  });
+
+  return (
+    <form className={styles.form} noValidate onSubmit={submit}>
+      <p className={styles.selectedBond}>Покупка для <strong>{bond.name}</strong></p>
+      <div className={styles.grid}>
+        <ControlledNumberField
+          control={control}
+          name="amountSpent"
+          label="Сумма покупки"
+          aria-label="Сумма покупки"
+          unit="₽"
+          inputMode="decimal"
+          error={errors.amountSpent?.message}
+          rules={{ validate: (value) => validateMoney(value, { allowZero: false, label: 'Сумма покупки' }) }}
+        />
+        <ControlledNumberField
+          control={control}
+          name="quantity"
+          label="Количество"
+          inputMode="numeric"
+          integer
+          error={errors.quantity?.message}
+          rules={{ validate: validateQuantity }}
+        />
+        <TextField
+          type="date"
+          label="Дата покупки"
+          min={bond.placementDate}
+          max={today}
+          wide
+          error={errors.purchaseDate?.message}
+          {...register('purchaseDate', {
+            required: 'Укажите дату покупки',
+            validate: (value) => {
+              if (value > today) return 'Дата покупки не может быть в будущем';
+              if (value < bond.placementDate) return 'Дата покупки должна быть не раньше размещения';
+              return value < bond.maturityDate || 'Дата покупки должна быть раньше погашения';
+            },
+          })}
+        />
+      </div>
+      {submitError ? <p className={styles.formError} role="alert">{submitError} Повторите попытку.</p> : null}
+      <div className={styles.submitRow}>
+        <p>После добавления покупки произойдет перерасчет процента годовых</p>
+        <Button className={styles.submitButton} type="submit" disabled={!isValid || busy}>
+          {busy ? 'Добавляем…' : 'Добавить покупку'}
+        </Button>
+      </div>
+    </form>
+  );
+}

@@ -1,0 +1,111 @@
+.card {
+  display: grid;
+  overflow: visible;
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: 0 12px 34px rgba(23, 35, 30, 0.06);
+  grid-template-columns: minmax(0, 1fr) 58px;
+}
+
+.main {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 17px 0 0 17px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.mainContent { display: grid; min-width: 0; }
+.detailsTrigger { position: absolute; z-index: 2; inset: 0; border: 0; background: transparent; cursor: pointer; }
+.detailsTrigger:hover { background: color-mix(in srgb, var(--green-soft) 28%, transparent); }
+.detailsTrigger:active { transform: translateY(1px); }
+.detailsTrigger:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+
+.summary {
+  display: grid;
+  align-items: center;
+  padding: 19px 22px 15px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+}
+
+.identity, .value { display: flex; min-width: 0; flex-direction: column; gap: 7px; }
+.name { overflow: hidden; font-size: 20px; font-weight: 850; letter-spacing: -0.025em; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.meta span + span { position: relative; }
+.meta span + span::before { position: absolute; top: 0; left: -11px; color: var(--line); content: '•'; }
+
+.value { align-items: flex-end; text-align: right; }
+.value strong { font-size: 19px; font-weight: 850; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.value span { color: var(--accent-text); font-size: 13px; font-weight: 750; font-variant-numeric: tabular-nums; }
+
+.couponTrack {
+  position: relative;
+  display: block;
+  min-height: 34px;
+  overflow: hidden;
+  color: #154535;
+  background: #eef5f1;
+}
+
+.couponFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #dfece5 0%, var(--lime) 100%);
+  transition: width 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.couponCopy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 7px 22px;
+  font-size: 12px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.couponCopy strong { font-weight: 900; white-space: nowrap; }
+.redeemedTrack { color: var(--muted); background: var(--disabled-bg); }
+.redeemedTrack .couponCopy { justify-content: flex-start; }
+.matured { opacity: 0.82; }
+
+.actions { display: flex; align-items: stretch; border-left: 1px solid var(--divider); }
+.actionsTrigger {
+  width: 100%;
+  border: 0;
+  border-radius: 0 17px 17px 0;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+.actionsTrigger span { display: block; transform: translateY(-3px); font-size: 18px; font-weight: 900; letter-spacing: 1px; }
+.actionsTrigger:hover, .actionsTrigger[aria-expanded='true'] { color: var(--ink); background: var(--green-soft); }
+.actionsTrigger:focus-visible { position: relative; z-index: 2; outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+.actionsMenu { width: 260px; border-radius: 14px; }
+.menuItem { width: 100%; padding: 14px 16px; border: 0; color: var(--ink); text-align: left; background: transparent; cursor: pointer; }
+.menuItem:hover, .menuItem:focus-visible { outline: 0; background: var(--green-soft); }
+.menuItem:disabled { opacity: 0.55; cursor: wait; }
+.deleteMenuItem { border-top: 1px solid var(--divider); color: var(--loss); }
+.deleteMenuItem:hover, .deleteMenuItem:focus-visible { background: var(--loss-soft); }
+
+@media (max-width: 580px) {
+  .card { grid-template-columns: minmax(0, 1fr) 48px; }
+  .summary { align-items: start; padding: 17px 16px 14px; grid-template-columns: 1fr; gap: 14px; }
+  .name { font-size: 18px; }
+  .meta { flex-direction: column; gap: 4px; }
+  .meta span + span::before { display: none; }
+  .value { align-items: flex-start; text-align: left; }
+  .couponCopy { align-items: flex-start; flex-direction: column; gap: 2px; padding: 8px 16px; }
+  .actionsMenu { right: -1px; }
+}

@@ -1,0 +1,26 @@
+.form { display: flex; flex-direction: column; gap: 26px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; }
+.wideField { grid-column: 1 / -1; }
+.availability { min-height: 17px; margin-top: 7px; color: var(--muted); font-size: 12px; }
+.success { color: var(--accent-text); font-weight: 750; }
+.inlineError, .formError { color: var(--loss); }
+.inlineError button { padding: 0; border: 0; color: inherit; background: transparent; font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
+.selectField { display: flex; min-width: 0; flex-direction: column; gap: 9px; color: var(--field-label); font-size: 14px; font-weight: 750; line-height: 1.35; }
+.selectField select { width: 100%; height: 50px; padding: 0 42px 0 15px; border: 1px solid var(--line); border-radius: 12px; outline: none; color: var(--ink); background: var(--input-bg); }
+.selectField select:focus { border-color: var(--green); box-shadow: 0 0 0 4px var(--focus-ring); }
+.selectField select[aria-invalid='true'] { border-color: var(--loss); background: var(--invalid-bg); }
+.selectField small { color: var(--loss); font-size: 12px; font-weight: 500; }
+.selectedBond { margin: -8px 0 0; color: var(--muted); }
+.selectedBond strong { color: var(--ink); }
+.formError { margin: -8px 0 0; padding: 13px 15px; border-radius: 12px; background: var(--loss-soft); font-size: 13px; line-height: 1.45; }
+.submitRow { display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding-top: 24px; border-top: 1px solid var(--divider); }
+.submitRow p { margin: 0 auto 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.submitRow > button { width: min(100%, 260px); }
+.submitRow .submitButton { justify-content: center; padding-inline: 18px; text-align: center; }
+
+@media (max-width: 580px) {
+  .grid { grid-template-columns: 1fr; }
+  .submitRow { align-items: stretch; flex-direction: column; gap: 14px; }
+  .submitRow p { margin: 0; }
+  .submitRow > button { width: 100%; }
+}

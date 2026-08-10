@@ -6,3 +6,10 @@ coverage/
 playwright-report/
 test-results/
 *.tsbuildinfo
+.venv/
+.uv-cache/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.coverage
+.superpowers/
