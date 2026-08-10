@@ -13,7 +13,7 @@ test('registers, opens the portfolio and revokes access on logout', async ({ pag
   const avatar = page.getByRole('button', { name: `Открыть меню пользователя ${username}` });
   await expect(avatar).toHaveText('E');
   await avatar.click();
-  await page.getByRole('link', { name: 'Портфель облигаций' }).click();
+  await page.getByRole('link', { name: 'Портфель', exact: true }).click();
   await expect(page).toHaveURL(/\/portfolio$/);
   await expect(page.getByRole('heading', { name: 'Портфель облигаций' })).toBeVisible();
 

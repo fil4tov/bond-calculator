@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { addBondPurchase, checkBondNameAvailability, createBond, deletePortfolioBond, getPortfolioBonds } from './api';
+import { addBondPurchase, checkBondNameAvailability, createBond, deletePortfolioBond, getPortfolioBonds, lookupTInvestBond } from './api';
 import type { AddBondPurchaseInput, BondPortfolioItem, CreateBondInput } from './types';
 
 export const portfolioQueryKey = (userId: string) => ['bondPortfolio', userId, 'bonds'] as const;
 const nameAvailabilityQueryKey = (userId: string, name: string) => ['bondPortfolio', userId, 'nameAvailability', name] as const;
+export const tInvestLookupQueryKey = (userId: string, ticker: string) => ['bondPortfolio', userId, 'tInvestLookup', ticker] as const;
 
 export function replacePortfolioBond<T extends { id: string }>(items: T[] | undefined, updated: T) {
   if (!items) return [updated];
@@ -35,6 +36,15 @@ export function useBondNameAvailability(userId: string, name: string, enabled: b
   return useQuery({
     queryKey: nameAvailabilityQueryKey(userId, name),
     queryFn: ({ signal }) => checkBondNameAvailability(name, signal),
+    enabled: Boolean(userId) && enabled,
+    retry: false,
+  });
+}
+
+export function useTInvestBondLookup(userId: string, ticker: string, enabled: boolean) {
+  return useQuery({
+    queryKey: tInvestLookupQueryKey(userId, ticker),
+    queryFn: ({ signal }) => lookupTInvestBond(ticker, signal),
     enabled: Boolean(userId) && enabled,
     retry: false,
   });

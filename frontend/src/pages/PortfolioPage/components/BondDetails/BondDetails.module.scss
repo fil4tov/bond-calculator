@@ -13,13 +13,32 @@
 .issueGrid dd, .metricsGrid dd { margin: 8px 0 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
 .nextCoupon { padding: 18px 20px; border-radius: 16px; color: #154535; background: linear-gradient(120deg, #dfece5, var(--lime)); }
-.nextCoupon span { display: block; font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
-.nextCoupon strong { display: block; margin-top: 9px; font-size: 26px; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.nextCouponLabel { display: block; font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+.couponAmounts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-top: 9px; font-variant-numeric: tabular-nums; }
+.couponAmounts strong { font-size: 26px; letter-spacing: -0.03em; }
+.amountSeparator { color: rgb(21 69 53 / 55%); font-size: 13px; }
+.couponAmounts b { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
 .nextCoupon p { margin: 5px 0 0; font-size: 13px; font-weight: 650; }
 .redeemedCoupon { color: var(--muted); background: var(--disabled-bg); font-weight: 750; }
+
+.purchaseHistory { min-width: 0; }
+.purchaseHistoryHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.purchaseHistoryHeading h3 { margin: 0; color: var(--muted); font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+.purchaseHistoryHeading span { padding: 5px 9px; border-radius: 999px; color: var(--accent-text); background: var(--green-soft); font-size: 11px; font-weight: 850; white-space: nowrap; }
+.purchaseTimeline { position: relative; display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.purchaseTimeline::before { position: absolute; top: 9px; bottom: 21px; left: 6px; width: 1px; background: var(--divider); content: ''; }
+.purchaseItem { position: relative; display: grid; min-width: 0; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; padding-bottom: 18px; }
+.purchaseItem:last-child { padding-bottom: 0; }
+.timelineMarker { z-index: 1; width: 13px; height: 13px; margin-top: 4px; border: 3px solid var(--card); border-radius: 50%; background: var(--accent-text); box-shadow: 0 0 0 1px var(--divider); }
+.purchaseData { display: grid; min-width: 0; gap: 5px; }
+.purchaseData strong { overflow-wrap: anywhere; font-size: 17px; font-weight: 850; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.purchaseData span { width: fit-content; color: var(--accent-text); font-size: 12px; font-weight: 800; }
+.purchaseItem time { padding-top: 4px; color: var(--muted); font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; }
 
 @media (max-width: 580px) {
   .issueGrid, .metricsGrid { grid-template-columns: 1fr; }
   .issueGrid > div:nth-child(even), .metricsGrid > div:nth-child(even) { border-left: 0; }
   .issueGrid > div:nth-child(n + 2), .metricsGrid > div:nth-child(n + 2) { border-top: 1px solid var(--divider); }
+  .purchaseItem { gap: 8px; }
+  .purchaseItem time { font-size: 11px; }
 }

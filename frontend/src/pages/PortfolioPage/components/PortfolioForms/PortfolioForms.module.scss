@@ -1,6 +1,14 @@
 .form { display: flex; flex-direction: column; gap: 26px; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; }
 .wideField { grid-column: 1 / -1; }
+.tickerField { position: relative; z-index: 1; }
+.lookupMenu { position: absolute; z-index: 2; top: calc(100% - 2px); right: 0; left: 0; display: grid; gap: 4px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--input-bg); box-shadow: 0 12px 30px rgba(20, 34, 29, 0.16); }
+.lookupMenu p { margin: 5px 7px; color: var(--muted); font-size: 13px; }
+.lookupMenu .inlineError { color: var(--loss); }
+.lookupOption { display: grid; gap: 2px; width: 100%; padding: 11px 12px; border: 0; border-radius: 8px; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.lookupOption:hover, .lookupOption[aria-selected='true'] { background: var(--green-soft); }
+.lookupOption strong { font-size: 13px; }
+.lookupOption span { color: var(--muted); font-size: 12px; }
 .availability { min-height: 17px; margin-top: 7px; color: var(--muted); font-size: 12px; }
 .success { color: var(--accent-text); font-weight: 750; }
 .inlineError, .formError { color: var(--loss); }
@@ -10,7 +18,7 @@
 .selectField select:focus { border-color: var(--green); box-shadow: 0 0 0 4px var(--focus-ring); }
 .selectField select[aria-invalid='true'] { border-color: var(--loss); background: var(--invalid-bg); }
 .selectField small { color: var(--loss); font-size: 12px; font-weight: 500; }
-.selectedBond { margin: -8px 0 0; color: var(--muted); }
+.selectedBond { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
 .selectedBond strong { color: var(--ink); }
 .formError { margin: -8px 0 0; padding: 13px 15px; border-radius: 12px; background: var(--loss-soft); font-size: 13px; line-height: 1.45; }
 .submitRow { display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding-top: 24px; border-top: 1px solid var(--divider); }
