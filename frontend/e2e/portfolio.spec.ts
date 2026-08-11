@@ -139,7 +139,7 @@ test('records purchases and sales, restores operations, and removes the position
   await detailsTrigger.click();
   const detailsDialog = page.getByRole('dialog', { name: bondName });
   await expectHeaderDivider(detailsDialog);
-  await expect(detailsDialog.getByText('Остаток позиции')).toBeVisible();
+  await expect(detailsDialog.getByText('Нереализованный остаток от вложенной суммы')).toBeVisible();
   await expect(detailsDialog.getByText(`Купонная доходность за ${today.getUTCFullYear()} год`)).toBeVisible();
   const yieldHelp = detailsDialog.getByRole('button', {
     name: `Как рассчитывается купонная доходность за ${today.getUTCFullYear()} год`,
@@ -239,11 +239,11 @@ test('records purchases and sales, restores operations, and removes the position
   const closedHistory = closedDetails.getByRole('region', { name: 'История операций' });
   await expect(closedHistory).toContainText('3 операции');
   const saleOperation = closedHistory.getByRole('listitem').first();
-  await expect(saleOperation).toContainText(/12.000,00.₽.*−12 шт\..*1.499,25.₽/);
+  await expect(saleOperation).toContainText(/12.000,00.₽.*−12 шт\..*\+1.499,25.₽/);
   await expect(saleOperation).not.toContainText('Продажа');
   await expect(saleOperation).not.toContainText('Результат:');
   const saleMetaText = await saleOperation.locator('time').evaluate((element) => element.parentElement?.textContent ?? '');
-  expect(saleMetaText).toMatch(/11 августа 2026 г\..*1.499,25.₽/);
+  expect(saleMetaText).toMatch(/11 августа 2026 г\..*\+1.499,25.₽/);
   expect(saleMetaText).not.toMatch(/12.000,00.₽/);
 
   const deleteSale = saleOperation.getByRole('button', { name: 'Удалить операцию продажи' });

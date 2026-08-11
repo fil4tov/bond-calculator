@@ -352,10 +352,10 @@ describe('PortfolioPage', () => {
     expect(within(dialog).queryByText('Купон')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Купонный период')).not.toBeInTheDocument();
     expect(
-      Array.from(within(dialog).getByText('Остаток позиции').closest('dl')!.querySelectorAll('dt'))
+      Array.from(within(dialog).getByText('Нереализованный остаток от вложенной суммы').closest('dl')!.querySelectorAll('dt'))
         .map((label) => label.firstElementChild?.textContent ?? label.textContent),
     ).toEqual([
-      'Остаток позиции',
+      'Нереализованный остаток от вложенной суммы',
       'Количество',
       'Купонная доходность за 2026 год',
       'Выплачено купонов',
@@ -403,10 +403,10 @@ describe('PortfolioPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
 
     expect(
-      Array.from(within(dialog).getByText('Остаток позиции').closest('dl')!.querySelectorAll('dt'))
+      Array.from(within(dialog).getByText('Нереализованный остаток от вложенной суммы').closest('dl')!.querySelectorAll('dt'))
         .map((label) => label.firstElementChild?.textContent ?? label.textContent),
     ).toEqual([
-      'Остаток позиции',
+      'Нереализованный остаток от вложенной суммы',
       'Количество',
       'Купонная доходность за 2026 год',
       'Выплачено купонов',
@@ -1239,7 +1239,8 @@ describe('PortfolioPage', () => {
       operations: [
         { id: 'sale-loss', operation_type: 'sale', amount: '900.00', quantity: 1, operation_date: '2026-08-10', realized_result: '-100.00' },
         { id: 'sale-zero', operation_type: 'sale', amount: '1000.00', quantity: 1, operation_date: '2026-08-09', realized_result: '0.00' },
-        { id: 'purchase-sign', operation_type: 'purchase', amount: '2000.00', quantity: 2, operation_date: '2026-08-08', realized_result: null },
+        { id: 'sale-profit', operation_type: 'sale', amount: '1100.00', quantity: 1, operation_date: '2026-08-08', realized_result: '100.00' },
+        { id: 'purchase-sign', operation_type: 'purchase', amount: '2000.00', quantity: 2, operation_date: '2026-08-07', realized_result: null },
       ],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [signedBond] })));
@@ -1248,8 +1249,8 @@ describe('PortfolioPage', () => {
     await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
     const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
 
-    expect(within(details).getByText('Полная остаточная себестоимость облигаций в открытой позиции после всех покупок и продаж. Для закрытой позиции равна нулю.')).toBeInTheDocument();
-    expect(within(details).getAllByText('−1 шт.')).toHaveLength(2);
+    expect(within(details).getByText('Например, мы вложили 1000 руб и купили 10 облигаций по 100 руб, потом продали 1шт за 200 рублей. Но эти 100 рублей выгоды')).toBeInTheDocument();
+    expect(within(details).getAllByText('−1 шт.')).toHaveLength(3);
     expect(within(details).getByText('+2 шт.')).toBeInTheDocument();
     expect(within(details).queryByText('Покупка')).not.toBeInTheDocument();
     expect(within(details).queryByText('Продажа')).not.toBeInTheDocument();
@@ -1261,6 +1262,7 @@ describe('PortfolioPage', () => {
     expect(lossResult.parentElement).toHaveTextContent(/10 августа 2026 г\..*−100,00.₽/);
     expect(lossResult.parentElement).not.toHaveTextContent(/900,00.₽/);
     expect(operationRows[1]!.querySelector('[data-result-sign="zero"]')).toHaveTextContent(/0,00.₽/);
+    expect(operationRows[2]!.querySelector('[data-result-sign="positive"]')).toHaveTextContent(/\+100,00.₽/);
     expect(within(details).queryByText(/Результат:/)).not.toBeInTheDocument();
   });
 

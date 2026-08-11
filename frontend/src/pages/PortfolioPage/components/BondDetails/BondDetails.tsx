@@ -25,6 +25,10 @@ function resultSign(value: string) {
   return value.startsWith('-') ? 'negative' as const : 'positive' as const;
 }
 
+function formatOperationResult(value: string) {
+  return `${resultSign(value) === 'positive' ? '+' : ''}${formatMoney(value)}`;
+}
+
 export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled = false, focusOperationId = null }: {
   bond: BondPortfolioItem;
   onDeleteOperation?: (operationId: string, returnFocusTarget: HTMLElement) => void;
@@ -62,9 +66,9 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
       <dl className={styles.metricsGrid}>
         <div>
           <dt className={styles.metricLabel}>
-            <span>Остаток позиции</span>
+            <span>Нереализованный остаток от вложенной суммы</span>
             <Tooltip label="Как рассчитывается остаток позиции">
-              Полная остаточная себестоимость облигаций в открытой позиции после всех покупок и продаж. Для закрытой позиции равна нулю.
+              Например, мы вложили 1000 руб и купили 10 облигаций по 100 руб, потом продали 1шт за 200 рублей. Но эти 100 рублей выгоды
             </Tooltip>
           </dt>
           <dd>{formatMoney(bond.positionCostBasis)}</dd>
@@ -125,7 +129,7 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
                     className={`${styles.realizedResult} ${styles[resultSign(operation.realizedResult)]}`}
                     data-result-sign={resultSign(operation.realizedResult)}
                   >
-                    {formatMoney(operation.realizedResult)}
+                    {formatOperationResult(operation.realizedResult)}
                   </b>
                 ) : null}
               </div>
