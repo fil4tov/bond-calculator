@@ -57,7 +57,9 @@ export function ControlledNumberField<
           value={typeof field.value === 'string' ? field.value : ''}
           onChange={(event) => field.onChange(event.target.value)}
           onFocus={(event) => {
-            field.onChange(formatEditableNumber(parseFormattedNumber(event.currentTarget.value)));
+            const currentValue = typeof field.value === 'string' ? field.value : '';
+            const editableValue = formatEditableNumber(parseFormattedNumber(event.currentTarget.value));
+            if (editableValue !== currentValue) field.onChange(editableValue);
             onFocus?.(event);
           }}
           onBlur={(event) => {

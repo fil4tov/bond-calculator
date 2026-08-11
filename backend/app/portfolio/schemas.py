@@ -4,17 +4,9 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import (
-    BaseModel,
-    BeforeValidator,
-    Field,
-    StringConstraints,
-    ValidationInfo,
-    field_validator,
-)
+from pydantic import BaseModel, BeforeValidator, Field, StringConstraints, ValidationInfo, field_validator
 
 from . import clock
-from .calculations import coupon_period_count, infer_coupon_period_days
 
 
 def _trim(value: object) -> object:
@@ -27,37 +19,21 @@ def _parse_money(value: object) -> Decimal:
     return Decimal(value)
 
 
-BondName = Annotated[
-    str, BeforeValidator(_trim), StringConstraints(min_length=1, max_length=120)
-]
-NonnegativeMoney = Annotated[
-    Decimal,
-    BeforeValidator(_parse_money),
-    Field(ge=0, max_digits=18, decimal_places=2),
-]
-PositiveMoney = Annotated[
-    Decimal,
-    BeforeValidator(_parse_money),
-    Field(gt=0, max_digits=18, decimal_places=2),
-]
+BondName = Annotated[str, BeforeValidator(_trim), StringConstraints(min_length=1, max_length=120)]
+Ticker = Annotated[str, BeforeValidator(_trim), StringConstraints(min_length=1, max_length=32)]
+InstrumentUid = Annotated[str, BeforeValidator(_trim), StringConstraints(min_length=1, max_length=64)]
+PositiveMoney = Annotated[Decimal, BeforeValidator(_parse_money), Field(gt=0, max_digits=18, decimal_places=2)]
 PositiveQuantity = Annotated[int, Field(strict=True, gt=0, le=2_147_483_647)]
-PaymentFrequency = Literal[1, 2, 3, 4, 6, 12]
 
 
 class BondCreate(BaseModel):
+    instrument_uid: InstrumentUid
+    ticker: Ticker
     name: BondName
-    coupon_amount: NonnegativeMoney
     nominal: PositiveMoney
-    payments_per_year: PaymentFrequency
+    payments_per_year: int = Field(strict=True, ge=0)
     placement_date: date
     maturity_date: date
-    coupon_period_days: int | None = Field(
-        default=None,
-        validate_default=True,
-        strict=True,
-        ge=1,
-        le=366,
-    )
     amount_spent: PositiveMoney
     quantity: PositiveQuantity
     purchase_date: date
@@ -78,27 +54,6 @@ class BondCreate(BaseModel):
         if isinstance(placement_date, date) and value <= placement_date:
             raise ValueError("maturity_date must be after placement_date")
         return value
-
-    @field_validator("coupon_period_days")
-    @classmethod
-    def resolve_coupon_period_days(cls, value: int | None, info: ValidationInfo) -> int:
-        frequency = info.data.get("payments_per_year")
-        placement = info.data.get("placement_date")
-        maturity = info.data.get("maturity_date")
-        if not isinstance(frequency, int) or not isinstance(placement, date) or not isinstance(
-            maturity, date
-        ):
-            return value if value is not None else 1
-        resolved = value if value is not None else infer_coupon_period_days(frequency)
-        count = coupon_period_count(
-            placement_date=placement,
-            maturity_date=maturity,
-            payments_per_year=frequency,
-        )
-        lifetime_days = (maturity - placement).days
-        if resolved * (count - 1) >= lifetime_days:
-            raise ValueError("coupon_period_days is incompatible with bond dates")
-        return resolved
 
     @field_validator("purchase_date")
     @classmethod
@@ -138,20 +93,28 @@ class NextCoupon(BaseModel):
     period_end: date
     pay_date: date
     amount: str
+    amount_per_bond: str
     days_until: int
     period_days: int
     elapsed_period_days: int
 
 
+class BondPurchaseItem(BaseModel):
+    id: UUID
+    amount_spent: str
+    quantity: int
+    purchase_date: date
+
+
 class BondCard(BaseModel):
     id: UUID
+    instrument_uid: str
+    ticker: str
     name: str
-    coupon_amount: str
     nominal: str
     payments_per_year: int
     placement_date: date
     maturity_date: date
-    coupon_period_days: int
     status: Literal["active", "payment_pending", "matured"]
     total_quantity: int
     total_spent: str
@@ -159,6 +122,7 @@ class BondCard(BaseModel):
     annual_coupon_yield_percent: str
     maturity_remaining: MaturityRemaining
     next_coupon: NextCoupon | None
+    purchases: list[BondPurchaseItem]
 
 
 class BondList(BaseModel):
@@ -167,3 +131,17 @@ class BondList(BaseModel):
 
 class NameAvailability(BaseModel):
     available: bool
+
+
+class TInvestLookupItem(BaseModel):
+    ticker: str
+    instrument_uid: str
+    name: str
+    nominal: str
+    payments_per_year: int
+    placement_date: date
+    maturity_date: date
+
+
+class TInvestLookupResponse(BaseModel):
+    item: TInvestLookupItem | None

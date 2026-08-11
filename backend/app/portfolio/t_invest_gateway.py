@@ -1,0 +1,144 @@
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time
+from decimal import Decimal
+from typing import Any, Protocol
+
+from grpc import StatusCode
+from t_tech.invest import AsyncClient, InstrumentIdType
+from t_tech.invest.exceptions import AioRequestError
+
+from app.errors import ApiError
+
+
+class AsyncClientContext(Protocol):
+    async def __aenter__(self) -> Any: ...
+
+    async def __aexit__(self, *_args: object) -> object: ...
+
+
+@dataclass(frozen=True)
+class TInvestBond:
+    ticker: str
+    instrument_uid: str
+    name: str
+    nominal: Decimal
+    payments_per_year: int
+    placement_date: date
+    maturity_date: date
+
+
+@dataclass(frozen=True)
+class TInvestCoupon:
+    figi: str
+    coupon_date: date
+    coupon_number: int
+    fix_date: date | None
+    pay_one_bond_amount: Decimal
+    pay_one_bond_currency: str
+    coupon_type: int
+    coupon_start_date: date
+    coupon_end_date: date
+    coupon_period: int
+
+
+def _money_value_to_decimal(value: Any) -> Decimal:
+    return Decimal(value.units) + Decimal(value.nano).scaleb(-9)
+
+
+def _as_date(value: datetime | None) -> date | None:
+    return value.date() if value is not None else None
+
+
+def _not_configured() -> ApiError:
+    return ApiError(
+        status_code=503,
+        code="t_invest_not_configured",
+        message="T-Invest API key is not configured",
+    )
+
+
+def _unavailable() -> ApiError:
+    return ApiError(
+        status_code=503,
+        code="t_invest_unavailable",
+        message="T-Invest service is temporarily unavailable",
+    )
+
+
+class TInvestGateway:
+    def __init__(
+        self,
+        *,
+        api_key: str | None,
+        client_factory: Callable[[str], AsyncClientContext] = AsyncClient,
+    ) -> None:
+        self._api_key = api_key
+        self._client_factory = client_factory
+
+    def _client(self) -> AsyncClientContext:
+        if not self._api_key:
+            raise _not_configured()
+        try:
+            return self._client_factory(self._api_key)
+        except Exception as error:
+            raise _unavailable() from error
+
+    async def lookup_bond(self, ticker: str) -> TInvestBond | None:
+        try:
+            async with self._client() as client:
+                response = await client.instruments.bond_by(
+                    id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_TICKER,
+                    id=ticker,
+                    class_code="TQCB",
+                )
+        except ApiError:
+            raise
+        except AioRequestError as error:
+            if error.code == StatusCode.NOT_FOUND:
+                return None
+            raise _unavailable() from error
+        except Exception as error:
+            raise _unavailable() from error
+        instrument = getattr(response, "instrument", None)
+        if instrument is None or not getattr(instrument, "uid", ""):
+            return None
+        return TInvestBond(
+            ticker=instrument.ticker,
+            instrument_uid=instrument.uid,
+            name=instrument.name,
+            nominal=_money_value_to_decimal(instrument.nominal),
+            payments_per_year=instrument.coupon_quantity_per_year,
+            placement_date=instrument.placement_date.date(),
+            maturity_date=instrument.maturity_date.date(),
+        )
+
+    async def get_coupon_schedule(
+        self, uid: str, from_date: date, to_date: date
+    ) -> tuple[TInvestCoupon, ...]:
+        try:
+            async with self._client() as client:
+                response = await client.instruments.get_bond_coupons(
+                    instrument_id=uid,
+                    from_=datetime.combine(from_date, time.min, tzinfo=UTC),
+                    to=datetime.combine(to_date, time.max, tzinfo=UTC),
+                )
+        except ApiError:
+            raise
+        except Exception as error:
+            raise _unavailable() from error
+        return tuple(
+            TInvestCoupon(
+                figi=event.figi,
+                coupon_date=event.coupon_date.date(),
+                coupon_number=event.coupon_number,
+                fix_date=_as_date(event.fix_date),
+                pay_one_bond_amount=_money_value_to_decimal(event.pay_one_bond),
+                pay_one_bond_currency=event.pay_one_bond.currency,
+                coupon_type=int(event.coupon_type),
+                coupon_start_date=event.coupon_start_date.date(),
+                coupon_end_date=event.coupon_end_date.date(),
+                coupon_period=event.coupon_period,
+            )
+            for event in response.events
+        )

@@ -24,6 +24,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bonds}:${POSTGRES_PASSWORD:-bonds_dev_password}@postgres:5432/${POSTGRES_DB:-bonds}
       SESSION_DAYS: ${SESSION_DAYS:-30}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      T_INVEST_API_KEY: ${T_INVEST_API_KEY:-}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:

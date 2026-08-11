@@ -118,10 +118,10 @@ async function openPurchaseForm(
   const actions = within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' });
   await user.click(actions);
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'Добавить покупку' }));
+  await user.click(screen.getByRole('button', { name: 'Зафиксировать покупку' }));
   return {
     actions,
-    dialog: screen.getByRole('dialog', { name: 'Добавить покупку' }),
+    dialog: screen.getByRole('dialog', { name: 'Зафиксировать покупку' }),
   };
 }
 
@@ -291,6 +291,27 @@ describe('PortfolioPage', () => {
       .toHaveTextContent(`через ${expected}`);
   });
 
+  it('tracks the cursor only inside the main card surface', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
+    renderPortfolio();
+
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    const detailsTrigger = within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' });
+    const actionsTrigger = within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' });
+    const main = detailsTrigger.parentElement as HTMLElement;
+    vi.spyOn(main, 'getBoundingClientRect').mockReturnValue({ left: 100, top: 50 } as DOMRect);
+
+    fireEvent.pointerMove(main, { clientX: 164, clientY: 92 });
+
+    expect(main.style.getPropertyValue('--hover-x')).toBe('64px');
+    expect(main.style.getPropertyValue('--hover-y')).toBe('42px');
+    expect(actionsTrigger.style.getPropertyValue('--hover-x')).toBe('');
+    expect(actionsTrigger.style.getPropertyValue('--hover-y')).toBe('');
+
+    fireEvent.pointerMove(actionsTrigger, { clientX: 210, clientY: 92 });
+    expect(main.style.getPropertyValue('--hover-x')).toBe('64px');
+  });
+
   it('opens complete bond details by click and keyboard and restores focus', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
@@ -373,7 +394,7 @@ describe('PortfolioPage', () => {
 
     actions.focus();
     await user.keyboard('{Enter}');
-    const purchaseAction = screen.getByRole('button', { name: 'Добавить покупку' });
+    const purchaseAction = screen.getByRole('button', { name: 'Зафиксировать покупку' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await user.tab();
     expect(purchaseAction).toHaveFocus();
@@ -400,8 +421,8 @@ describe('PortfolioPage', () => {
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
 
     await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
-    expect(screen.getByRole('button', { name: 'Добавить покупку' })).toBeInTheDocument();
-    const deleteAction = screen.getByRole('button', { name: 'Удалить облигацию из портфеля' });
+    expect(screen.getByRole('button', { name: 'Зафиксировать покупку' })).toBeInTheDocument();
+    const deleteAction = screen.getByRole('button', { name: 'Удалить из портфеля' });
     await user.click(deleteAction);
 
     expect(confirm).toHaveBeenCalledWith(
@@ -427,7 +448,7 @@ describe('PortfolioPage', () => {
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
 
     await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
-    await user.click(screen.getByRole('button', { name: 'Удалить облигацию из портфеля' }));
+    await user.click(screen.getByRole('button', { name: 'Удалить из портфеля' }));
 
     expect(await screen.findByText('Портфель пока пуст')).toBeInTheDocument();
     expect(screen.queryByRole('article', { name: 'ОФЗ 26238' })).not.toBeInTheDocument();
@@ -452,7 +473,7 @@ describe('PortfolioPage', () => {
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
 
     await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
-    await user.click(screen.getByRole('button', { name: 'Удалить облигацию из портфеля' }));
+    await user.click(screen.getByRole('button', { name: 'Удалить из портфеля' }));
 
     await waitFor(() => expect(alert).toHaveBeenCalledWith(
       'Не удалось удалить облигацию из портфеля. Попробуйте ещё раз.',
@@ -480,6 +501,35 @@ describe('PortfolioPage', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(document.body.style.overflow).toBe('');
     expect(trigger).toHaveFocus();
+  });
+
+  it('does not validate an empty numeric field when the create form only focuses it', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [] })));
+    renderPortfolio();
+    const dialog = await openCreateForm(user);
+    const amount = within(dialog).getByLabelText('Сумма покупки');
+
+    await user.click(amount);
+
+    expect(amount).toHaveFocus();
+    expect(amount).not.toHaveAttribute('aria-invalid');
+    expect(within(dialog).queryByText('Введите сумму покупки')).not.toBeInTheDocument();
+  });
+
+  it('does not validate an empty numeric field when the purchase form only focuses it', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: activeBond.name });
+    const { dialog } = await openPurchaseForm(user, card);
+    const amount = within(dialog).getByLabelText('Сумма покупки');
+
+    await user.click(amount);
+
+    expect(amount).toHaveFocus();
+    expect(amount).not.toHaveAttribute('aria-invalid');
+    expect(within(dialog).queryByText('Введите сумму покупки')).not.toBeInTheDocument();
   });
 
   it('validates backend money and date rules live before submission', async () => {
@@ -636,7 +686,7 @@ describe('PortfolioPage', () => {
     await user.type(purchaseQuantity, '2000');
     await user.tab();
     expect(purchaseQuantity).toHaveValue(new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(2000));
-    await user.click(within(purchaseDialog).getByRole('button', { name: 'Добавить покупку' }));
+    await user.click(within(purchaseDialog).getByRole('button', { name: 'Зафиксировать' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(purchaseBody).toMatchObject({ amount_spent: '12500.75', quantity: 2000 });
@@ -936,7 +986,7 @@ describe('PortfolioPage', () => {
     await user.type(within(dialog).getByLabelText('Сумма покупки'), '1000,05');
     await user.type(within(dialog).getByLabelText('Количество'), '2');
     expect(within(dialog).getByLabelText('Дата покупки')).toHaveValue(todayInput());
-    await user.click(within(dialog).getByRole('button', { name: 'Добавить покупку' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Зафиксировать' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(within(screen.getByRole('article', { name: 'ОФЗ 26238' })).getByText('77 шт.')).toBeInTheDocument();

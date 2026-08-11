@@ -82,12 +82,12 @@ test('creates a portfolio bond and updates its aggregate through the purchase en
 
   const actions = card.getByRole('button', { name: `Действия с облигацией ${bondName}` });
   await actions.click();
-  await page.getByRole('button', { name: 'Добавить покупку' }).click();
+  await page.getByRole('button', { name: 'Зафиксировать покупку' }).click();
 
-  const purchaseDialog = page.getByRole('dialog', { name: 'Добавить покупку' });
+  const purchaseDialog = page.getByRole('dialog', { name: 'Зафиксировать покупку' });
   await purchaseDialog.getByLabel('Сумма покупки').fill('1000,05');
   await purchaseDialog.getByLabel('Количество', { exact: true }).fill('2');
-  await purchaseDialog.getByRole('button', { name: 'Добавить покупку' }).click();
+  await purchaseDialog.getByRole('button', { name: 'Зафиксировать' }).click();
 
   await expect(purchaseDialog).toBeHidden();
   await expect(card).toContainText('12 шт.');
@@ -112,7 +112,7 @@ test('creates a portfolio bond and updates its aggregate through the purchase en
     );
     await dialog.accept();
   });
-  await page.getByRole('button', { name: 'Удалить облигацию из портфеля' }).click();
+  await page.getByRole('button', { name: 'Удалить из портфеля' }).click();
 
   await expect(card).toBeHidden();
   await expect(page.getByText('Портфель пока пуст')).toBeVisible();

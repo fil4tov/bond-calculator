@@ -114,7 +114,7 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
       ) : null}
       {modal?.kind === 'purchase' ? (
         <ModalShell
-          title="Добавить покупку"
+          title="Зафиксировать покупку"
           eyebrow={null}
           busy={modalBusy}
           returnFocusTarget={modal.returnFocusTarget}

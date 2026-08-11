@@ -1,7 +1,8 @@
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.auth.dependencies import CurrentUser, Database
 
@@ -13,14 +14,37 @@ from .schemas import (
     BondName,
     NameAvailability,
     PurchaseCreate,
+    TInvestLookupItem,
+    TInvestLookupResponse,
 )
 from .service import add_purchase, create_bond, delete_bond, is_name_available, list_bonds
+from .t_invest_gateway import TInvestGateway
+from app.config import get_settings
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
 
 def _disable_cache(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
+
+
+def get_t_invest_gateway() -> TInvestGateway:
+    return TInvestGateway(api_key=get_settings().t_invest_api_key)
+
+
+@router.get("/bonds/t-invest-lookup", response_model=TInvestLookupResponse)
+async def t_invest_lookup(
+    response: Response,
+    user: CurrentUser,
+    ticker: Annotated[str, Query(min_length=1)],
+    gateway: TInvestGateway = Depends(get_t_invest_gateway),
+) -> TInvestLookupResponse:
+    del user
+    bond = await gateway.lookup_bond(ticker.strip().upper())
+    _disable_cache(response)
+    if bond is None:
+        return TInvestLookupResponse(item=None)
+    return TInvestLookupResponse(item=TInvestLookupItem(ticker=bond.ticker, instrument_uid=bond.instrument_uid, name=bond.name, nominal=f"{bond.nominal.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}", payments_per_year=bond.payments_per_year, placement_date=bond.placement_date, maturity_date=bond.maturity_date))
 
 
 @router.get("/bonds", response_model=BondList)
@@ -42,9 +66,10 @@ async def get_name_availability(
 
 @router.post("/bonds", response_model=BondCard, status_code=status.HTTP_201_CREATED)
 async def post_bond(
-    data: BondCreate, response: Response, db: Database, user: CurrentUser
+    data: BondCreate, response: Response, db: Database, user: CurrentUser,
+    gateway: TInvestGateway = Depends(get_t_invest_gateway),
 ) -> BondCard:
-    card = await create_bond(db, user.id, data)
+    card = await create_bond(db, user.id, data, gateway)
     _disable_cache(response)
     return card
 

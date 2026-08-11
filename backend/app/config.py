@@ -11,9 +11,9 @@ class Settings(BaseSettings):
     session_cookie_name: str = "bonds_session"
     session_days: int = Field(default=30, ge=1)
     cookie_secure: bool = False
+    t_invest_api_key: str | None = None
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

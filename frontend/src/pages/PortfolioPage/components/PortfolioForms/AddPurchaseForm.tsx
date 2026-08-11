@@ -111,7 +111,7 @@ export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPu
       <div className={styles.submitRow}>
         <p>После добавления покупки произойдет перерасчет процента годовых</p>
         <Button className={styles.submitButton} type="submit" disabled={!isValid || busy}>
-          {busy ? 'Добавляем…' : 'Добавить покупку'}
+          {busy ? 'Фиксируем…' : 'Зафиксировать'}
         </Button>
       </div>
     </form>

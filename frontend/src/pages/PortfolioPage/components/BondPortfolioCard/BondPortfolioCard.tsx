@@ -52,7 +52,14 @@ export function BondPortfolioCard({
 
   return (
     <article className={`${styles.card} ${matured ? styles.matured : ''}`} aria-label={bond.name}>
-      <div className={styles.main}>
+      <div
+        className={styles.main}
+        onPointerMove={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          event.currentTarget.style.setProperty('--hover-x', `${event.clientX - bounds.left}px`);
+          event.currentTarget.style.setProperty('--hover-y', `${event.clientY - bounds.top}px`);
+        }}
+      >
         <div className={styles.mainContent}>
         <span id={summaryId} className={styles.summary}>
           <span className={styles.identity}>
@@ -136,7 +143,7 @@ export function BondPortfolioCard({
               if (actionsRef.current) onAddPurchase(actionsRef.current);
             }}
           >
-            Добавить покупку
+            Зафиксировать покупку
           </button>
           <button
             type="button"
@@ -147,7 +154,7 @@ export function BondPortfolioCard({
               onDelete();
             }}
           >
-            Удалить облигацию из портфеля
+            Удалить из портфеля
           </button>
         </div>
       </Dropdown>
