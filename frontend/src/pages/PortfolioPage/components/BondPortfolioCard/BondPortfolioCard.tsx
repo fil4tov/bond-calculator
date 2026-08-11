@@ -1,16 +1,17 @@
 import { useId, useRef, useState } from 'react';
 
 import type { BondPortfolioItem } from '#entities/bondPortfolio';
-import { Dropdown } from '#shared/ui';
+import { Dropdown, Tooltip } from '#shared/ui';
 
-import { formatDayCount, formatMoney, formatPercent, formatYearCount } from '../../utils';
+import { couponYieldDescription, formatDayCount, formatMoney, formatPercent, formatYearCount } from '../../utils';
 import styles from './BondPortfolioCard.module.scss';
 
 interface BondPortfolioCardProps {
   bond: BondPortfolioItem;
   onOpenDetails: (returnFocusTarget: HTMLElement) => void;
   onAddPurchase: (returnFocusTarget: HTMLElement) => void;
-  onDelete: () => void;
+  onAddSale: (returnFocusTarget: HTMLElement) => void;
+  onDelete: (returnFocusTarget: HTMLElement) => void;
   deleteDisabled: boolean;
 }
 
@@ -33,6 +34,7 @@ export function BondPortfolioCard({
   bond,
   onOpenDetails,
   onAddPurchase,
+  onAddSale,
   onDelete,
   deleteDisabled,
 }: BondPortfolioCardProps) {
@@ -70,8 +72,18 @@ export function BondPortfolioCard({
             </span>
           </span>
           <span className={styles.value}>
-            <strong>{formatMoney(bond.totalSpent)}</strong>
-            <span>{formatPercent(bond.annualCouponYieldPercent)} годовых</span>
+            <strong>{formatMoney(bond.positionCostBasis)}</strong>
+            <span className={styles.yieldLine}>
+              {formatPercent(bond.calendarYearCouponYieldPercent)} за {bond.couponYieldYear} год
+              <span className={styles.yieldHelp}>
+                <Tooltip
+                  label={`Как рассчитывается купонная доходность за ${bond.couponYieldYear} год`}
+                  align="right"
+                >
+                  {couponYieldDescription(bond.couponYieldYear)}
+                </Tooltip>
+              </span>
+            </span>
           </span>
         </span>
 
@@ -147,11 +159,22 @@ export function BondPortfolioCard({
           </button>
           <button
             type="button"
+            className={styles.menuItem}
+            disabled={bond.totalQuantity <= 0}
+            onClick={() => {
+              setMenuOpen(false);
+              if (actionsRef.current) onAddSale(actionsRef.current);
+            }}
+          >
+            Зафиксировать продажу
+          </button>
+          <button
+            type="button"
             className={`${styles.menuItem} ${styles.deleteMenuItem}`}
             disabled={deleteDisabled}
             onClick={() => {
               setMenuOpen(false);
-              onDelete();
+              if (actionsRef.current) onDelete(actionsRef.current);
             }}
           >
             Удалить из портфеля

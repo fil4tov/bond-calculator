@@ -16,7 +16,7 @@
   position: relative;
   display: grid;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 17px 0 0 17px;
   color: inherit;
   text-align: left;
@@ -64,6 +64,9 @@
 .value { align-items: flex-end; text-align: right; }
 .value strong { font-size: 19px; font-weight: 850; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .value span { color: var(--accent-text); font-size: 13px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.value .yieldLine { position: relative; z-index: 3; display: inline-flex; align-items: center; justify-content: flex-end; gap: 7px; pointer-events: none; }
+.yieldHelp { display: inline-flex; pointer-events: auto; }
+.value .yieldHelp [role='tooltip'] { color: var(--ink); font-size: 13px; }
 
 .couponTrack {
   position: relative;
@@ -72,6 +75,7 @@
   overflow: hidden;
   color: #154535;
   background: #eef5f1;
+  border-radius: 0 0 0 17px;
 }
 
 .couponFill {
@@ -116,7 +120,7 @@
 .actionsMenu { width: 260px; border-radius: 14px; }
 .menuItem { width: 100%; padding: 14px 16px; border: 0; color: var(--ink); text-align: left; background: transparent; cursor: pointer; }
 .menuItem:hover, .menuItem:focus-visible { outline: 0; background: var(--green-soft); }
-.menuItem:disabled { opacity: 0.55; cursor: wait; }
+.menuItem:disabled { opacity: 0.55; cursor: not-allowed; }
 .deleteMenuItem { border-top: 1px solid var(--divider); color: var(--loss); }
 .deleteMenuItem:hover, .deleteMenuItem:focus-visible { background: var(--loss-soft); }
 
@@ -135,6 +139,7 @@
   .meta { flex-direction: column; gap: 4px; }
   .meta span + span::before { display: none; }
   .value { align-items: flex-start; text-align: left; }
+  .value .yieldLine { justify-content: flex-start; }
   .couponCopy { align-items: flex-start; flex-direction: column; gap: 2px; padding: 8px 16px; }
   .actionsMenu { right: -1px; }
 }

@@ -25,6 +25,10 @@
 .emptyCoupon::after { bottom: 18px; }
 .emptyCoupon span { font-size: 25px; font-weight: 900; }
 .errorState { grid-template-columns: minmax(0, 1fr) minmax(230px, auto); border-color: color-mix(in srgb, var(--loss) 28%, transparent); }
+.confirmation { display: grid; gap: 24px; }
+.confirmation p { margin: 0; color: var(--muted); line-height: 1.5; }
+.confirmation .confirmationError { color: var(--loss); }
+.confirmationActions { display: flex; justify-content: flex-end; gap: 12px; }
 
 .skeletonCard { display: grid; min-height: 118px; padding: 18px 22px; border: 1px solid var(--card-border); border-radius: 18px; background: var(--card); grid-template-columns: 2fr 1fr; gap: 12px 22px; }
 .skeletonCard span { min-height: 26px; border-radius: 8px; background: linear-gradient(100deg, var(--divider) 15%, var(--green-soft) 45%, var(--divider) 75%); background-size: 240% 100%; animation: skeleton 1.4s ease infinite; }

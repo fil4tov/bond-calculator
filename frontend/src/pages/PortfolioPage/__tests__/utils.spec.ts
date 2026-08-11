@@ -5,12 +5,17 @@ import {
   formatMoney,
   formatPercent,
   todayInputValue,
+  availableQuantityOnDate,
   validateQuantity,
 } from '../utils';
 
 describe('portfolio decimal utilities', () => {
   it('formats the maximum NUMERIC(18,2) value without losing kopecks', () => {
     expect(formatMoney('9999999999999999.99')).toBe('9\u00a0999\u00a0999\u00a0999\u00a0999\u00a0999,99\u00a0₽');
+  });
+
+  it('formats a negative realized result without throwing or losing the sign', () => {
+    expect(formatMoney('-100.005')).toBe('−100,01\u00a0₽');
   });
 
   it('rounds a large backend percentage string without IEEE-754 precision loss', () => {
@@ -39,5 +44,20 @@ describe('portfolio decimal utilities', () => {
     const afterMidnightInMoscow = new Date('2026-08-10T00:30:00+03:00');
 
     expect(todayInputValue(afterMidnightInMoscow)).toBe('2026-08-09');
+  });
+
+  it('subtracts all recorded sales on or before the planned sale date from purchased quantity', () => {
+    const operations: Array<{ operationType: 'purchase' | 'sale'; quantity: number; operationDate: string }> = [
+      { operationType: 'purchase', quantity: 50, operationDate: '2026-08-08' },
+      { operationType: 'sale', quantity: 15, operationDate: '2026-08-09' },
+      { operationType: 'purchase', quantity: 25, operationDate: '2026-08-10' },
+      { operationType: 'sale', quantity: 10, operationDate: '2026-08-10' },
+      { operationType: 'sale', quantity: 5, operationDate: '2026-08-11' },
+    ];
+
+    expect(availableQuantityOnDate(operations, '2026-08-08')).toBe(50);
+    expect(availableQuantityOnDate(operations, '2026-08-09')).toBe(35);
+    expect(availableQuantityOnDate(operations, '2026-08-10')).toBe(50);
+    expect(availableQuantityOnDate(operations, '2026-08-11')).toBe(45);
   });
 });

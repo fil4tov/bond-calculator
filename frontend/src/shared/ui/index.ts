@@ -9,3 +9,5 @@ export { ControlledNumberField, NumberField, TextField } from './TextField';
 export type { ControlledNumberFieldProps, NumberFieldProps, TextFieldProps } from './TextField';
 export { Tooltip } from './Tooltip';
 export { Typography } from './Typography';
+export { Modal } from './Modal';
+export type { ModalProps } from './Modal';

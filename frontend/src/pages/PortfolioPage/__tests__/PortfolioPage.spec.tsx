@@ -19,11 +19,16 @@ const lookupItem = {
   placement_date: '2025-05-15', maturity_date: '2041-05-15',
 };
 
+const searchResponse = (item = lookupItem) => ({
+  items: [{ ticker: item.ticker, instrument_uid: item.instrument_uid, name: item.name }],
+});
+
 const activeBond = {
   id: 'bond-1', name: 'ОФЗ 26238', nominal: '1000.00', payments_per_year: 2,
   placement_date: '2025-05-15', maturity_date: '2041-05-15', status: 'active',
   total_quantity: 75, total_spent: '75000.70',
-  paid_coupon_total: '1770.00', annual_coupon_yield_percent: '7.0800',
+  position_cost_basis: '75000.70', realized_result: '0.00', position_status: 'open',
+  paid_coupon_total: '1770.00', calendar_year_coupon_yield_percent: '7.0800', coupon_yield_year: 2026,
   maturity_remaining: { years: 14, months: 9, days_until: 5392 },
   next_coupon: {
     period_start: '2026-05-15', period_end: '2026-11-15', pay_date: '2026-11-16',
@@ -32,6 +37,10 @@ const activeBond = {
   purchases: [
     { id: 'purchase-2', amount_spent: '25000.35', quantity: 25, purchase_date: '2026-08-09' },
     { id: 'purchase-1', amount_spent: '50000.35', quantity: 50, purchase_date: '2026-08-08' },
+  ],
+  operations: [
+    { id: 'purchase-2', operation_type: 'purchase', amount: '25000.35', quantity: 25, operation_date: '2026-08-09', realized_result: null },
+    { id: 'purchase-1', operation_type: 'purchase', amount: '50000.35', quantity: 50, operation_date: '2026-08-08', realized_result: null },
   ],
 };
 
@@ -57,7 +66,7 @@ const zeroCouponBond = {
   ...activeBond,
   id: 'bond-4',
   name: 'Бескупонная облигация',
-  annual_coupon_yield_percent: '0.0000',
+  calendar_year_coupon_yield_percent: '0.0000',
   next_coupon: null,
 };
 
@@ -98,17 +107,17 @@ async function openCreateForm(user: ReturnType<typeof userEvent.setup>) {
   return screen.getByRole('dialog', { name: 'Добавить облигацию' });
 }
 
-async function fillCreateForm(user: ReturnType<typeof userEvent.setup>, name = 'ОФЗ 26238') {
-  await user.type(screen.getByRole('combobox', { name: 'Тикер' }), 'su26238');
+async function selectLookupBond(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByRole('combobox', { name: 'Название или тикер' }), 'su26238');
   await user.click(await screen.findByRole('option', { name: /SU26238.*ОФЗ 26238/ }));
-  if (name !== lookupItem.name) {
-    await user.clear(screen.getByLabelText('Название'));
-    await user.type(screen.getByLabelText('Название'), name);
-  }
+}
+
+async function fillCreateForm(user: ReturnType<typeof userEvent.setup>) {
+  await selectLookupBond(user);
   await user.type(screen.getByLabelText('Сумма покупки'), '75000,70');
   await user.type(screen.getByLabelText('Количество'), '75');
   expect(screen.getByLabelText('Дата покупки')).toHaveValue(todayInput());
-  await screen.findByText('Имя свободно');
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled());
 }
 
 async function openPurchaseForm(
@@ -123,6 +132,12 @@ async function openPurchaseForm(
     actions,
     dialog: screen.getByRole('dialog', { name: 'Зафиксировать покупку' }),
   };
+}
+
+async function openSaleForm(user: ReturnType<typeof userEvent.setup>, card: HTMLElement) {
+  await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
+  await user.click(screen.getByRole('button', { name: 'Зафиксировать продажу' }));
+  return screen.getByRole('dialog', { name: 'Зафиксировать продажу' });
 }
 
 describe('PortfolioPage', () => {
@@ -198,7 +213,13 @@ describe('PortfolioPage', () => {
     const maturedCard = screen.getByRole('article', { name: 'ОФЗ 25000' });
     expect(activeCard).toHaveTextContent(/75.000,70.₽/);
     expect(within(activeCard).getByText('75 шт.')).toBeInTheDocument();
-    expect(within(activeCard).getByText('7,08 % годовых')).toBeInTheDocument();
+    expect(within(activeCard).getByText('7,08 % за 2026 год')).toBeInTheDocument();
+    expect(within(activeCard).getByRole('button', {
+      name: 'Как рассчитывается купонная доходность за 2026 год',
+    })).toBeInTheDocument();
+    expect(within(activeCard).getByText(
+      'Для каждого купона за 2026 год сумма выплаты по бумагам в позиции на дату отсечения делится на историческую себестоимость этой позиции на ту же дату и умножается на 100%. Полученные доходности купонов складываются. Дата отсечения — дата фиксации права, а если её нет — конец купонного периода, без учёта операций в этот день. Учитываются уже выплаченные и будущие купоны; возврат номинала не входит.',
+    )).toBeInTheDocument();
     expect(within(activeCard).getByText('Ближайший купон через 99 дней')).toBeInTheDocument();
     expect(within(activeCard).queryByText('Всего вложено')).not.toBeInTheDocument();
     expect(within(activeCard).queryByText('Номинал')).not.toBeInTheDocument();
@@ -326,19 +347,19 @@ describe('PortfolioPage', () => {
     expect(within(dialog).getByText('Номинал').parentElement).toHaveTextContent(/1.000,00.₽/);
     expect(
       Array.from(within(dialog).getByText('Номинал').closest('dl')!.querySelectorAll('dt'))
-        .map((label) => label.textContent),
-    ).toEqual(['Номинал', 'Выплат в год', 'Дата размещения', 'Дата погашения']);
+        .map((label) => label.firstElementChild?.textContent ?? label.textContent),
+    ).toEqual(['Номинал', 'Выплат в год', 'Дата размещения', 'Дата погашения', 'Срок до погашения']);
     expect(within(dialog).queryByText('Купон')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Купонный период')).not.toBeInTheDocument();
     expect(
-      Array.from(within(dialog).getByText('Вложенная сумма').closest('dl')!.querySelectorAll('dt'))
-        .map((label) => label.textContent),
+      Array.from(within(dialog).getByText('Остаток позиции').closest('dl')!.querySelectorAll('dt'))
+        .map((label) => label.firstElementChild?.textContent ?? label.textContent),
     ).toEqual([
-      'Вложенная сумма',
+      'Остаток позиции',
       'Количество',
-      'Годовая купонная доходность',
+      'Купонная доходность за 2026 год',
       'Выплачено купонов',
-      'Срок до погашения',
+      'Результат сделок',
     ]);
     const nextCoupon = within(dialog).getByRole('region', { name: 'Ближайший купон' });
     expect(nextCoupon).not.toHaveTextContent('Сумма ближайшей выплаты');
@@ -346,13 +367,21 @@ describe('PortfolioPage', () => {
     expect(nextCoupon).not.toHaveTextContent('Купонный период');
     expect(nextCoupon).toHaveTextContent(/2.655,00.₽.*•.*35,40.₽ шт\./);
     expect(nextCoupon).toHaveTextContent('16 ноября 2026 г.');
-    const purchaseHistory = within(dialog).getByRole('region', { name: 'История покупок' });
-    expect(purchaseHistory).toHaveTextContent('2 покупки');
-    const purchases = within(purchaseHistory).getAllByRole('listitem');
-    expect(purchases).toHaveLength(2);
-    expect(purchases[0]).toHaveTextContent(/25.000,35.₽.*25 шт\..*9 августа 2026 г\./);
-    expect(purchases[1]).toHaveTextContent(/50.000,35.₽.*50 шт\..*8 августа 2026 г\./);
+    const operationHistory = within(dialog).getByRole('region', { name: 'История операций' });
+    expect(operationHistory).toHaveTextContent('2 операции');
+    const operations = within(operationHistory).getAllByRole('listitem');
+    expect(operations).toHaveLength(2);
+    expect(operations[0]).toHaveTextContent(/25.000,35.₽.*\+25 шт\..*9 августа 2026 г\./);
+    expect(operations[1]).toHaveTextContent(/50.000,35.₽.*\+50 шт\..*8 августа 2026 г\./);
+    expect(operationHistory).not.toHaveTextContent('Покупка');
+    expect(operationHistory).not.toHaveTextContent('Продажа');
     expect(within(dialog).getByText('Выплачено купонов').parentElement).toHaveTextContent(/1.770,00.₽/);
+    expect(within(dialog).getByRole('button', {
+      name: 'Как рассчитывается купонная доходность за 2026 год',
+    })).toBeInTheDocument();
+    expect(within(dialog).getByText(
+      'Для каждого купона за 2026 год сумма выплаты по бумагам в позиции на дату отсечения делится на историческую себестоимость этой позиции на ту же дату и умножается на 100%. Полученные доходности купонов складываются. Дата отсечения — дата фиксации права, а если её нет — конец купонного периода, без учёта операций в этот день. Учитываются уже выплаченные и будущие купоны; возврат номинала не входит.',
+    )).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(dialog).not.toBeInTheDocument();
     expect(detailsTrigger).toHaveFocus();
@@ -374,14 +403,14 @@ describe('PortfolioPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
 
     expect(
-      Array.from(within(dialog).getByText('Вложенная сумма').closest('dl')!.querySelectorAll('dt'))
-        .map((label) => label.textContent),
+      Array.from(within(dialog).getByText('Остаток позиции').closest('dl')!.querySelectorAll('dt'))
+        .map((label) => label.firstElementChild?.textContent ?? label.textContent),
     ).toEqual([
-      'Вложенная сумма',
+      'Остаток позиции',
       'Количество',
-      'Годовая купонная доходность',
+      'Купонная доходность за 2026 год',
       'Выплачено купонов',
-      'Срок до погашения',
+      'Результат сделок',
     ]);
   });
 
@@ -405,17 +434,17 @@ describe('PortfolioPage', () => {
     const { dialog } = await openPurchaseForm(user, card);
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).queryByText('ПОРТФЕЛЬ')).not.toBeInTheDocument();
-    expect(within(dialog).getByText('После добавления покупки произойдет перерасчет процента годовых')).toBeInTheDocument();
+    expect(within(dialog).getByText(
+      'После добавления покупки пересчитается купонная доходность за 2026 год',
+    )).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(dialog).not.toBeInTheDocument();
     expect(actions).toHaveFocus();
   });
 
-  it('cancels bond deletion after the exact native confirmation', async () => {
+  it('cancels bond deletion in the local confirmation dialog', async () => {
     const user = userEvent.setup();
-    const confirm = vi.fn().mockReturnValue(false);
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] }));
-    vi.stubGlobal('confirm', confirm);
     vi.stubGlobal('fetch', fetchMock);
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
@@ -424,10 +453,9 @@ describe('PortfolioPage', () => {
     expect(screen.getByRole('button', { name: 'Зафиксировать покупку' })).toBeInTheDocument();
     const deleteAction = screen.getByRole('button', { name: 'Удалить из портфеля' });
     await user.click(deleteAction);
-
-    expect(confirm).toHaveBeenCalledWith(
-      'Вы точно хотите удалить облигацию из портфеля? Это действие необратимо.',
-    );
+    const confirmation = screen.getByRole('dialog', { name: 'Удалить облигацию' });
+    expect(within(confirmation).getByText('ОФЗ 26238')).toBeInTheDocument();
+    await user.click(within(confirmation).getByRole('button', { name: 'Отмена' }));
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(card).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -435,7 +463,6 @@ describe('PortfolioPage', () => {
 
   it('deletes a confirmed bond from the cache and shows the empty portfolio state', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
     const requests: Array<{ url: string; method: string }> = [];
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const details = requestDetails(input, init);
@@ -449,6 +476,7 @@ describe('PortfolioPage', () => {
 
     await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
     await user.click(screen.getByRole('button', { name: 'Удалить из портфеля' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Удалить облигацию' })).getByRole('button', { name: 'Удалить' }));
 
     expect(await screen.findByText('Портфель пока пуст')).toBeInTheDocument();
     expect(screen.queryByRole('article', { name: 'ОФЗ 26238' })).not.toBeInTheDocument();
@@ -458,11 +486,8 @@ describe('PortfolioPage', () => {
     });
   });
 
-  it('keeps the bond and shows a native alert when deletion fails', async () => {
+  it('keeps the bond and shows an inline error when deletion fails', async () => {
     const user = userEvent.setup();
-    const alert = vi.fn();
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
-    vi.stubGlobal('alert', alert);
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { method } = requestDetails(input, init);
       return method === 'DELETE'
@@ -474,10 +499,10 @@ describe('PortfolioPage', () => {
 
     await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
     await user.click(screen.getByRole('button', { name: 'Удалить из портфеля' }));
+    const confirmation = screen.getByRole('dialog', { name: 'Удалить облигацию' });
+    await user.click(within(confirmation).getByRole('button', { name: 'Удалить' }));
 
-    await waitFor(() => expect(alert).toHaveBeenCalledWith(
-      'Не удалось удалить облигацию из портфеля. Попробуйте ещё раз.',
-    ));
+    expect(await within(confirmation).findByRole('alert')).toHaveTextContent('Не удалось удалить облигацию из портфеля. Попробуйте ещё раз.');
     expect(card).toBeInTheDocument();
   });
 
@@ -496,25 +521,24 @@ describe('PortfolioPage', () => {
     expect(document.body.style.overflow).toBe('hidden');
     expect(screen.getByRole('button', { name: 'Закрыть окно' })).toHaveFocus();
     await user.tab({ shift: true });
-    expect(screen.getByLabelText('Дата покупки')).toHaveFocus();
+    expect(screen.getByRole('combobox', { name: 'Название или тикер' })).toHaveFocus();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(document.body.style.overflow).toBe('');
     expect(trigger).toHaveFocus();
   });
 
-  it('does not validate an empty numeric field when the create form only focuses it', async () => {
+  it('shows only ticker search before a bond is selected', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [] })));
     renderPortfolio();
     const dialog = await openCreateForm(user);
-    const amount = within(dialog).getByLabelText('Сумма покупки');
 
-    await user.click(amount);
-
-    expect(amount).toHaveFocus();
-    expect(amount).not.toHaveAttribute('aria-invalid');
-    expect(within(dialog).queryByText('Введите сумму покупки')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('combobox', { name: 'Название или тикер' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('region', { name: 'Выбранная облигация' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Первая покупка')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Сумма покупки')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
   });
 
   it('does not validate an empty numeric field when the purchase form only focuses it', async () => {
@@ -532,185 +556,153 @@ describe('PortfolioPage', () => {
     expect(within(dialog).queryByText('Введите сумму покупки')).not.toBeInTheDocument();
   });
 
-  it('validates backend money and date rules live before submission', async () => {
+  it('uses the earliest purchase rather than a sale as the additional-purchase date boundary', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [] })));
+    const bondWithEarlierSale = {
+      ...activeBond,
+      operations: [
+        ...activeBond.operations,
+        { id: 'sale-earlier', operation_type: 'sale', amount: '1000.00', quantity: 1, operation_date: '2026-08-07', realized_result: '0.00' },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [bondWithEarlierSale] })));
     renderPortfolio();
-    await openCreateForm(user);
+    const card = await screen.findByRole('article', { name: activeBond.name });
+    const { dialog } = await openPurchaseForm(user, card);
+    const purchaseDate = within(dialog).getByLabelText('Дата покупки');
 
-    await user.type(screen.getByLabelText('Название'), '   ');
-    await user.type(screen.getByLabelText('Количество выплат в год'), '1,5');
-    expect(await screen.findByText('Введите целое неотрицательное число')).toBeInTheDocument();
-    await user.type(screen.getByLabelText('Номинал облигации'), '0');
-    await user.type(screen.getByLabelText('Количество'), '1.5');
-
-    expect(await screen.findByText('Введите название')).toBeInTheDocument();
-    expect(screen.getByText('Номинал облигации должен быть больше нуля')).toBeInTheDocument();
-    expect(screen.getByText('Введите целое количество больше нуля')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+    expect(purchaseDate).toHaveAttribute('min', '2026-08-08');
+    fireEvent.change(purchaseDate, { target: { value: '2026-08-07' } });
+    expect(await within(dialog).findByText('Дата покупки должна быть не раньше первой покупки')).toBeInTheDocument();
   });
 
-  it('accepts zero as a whole-number payment frequency', async () => {
+  it('falls back to placement for the additional-purchase date boundary without purchases', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [] })));
+    const bondWithoutPurchases = {
+      ...activeBond,
+      operations: [
+        { id: 'sale-only', operation_type: 'sale', amount: '1000.00', quantity: 1, operation_date: '2026-08-07', realized_result: '0.00' },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [bondWithoutPurchases] })));
     renderPortfolio();
-    await openCreateForm(user);
+    const card = await screen.findByRole('article', { name: activeBond.name });
+    const { dialog } = await openPurchaseForm(user, card);
 
-    const payments = screen.getByLabelText('Количество выплат в год');
-    await user.type(payments, '0');
-    expect(payments).not.toHaveAttribute('aria-invalid');
+    expect(within(dialog).getByLabelText('Дата покупки')).toHaveAttribute('min', activeBond.placement_date);
   });
 
-  it.each([
-    ['1.5', 'дробное значение'],
-  ])('blocks submit for %s (%s) payment frequency', async (value) => {
+  it('renders API bond data as a formatted read-only preview before purchase fields', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [] })));
-    renderPortfolio();
-    await openCreateForm(user);
-    const payments = screen.getByLabelText('Количество выплат в год');
-    await user.type(payments, value);
-    expect(payments).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
-  });
-
-  it('keeps a fractional payment frequency invalid after the field loses focus', async () => {
-    const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [] })));
-    renderPortfolio();
-    await openCreateForm(user);
-    const payments = screen.getByLabelText('Количество выплат в год');
-    fireEvent.change(payments, { target: { value: '30.5' } });
-    await user.tab();
-    expect(payments).toHaveValue('30.5');
-    expect(payments).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
-  });
-
-  it('shows create fields in the requested order without the footer hint', async () => {
-    const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [] })));
-    renderPortfolio();
-    const dialog = await openCreateForm(user);
-    const controls = [
-      within(dialog).getByLabelText('Тикер'),
-      within(dialog).getByLabelText('Название'),
-      within(dialog).getByLabelText('Номинал облигации'),
-      within(dialog).getByLabelText('Количество выплат в год'),
-      within(dialog).getByLabelText('Дата размещения'),
-      within(dialog).getByLabelText('Дата погашения'),
-      within(dialog).getByLabelText('Сумма покупки'),
-      within(dialog).getByLabelText('Количество'),
-      within(dialog).getByLabelText('Дата покупки'),
-    ];
-
-    controls.slice(1).forEach((control, index) => {
-      const previousControl = controls[index];
-      if (!previousControl) throw new Error('Previous create-form control is missing');
-      expect(previousControl.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
-    expect(within(dialog).queryByText('ПОРТФЕЛЬ')).not.toBeInTheDocument();
-    expect(within(dialog).queryByText('Деньги и купоны хранятся с точностью до копейки.')).not.toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Сохранить' })).toBeInTheDocument();
-  });
-
-  it('validates purchase dates against the placement date in both forms', async () => {
-    const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
-    renderPortfolio();
-
-    await user.click(screen.getByRole('button', { name: 'Добавить облигацию' }));
-    const createDialog = screen.getByRole('dialog', { name: 'Добавить облигацию' });
-    fireEvent.change(within(createDialog).getByLabelText('Дата размещения'), {
-      target: { value: '2025-05-15' },
-    });
-    fireEvent.change(within(createDialog).getByLabelText('Дата покупки'), {
-      target: { value: '2025-05-14' },
-    });
-    expect(await within(createDialog).findByText(
-      'Дата покупки должна быть не раньше размещения',
-    )).toBeInTheDocument();
-
-    await user.click(within(createDialog).getByRole('button', { name: 'Закрыть окно' }));
-    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
-    const { dialog: purchaseDialog } = await openPurchaseForm(user, card);
-    const purchaseDate = within(purchaseDialog).getByLabelText('Дата покупки');
-    expect(purchaseDate).toHaveAttribute('min', activeBond.placement_date);
-    fireEvent.change(purchaseDate, { target: { value: '2025-05-14' } });
-    expect(await within(purchaseDialog).findByText(
-      'Дата покупки должна быть не раньше размещения',
-    )).toBeInTheDocument();
-  });
-
-  it('uses calculator-style numeric editing in create and purchase forms', async () => {
-    const user = userEvent.setup();
-    let purchaseBody: unknown;
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const { url, method } = requestDetails(input, init);
-      if (url.includes('t-invest-lookup')) return jsonResponse({ item: lookupItem });
-      if (url.includes('name-availability')) return jsonResponse({ available: true });
-      if (method === 'POST') {
-        purchaseBody = await requestJson(input, init);
-        return jsonResponse(activeBond, 201);
-      }
-      return jsonResponse({ items: [activeBond] });
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse(searchResponse()));
+      if (url.includes('t-invest-lookup')) return Promise.resolve(jsonResponse({ item: lookupItem }));
+      if (url.includes('name-availability')) return Promise.resolve(jsonResponse({ available: true }));
+      return Promise.resolve(jsonResponse({ items: [] }));
     }));
     renderPortfolio();
-    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    const dialog = await openCreateForm(user);
+    await selectLookupBond(user);
 
-    await user.click(screen.getByRole('button', { name: 'Добавить облигацию' }));
-    const createDialog = screen.getByRole('dialog', { name: 'Добавить облигацию' });
-    const nominal = within(createDialog).getByLabelText('Номинал облигации');
-    const quantity = within(createDialog).getByLabelText('Количество');
-
-    await user.type(nominal, '9500,45');
-    await user.tab();
-    expect(nominal).toHaveValue(new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(9500.45));
-    await user.click(nominal);
-    expect(nominal).toHaveValue('9500.45');
-
-    await user.type(quantity, '2000');
-    await user.tab();
-    expect(quantity).toHaveValue(new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(2000));
-
-    await user.click(within(createDialog).getByRole('button', { name: 'Закрыть окно' }));
-    const { dialog: purchaseDialog } = await openPurchaseForm(user, card);
-    const amountSpent = within(purchaseDialog).getByLabelText('Сумма покупки');
-
-    await user.type(amountSpent, '12500,75');
-    await user.tab();
-    expect(amountSpent).toHaveValue(new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(12500.75));
-    await user.click(amountSpent);
-    expect(amountSpent).toHaveValue('12500.75');
-    const purchaseQuantity = within(purchaseDialog).getByLabelText(/Количество/);
-    await user.type(purchaseQuantity, '2000');
-    await user.tab();
-    expect(purchaseQuantity).toHaveValue(new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(2000));
-    await user.click(within(purchaseDialog).getByRole('button', { name: 'Зафиксировать' }));
-
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(purchaseBody).toMatchObject({ amount_spent: '12500.75', quantity: 2000 });
+    const preview = within(dialog).getByRole('region', { name: 'Выбранная облигация' });
+    expect(preview).toHaveTextContent('ОФЗ 26238');
+    expect(preview).toHaveTextContent('SU26238');
+    expect(preview).toHaveTextContent('1 000,00 ₽');
+    expect(preview).toHaveTextContent(/Выплат в год.*2/);
+    expect(preview).toHaveTextContent(/Дата размещения.*15 мая 2025 г\./);
+    expect(preview).toHaveTextContent(/Дата погашения.*15 мая 2041 г\./);
+    expect(within(dialog).queryByLabelText('Название')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Номинал облигации')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Количество выплат в год')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Дата размещения')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Дата погашения')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Первая покупка')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Сумма покупки')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Сохранить' })).toBeDisabled();
   });
 
-  it('enforces the backend money boundary and blocks calculator-invalid characters in both forms', async () => {
-    const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
+  it('shows no provider or non-error availability status in the selected-bond preview', async () => {
+    let resolveAvailability!: (response: Response) => void;
+    const availability = new Promise<Response>((resolve) => { resolveAvailability = resolve; });
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse(searchResponse()));
+      if (url.includes('t-invest-lookup')) return Promise.resolve(jsonResponse({ item: lookupItem }));
+      if (url.includes('name-availability')) return availability;
+      return Promise.resolve(jsonResponse({ items: [] }));
+    }));
     renderPortfolio();
-    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    const user = userEvent.setup();
+    await openCreateForm(user);
+    await selectLookupBond(user);
 
-    const createTrigger = screen.getByRole('button', { name: 'Добавить облигацию' });
-    await user.click(createTrigger);
-    const createDialog = screen.getByRole('dialog', { name: 'Добавить облигацию' });
-    const nominalInput = within(createDialog).getByLabelText('Номинал облигации');
-    await user.type(nominalInput, '9999999999999999.99');
-    expect(nominalInput).not.toHaveAttribute('aria-invalid');
-    await user.clear(nominalInput);
-    await user.type(nominalInput, '10000000000000000.00');
-    expect(nominalInput).toHaveAccessibleDescription('Не более 16 цифр до запятой');
+    const preview = await screen.findByRole('region', { name: 'Выбранная облигация' });
+    expect(within(preview).queryByText(/Облигация T/)).not.toBeInTheDocument();
+    expect(within(preview).queryByText('Проверяем наличие в портфеле…')).not.toBeInTheDocument();
 
-    await user.click(within(createDialog).getByRole('button', { name: 'Закрыть окно' }));
-    const { dialog: purchaseDialog } = await openPurchaseForm(user, card);
-    const amountInput = within(purchaseDialog).getByLabelText('Сумма покупки');
+    await act(async () => { resolveAvailability(jsonResponse({ available: true })); });
+    await waitFor(() => expect(within(preview).queryByText('Можно добавить в портфель')).not.toBeInTheDocument());
+  });
+
+  it('does not validate an empty numeric field when the selected-bond purchase only focuses it', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse(searchResponse()));
+      if (url.includes('t-invest-lookup')) return Promise.resolve(jsonResponse({ item: lookupItem }));
+      if (url.includes('name-availability')) return Promise.resolve(jsonResponse({ available: true }));
+      return Promise.resolve(jsonResponse({ items: [] }));
+    }));
+    renderPortfolio();
+    const dialog = await openCreateForm(user);
+    await selectLookupBond(user);
+    const amount = within(dialog).getByLabelText('Сумма покупки');
+
+    await user.click(amount);
+
+    expect(amount).toHaveFocus();
+    expect(amount).not.toHaveAttribute('aria-invalid');
+    expect(within(dialog).queryByText('Введите сумму покупки')).not.toBeInTheDocument();
+  });
+
+  it('validates first-purchase dates against the selected API bond dates', async () => {
+    const user = userEvent.setup();
+    const maturityBoundaryLookup = { ...lookupItem, maturity_date: todayInput() };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return jsonResponse(searchResponse(maturityBoundaryLookup));
+      if (url.includes('t-invest-lookup')) return jsonResponse({ item: maturityBoundaryLookup });
+      if (url.includes('name-availability')) return jsonResponse({ available: true });
+      return jsonResponse({ items: [] });
+    }));
+    renderPortfolio();
+    const dialog = await openCreateForm(user);
+    await selectLookupBond(user);
+    const purchaseDate = within(dialog).getByLabelText('Дата покупки');
+
+    expect(purchaseDate).toHaveAttribute('min', lookupItem.placement_date);
+    expect(purchaseDate).toHaveAttribute('max', todayInput());
+    fireEvent.change(purchaseDate, { target: { value: '2025-05-14' } });
+    expect(await within(dialog).findByText('Дата покупки должна быть не раньше размещения')).toBeInTheDocument();
+    fireEvent.change(purchaseDate, { target: { value: maturityBoundaryLookup.maturity_date } });
+    expect(await within(dialog).findByText('Дата покупки должна быть раньше погашения')).toBeInTheDocument();
+  });
+
+  it('uses calculator-style numeric editing and money limits for the first purchase', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return jsonResponse(searchResponse());
+      if (url.includes('t-invest-lookup')) return jsonResponse({ item: lookupItem });
+      if (url.includes('name-availability')) return jsonResponse({ available: true });
+      return jsonResponse({ items: [] });
+    }));
+    renderPortfolio();
+    const dialog = await openCreateForm(user);
+    await selectLookupBond(user);
+    const amountInput = within(dialog).getByLabelText('Сумма покупки');
+    const quantityInput = within(dialog).getByLabelText('Количество');
 
     await user.type(amountInput, '9999999999999999,99');
     expect(amountInput).not.toHaveAttribute('aria-invalid');
@@ -721,20 +713,9 @@ describe('PortfolioPage', () => {
     await user.type(amountInput, '+1.00');
     expect(amountInput).toHaveValue('1.00');
     expect(amountInput).not.toHaveAttribute('aria-invalid');
-  });
-
-  it('associates the payment-frequency error with its numeric input', async () => {
-    const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [] })));
-    renderPortfolio();
-    const dialog = await openCreateForm(user);
-    const payments = within(dialog).getByLabelText('Количество выплат в год');
-    await user.type(payments, '1.5');
-
-    const error = await within(dialog).findByRole('alert', { name: '' });
-    expect(error).toHaveTextContent('Введите целое неотрицательное число');
-    expect(payments).toHaveAttribute('aria-describedby', error.id);
-    expect(error.id).not.toBe('');
+    await user.type(quantityInput, '2000');
+    await user.tab();
+    expect(quantityInput).toHaveValue(new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(2000));
   });
 
   it('opens the ticker lookup during debounce and hides an obsolete lookup response', async () => {
@@ -744,32 +725,145 @@ describe('PortfolioPage', () => {
     const second = new Promise<Response>((resolve) => { resolveSecond = resolve; });
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const { url } = requestDetails(input, init);
-      if (url.includes('t-invest-lookup?ticker=SU2')) return second;
-      if (url.includes('t-invest-lookup?ticker=SU')) return first;
+      if (url.includes('t-invest-search?query=su2')) return second;
+      if (url.includes('t-invest-search?query=su')) return first;
       return Promise.resolve(jsonResponse({ items: [] }));
     }));
     renderPortfolio();
     const user = userEvent.setup();
     await openCreateForm(user);
-    const ticker = screen.getByRole('combobox', { name: 'Тикер' });
+    const ticker = screen.getByRole('combobox', { name: 'Название или тикер' });
 
     fireEvent.change(ticker, { target: { value: 'su' } });
-    expect(screen.getByRole('listbox', { name: 'Результаты поиска тикера' })).toBeInTheDocument();
-    expect(screen.getByText('Ищем облигацию…')).toBeInTheDocument();
+    expect(screen.getByRole('listbox', { name: 'Результаты поиска облигаций' })).toBeInTheDocument();
+    expect(screen.getByText('Ищем облигации…')).toBeInTheDocument();
     await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 370)); });
 
     fireEvent.change(ticker, { target: { value: 'su2' } });
-    expect(screen.getByText('Ищем облигацию…')).toBeInTheDocument();
-    await act(async () => { resolveFirst(jsonResponse({ item: lookupItem })); });
+    expect(screen.getByText('Ищем облигации…')).toBeInTheDocument();
+    await act(async () => { resolveFirst(jsonResponse(searchResponse())); });
     expect(screen.queryByRole('option', { name: /SU26238.*ОФЗ 26238/ })).not.toBeInTheDocument();
     await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 370)); });
-    await act(async () => { resolveSecond(jsonResponse({ item: null })); });
-    expect(await screen.findByText('Облигация не найдена')).toBeInTheDocument();
+    await act(async () => { resolveSecond(jsonResponse({ items: [] })); });
+    expect(await screen.findByText('Облигации не найдены')).toBeInTheDocument();
+  });
+
+  it('searches multiple bonds by name and loads the selected bond details by UID', async () => {
+    let resolveLookup!: (response: Response) => void;
+    const lookup = new Promise<Response>((resolve) => { resolveLookup = resolve; });
+    const secondLookupItem = {
+      ...lookupItem,
+      ticker: 'SU26240',
+      instrument_uid: 'instrument-2',
+      name: 'ОФЗ 26240',
+    };
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse({ items: [
+        { ticker: 'SU26238', instrument_uid: 'instrument-1', name: 'ОФЗ 26238' },
+        { ticker: 'SU26240', instrument_uid: 'instrument-2', name: 'ОФЗ 26240' },
+      ] }));
+      if (url.includes('t-invest-lookup?instrument_uid=instrument-2')) return lookup;
+      if (url.includes('name-availability')) return Promise.resolve(jsonResponse({ available: true }));
+      return Promise.resolve(jsonResponse({ items: [] }));
+    }));
+    renderPortfolio();
+    const user = userEvent.setup();
+    await openCreateForm(user);
+    const search = screen.getByRole('combobox', { name: 'Название или тикер' });
+
+    await user.type(search, 'офз');
+    const options = await screen.findAllByRole('option');
+    expect(options).toHaveLength(2);
+    await user.click(screen.getByRole('option', { name: /SU26240.*ОФЗ 26240/ }));
+    expect(screen.getByText('Загружаем данные облигации…')).toBeInTheDocument();
+    await act(async () => { resolveLookup(jsonResponse({ item: secondLookupItem })); });
+
+    expect(await screen.findByRole('region', { name: 'Выбранная облигация' })).toHaveTextContent('ОФЗ 26240');
+    expect(search).toHaveValue('SU26240');
+  });
+
+  it('shows at most five results and selects the last visible option with ArrowUp', async () => {
+    const items = Array.from({ length: 12 }, (_, index) => ({
+      ticker: `SU${index}`,
+      instrument_uid: `instrument-${index}`,
+      name: `ОФЗ ${index}`,
+    }));
+    const selected = { ...lookupItem, ticker: 'SU4', instrument_uid: 'instrument-4', name: 'ОФЗ 4' };
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse({ items }));
+      if (url.includes('t-invest-lookup?instrument_uid=instrument-4')) {
+        return Promise.resolve(jsonResponse({ item: selected }));
+      }
+      if (url.includes('name-availability')) return Promise.resolve(jsonResponse({ available: true }));
+      return Promise.resolve(jsonResponse({ items: [] }));
+    }));
+    renderPortfolio();
+    const user = userEvent.setup();
+    await openCreateForm(user);
+    const search = screen.getByRole('combobox', { name: 'Название или тикер' });
+
+    await user.type(search, 'офз');
+    expect(await screen.findAllByRole('option')).toHaveLength(5);
+    await user.keyboard('{ArrowUp}{Enter}');
+
+    expect(await screen.findByRole('region', { name: 'Выбранная облигация' })).toHaveTextContent('ОФЗ 4');
+  });
+
+  it.each([
+    ['t_invest_bond_matured', 'Облигация уже погашена и не может быть добавлена.'],
+    ['t_invest_bond_not_placed', 'Облигация ещё не размещена и не может быть добавлена.'],
+  ])('shows a localized non-retryable lookup error for %s', async (code, message) => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse(searchResponse()));
+      if (url.includes('t-invest-lookup')) {
+        return Promise.resolve(jsonResponse({ code, message: 'SDK domain error' }, 422));
+      }
+      return Promise.resolve(jsonResponse({ items: [] }));
+    }));
+    renderPortfolio();
+    const user = userEvent.setup();
+    await openCreateForm(user);
+    await selectLookupBond(user);
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Повторить загрузку' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Выбранная облигация' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Сумма покупки')).not.toBeInTheDocument();
+  });
+
+  it('retries a temporary selected-bond lookup failure', async () => {
+    let lookupAttempts = 0;
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse(searchResponse()));
+      if (url.includes('t-invest-lookup')) {
+        lookupAttempts += 1;
+        return Promise.resolve(lookupAttempts === 1
+          ? jsonResponse({ code: 't_invest_unavailable', message: 'offline' }, 503)
+          : jsonResponse({ item: lookupItem }));
+      }
+      if (url.includes('name-availability')) return Promise.resolve(jsonResponse({ available: true }));
+      return Promise.resolve(jsonResponse({ items: [] }));
+    }));
+    renderPortfolio();
+    const user = userEvent.setup();
+    await openCreateForm(user);
+    await selectLookupBond(user);
+
+    expect(await screen.findByText('Не удалось загрузить данные облигации.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+
+    expect(await screen.findByRole('region', { name: 'Выбранная облигация' })).toHaveTextContent('ОФЗ 26238');
+    expect(lookupAttempts).toBe(2);
   });
 
   it('selects the active ticker option from the combobox keyboard', async () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse(searchResponse()));
       if (url.includes('t-invest-lookup')) return Promise.resolve(jsonResponse({ item: lookupItem }));
       if (url.includes('name-availability')) return Promise.resolve(jsonResponse({ available: true }));
       return Promise.resolve(jsonResponse({ items: [] }));
@@ -777,7 +871,7 @@ describe('PortfolioPage', () => {
     renderPortfolio();
     const user = userEvent.setup();
     await openCreateForm(user);
-    const ticker = screen.getByRole('combobox', { name: 'Тикер' });
+    const ticker = screen.getByRole('combobox', { name: 'Название или тикер' });
 
     await user.type(ticker, 'su26238');
     const option = await screen.findByRole('option', { name: /SU26238.*ОФЗ 26238/ });
@@ -787,13 +881,15 @@ describe('PortfolioPage', () => {
     await user.keyboard('{Enter}');
 
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
-    expect(screen.getByText('Выбрана:', { exact: false })).toHaveTextContent('SU26238 — ОФЗ 26238');
-    expect(screen.getByLabelText('Название')).toHaveValue('ОФЗ 26238');
+    expect(screen.getByRole('region', { name: 'Выбранная облигация' })).toHaveTextContent('SU26238');
+    expect(screen.getByRole('region', { name: 'Выбранная облигация' })).toHaveTextContent('ОФЗ 26238');
+    expect(screen.getByLabelText('Сумма покупки')).toBeInTheDocument();
   });
 
-  it('invalidates the selected instrument when the ticker changes', async () => {
+  it('invalidates the selected instrument and resets purchase fields when the ticker changes', async () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse(searchResponse()));
       if (url.includes('t-invest-lookup')) return Promise.resolve(jsonResponse({ item: lookupItem }));
       if (url.includes('name-availability')) return Promise.resolve(jsonResponse({ available: true }));
       return Promise.resolve(jsonResponse({ items: [] }));
@@ -801,113 +897,74 @@ describe('PortfolioPage', () => {
     renderPortfolio();
     const user = userEvent.setup();
     await openCreateForm(user);
-    const ticker = screen.getByRole('combobox', { name: 'Тикер' });
+    const ticker = screen.getByRole('combobox', { name: 'Название или тикер' });
 
     await user.type(ticker, 'su26238');
     await user.click(await screen.findByRole('option', { name: /SU26238.*ОФЗ 26238/ }));
-    await user.clear(ticker);
-    await user.type(ticker, 'su26239');
+    await user.type(screen.getByLabelText('Сумма покупки'), '9500,70');
+    await user.type(screen.getByLabelText('Количество'), '10');
+    fireEvent.change(ticker, { target: { value: 'su26238' } });
 
-    expect(screen.queryByText(/Выбрана:.*SU26238/)).not.toBeInTheDocument();
-    expect(screen.getByText('Ищем облигацию…')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Выбранная облигация' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Сумма покупки')).not.toBeInTheDocument();
+    expect(screen.getByRole('listbox', { name: 'Результаты поиска облигаций' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
+
+    await user.click(await screen.findByRole('option', { name: /SU26238.*ОФЗ 26238/ }));
+    expect(screen.getByLabelText('Сумма покупки')).toHaveValue('');
+    expect(screen.getByLabelText('Количество')).toHaveValue('');
+    expect(screen.getByLabelText('Дата покупки')).toHaveValue(todayInput());
+  });
+
+  it('keeps a duplicate selected bond visible and blocks saving', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse(searchResponse()));
+      if (url.includes('t-invest-lookup')) return Promise.resolve(jsonResponse({ item: lookupItem }));
+      if (url.includes('name-availability')) return Promise.resolve(jsonResponse({ available: false }));
+      return Promise.resolve(jsonResponse({ items: [] }));
+    }));
+    renderPortfolio();
+    const user = userEvent.setup();
+    await openCreateForm(user);
+    await selectLookupBond(user);
+
+    const preview = screen.getByRole('region', { name: 'Выбранная облигация' });
+    expect(await within(preview).findByText('Облигация с таким названием уже есть')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
   });
 
-  it('debounces name checks and ignores a stale duplicate response', async () => {
-    let resolveFirst!: (response: Response) => void;
-    let resolveSecond!: (response: Response) => void;
-    const first = new Promise<Response>((resolve) => { resolveFirst = resolve; });
-    const second = new Promise<Response>((resolve) => { resolveSecond = resolve; });
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ items: [] }))
-      .mockReturnValueOnce(first)
-      .mockReturnValueOnce(second);
-    vi.stubGlobal('fetch', fetchMock);
+  it('shows an availability error in the preview and retries it', async () => {
+    let availabilityAttempts = 0;
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const { url } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return Promise.resolve(jsonResponse(searchResponse()));
+      if (url.includes('t-invest-lookup')) return Promise.resolve(jsonResponse({ item: lookupItem }));
+      if (url.includes('name-availability')) {
+        availabilityAttempts += 1;
+        return Promise.resolve(availabilityAttempts === 1
+          ? jsonResponse({ code: 'request_failed', message: 'Сервер недоступен' }, 500)
+          : jsonResponse({ available: true }));
+      }
+      return Promise.resolve(jsonResponse({ items: [] }));
+    }));
     renderPortfolio();
-    await act(async () => { await Promise.resolve(); });
-    const trigger = screen.getAllByRole('button', { name: 'Добавить облигацию' })[0];
-    if (!trigger) throw new Error('Create trigger is missing');
-    fireEvent.click(trigger);
-    const input = screen.getByLabelText('Название');
+    const user = userEvent.setup();
+    await openCreateForm(user);
+    await selectLookupBond(user);
 
-    fireEvent.change(input, { target: { value: 'ОФЗ старая' } });
-    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 300)); });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 70)); });
-    expect(screen.getByText('Проверяем…')).toBeInTheDocument();
-    fireEvent.change(input, { target: { value: 'ОФЗ новая' } });
-    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 370)); });
-    await act(async () => { resolveSecond(jsonResponse({ available: true })); });
-    expect(await screen.findByText('Имя свободно')).toBeInTheDocument();
-    await act(async () => { resolveFirst(jsonResponse({ available: false })); });
-    expect(screen.getByText('Имя свободно')).toBeInTheDocument();
-    expect(screen.queryByText('Облигация с таким названием уже есть')).not.toBeInTheDocument();
+    const preview = screen.getByRole('region', { name: 'Выбранная облигация' });
+    expect(await within(preview).findByText('Не удалось проверить облигацию.')).toBeInTheDocument();
+    await user.click(within(preview).getByRole('button', { name: 'Повторить проверку' }));
+    await waitFor(() => expect(within(preview).queryByText('Не удалось проверить облигацию.')).not.toBeInTheDocument());
+    expect(within(preview).queryByText('Можно добавить в портфель')).not.toBeInTheDocument();
   });
 
-  it('suppresses a stale availability error while the next name is checking', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ items: [] }))
-      .mockResolvedValueOnce(jsonResponse({ code: 'request_failed', message: 'Сервер недоступен' }, 500))
-      .mockResolvedValueOnce(jsonResponse({ available: true }));
-    vi.stubGlobal('fetch', fetchMock);
-    renderPortfolio();
-    await screen.findByText('Портфель пока пуст');
-    fireEvent.click(screen.getAllByRole('button', { name: 'Добавить облигацию' })[0]!);
-    const input = screen.getByLabelText('Название');
-
-    fireEvent.change(input, { target: { value: 'ОФЗ первая' } });
-    expect(await screen.findByText('Не удалось проверить имя.', {}, { timeout: 1_000 })).toBeInTheDocument();
-    fireEvent.change(input, { target: { value: 'ОФЗ вторая' } });
-
-    expect(screen.getByText('Проверяем…')).toBeInTheDocument();
-    expect(screen.queryByText('Не удалось проверить имя.')).not.toBeInTheDocument();
-  });
-
-  it('renders cached availability and its refetch states mutually exclusively', async () => {
-    let rejectAvailableRefetch!: (response: Response) => void;
-    let resolveDuplicateRefetch!: (response: Response) => void;
-    const availableRefetch = new Promise<Response>((resolve) => { rejectAvailableRefetch = resolve; });
-    const duplicateRefetch = new Promise<Response>((resolve) => { resolveDuplicateRefetch = resolve; });
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ items: [] }))
-      .mockResolvedValueOnce(jsonResponse({ available: true }))
-      .mockResolvedValueOnce(jsonResponse({ available: false }))
-      .mockReturnValueOnce(availableRefetch)
-      .mockReturnValueOnce(duplicateRefetch);
-    vi.stubGlobal('fetch', fetchMock);
-    renderPortfolio();
-    await screen.findByText('Портфель пока пуст');
-    fireEvent.click(screen.getAllByRole('button', { name: 'Добавить облигацию' })[0]!);
-    const input = screen.getByLabelText('Название');
-
-    fireEvent.change(input, { target: { value: 'ОФЗ свободная' } });
-    expect(await screen.findByText('Имя свободно', {}, { timeout: 1_000 })).toBeInTheDocument();
-    fireEvent.change(input, { target: { value: 'ОФЗ занятая' } });
-    expect(await screen.findByText('Облигация с таким названием уже есть', {}, { timeout: 1_000 })).toBeInTheDocument();
-
-    fireEvent.change(input, { target: { value: 'ОФЗ свободная' } });
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4), { timeout: 1_000 });
-    expect(screen.getByText('Проверяем…')).toBeInTheDocument();
-    expect(screen.queryByText('Имя свободно')).not.toBeInTheDocument();
-    await act(async () => {
-      rejectAvailableRefetch(jsonResponse({ code: 'request_failed', message: 'Сервер недоступен' }, 500));
-    });
-    expect(await screen.findByText('Не удалось проверить имя.')).toBeInTheDocument();
-    expect(screen.queryByText('Имя свободно')).not.toBeInTheDocument();
-
-    fireEvent.change(input, { target: { value: 'ОФЗ занятая' } });
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5), { timeout: 1_000 });
-    expect(screen.getByText('Проверяем…')).toBeInTheDocument();
-    expect(screen.queryByText('Облигация с таким названием уже есть')).not.toBeInTheDocument();
-    await act(async () => { resolveDuplicateRefetch(jsonResponse({ available: false })); });
-    expect(await screen.findByText('Облигация с таким названием уже есть')).toBeInTheDocument();
-    expect(screen.queryByText('Проверяем…')).not.toBeInTheDocument();
-  });
-
-  it('maps a bond_name_taken response to the name field', async () => {
+  it('maps a bond_name_taken response to the selected-bond preview', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { url, method } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return jsonResponse(searchResponse());
       if (url.includes('t-invest-lookup')) return jsonResponse({ item: lookupItem });
       if (url.includes('name-availability')) return jsonResponse({ available: true });
       if (method === 'POST') return jsonResponse({
@@ -923,7 +980,8 @@ describe('PortfolioPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Сохранить' }));
 
-    expect(await screen.findByText('Облигация с таким названием уже существует')).toBeInTheDocument();
+    const preview = screen.getByRole('region', { name: 'Выбранная облигация' });
+    expect(await within(preview).findByText('Облигация с таким названием уже существует')).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
@@ -931,6 +989,7 @@ describe('PortfolioPage', () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { url, method } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return jsonResponse(searchResponse());
       if (url.includes('t-invest-lookup')) return jsonResponse({ item: lookupItem });
       if (url.includes('name-availability')) return jsonResponse({ available: true });
       if (method === 'POST') return jsonResponse({
@@ -949,12 +1008,41 @@ describe('PortfolioPage', () => {
     expect(document.querySelector<HTMLInputElement>('input[name="purchaseDate"]')).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('preserves the selected bond and purchase after a coupon-schedule failure', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { url, method } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return jsonResponse(searchResponse());
+      if (url.includes('t-invest-lookup')) return jsonResponse({ item: lookupItem });
+      if (url.includes('name-availability')) return jsonResponse({ available: true });
+      if (method === 'POST') return jsonResponse({
+        code: 't_invest_unavailable', message: 'Не удалось получить расписание выплат',
+      }, 503);
+      return jsonResponse({ items: [] });
+    }));
+    renderPortfolio();
+    await openCreateForm(user);
+    await fillCreateForm(user);
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    expect(await screen.findByText('Не удалось получить расписание выплат')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Выбранная облигация' })).toHaveTextContent('ОФЗ 26238');
+    expect(screen.getByLabelText('Сумма покупки')).toHaveValue(
+      new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(75000.7),
+    );
+    expect(screen.getByLabelText('Количество')).toHaveValue('75');
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
+  });
+
   it('closes after create and inserts the mutation response into the visible list cache', async () => {
     const user = userEvent.setup();
+    const exactLookupItem = { ...lookupItem, name: 'ОФЗ 26238 ' };
     let createBody: unknown;
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { url, method } = requestDetails(input, init);
-      if (url.includes('t-invest-lookup')) return jsonResponse({ item: lookupItem });
+      if (url.includes('t-invest-search')) return jsonResponse(searchResponse(exactLookupItem));
+      if (url.includes('t-invest-lookup')) return jsonResponse({ item: exactLookupItem });
       if (url.includes('name-availability')) return jsonResponse({ available: true });
       if (method === 'POST') {
         createBody = await requestJson(input, init);
@@ -970,12 +1058,28 @@ describe('PortfolioPage', () => {
 
     expect(await screen.findByRole('article', { name: 'ОФЗ 26238' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(createBody).toMatchObject({ instrument_uid: 'instrument-1', ticker: 'SU26238', nominal: '1000.00', amount_spent: '75000.70', quantity: 75 });
+    expect(createBody).toEqual({
+      instrument_uid: 'instrument-1',
+      ticker: 'SU26238',
+      name: 'ОФЗ 26238 ',
+      nominal: '1000.00',
+      payments_per_year: 2,
+      placement_date: '2025-05-15',
+      maturity_date: '2041-05-15',
+      amount_spent: '75000.70',
+      quantity: 75,
+      purchase_date: todayInput(),
+    });
   });
 
   it('updates the matching card from an add-purchase response without reloading the page', async () => {
     const user = userEvent.setup();
-    const updatedBond = { ...activeBond, total_quantity: 77, total_spent: '76000.75' };
+    const updatedBond = {
+      ...activeBond,
+      total_quantity: 77,
+      total_spent: '76000.75',
+      position_cost_basis: '76000.75',
+    };
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { method } = requestDetails(input, init);
       return method === 'POST' ? jsonResponse(updatedBond, 201) : jsonResponse({ items: [activeBond] });
@@ -991,5 +1095,259 @@ describe('PortfolioPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(within(screen.getByRole('article', { name: 'ОФЗ 26238' })).getByText('77 шт.')).toBeInTheDocument();
     expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toHaveTextContent(/76.000,75.₽/);
+  });
+
+  it('limits a sale to the quantity available on its date and updates the card from the sale response', async () => {
+    const user = userEvent.setup();
+    const soldBond = {
+      ...activeBond,
+      total_quantity: 50,
+      position_cost_basis: '50000.47',
+      realized_result: '999.65',
+      operations: [
+        { id: 'sale-1', operation_type: 'sale', amount: '26000.00', quantity: 25, operation_date: todayInput(), realized_result: '999.65' },
+        ...activeBond.operations,
+      ],
+    };
+    let requestBody: unknown;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { method } = requestDetails(input, init);
+      if (method === 'POST') requestBody = await requestJson(input, init);
+      return method === 'POST' ? jsonResponse(soldBond, 201) : jsonResponse({ items: [activeBond] });
+    }));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    const dialog = await openSaleForm(user, card);
+    const quantity = within(dialog).getByLabelText('Количество');
+
+    expect(within(dialog).getByText('Доступно на выбранную дату: 75 шт.')).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText('Сумма продажи'), '26000');
+    await user.type(quantity, '76');
+    expect(within(dialog).getByText('Доступно не более 75 шт.')).toBeInTheDocument();
+    await user.clear(quantity);
+    await user.type(quantity, '25');
+    await user.click(within(dialog).getByRole('button', { name: 'Зафиксировать' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(requestBody).toEqual({ amount_received: '26000.00', quantity: 25, sale_date: todayInput() });
+    expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toHaveTextContent(/50 шт\..*50.000,47.₽/);
+  });
+
+  it('revalidates quantity when the selected sale date reduces the available position', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    const dialog = await openSaleForm(user, card);
+
+    await user.type(within(dialog).getByLabelText('Сумма продажи'), '60000');
+    await user.type(within(dialog).getByLabelText('Количество'), '60');
+    expect(within(dialog).getByRole('button', { name: 'Зафиксировать' })).toBeEnabled();
+
+    fireEvent.change(within(dialog).getByLabelText('Дата продажи'), { target: { value: '2026-08-08' } });
+
+    expect(await within(dialog).findByText('Доступно не более 50 шт.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Зафиксировать' })).toBeDisabled();
+  });
+
+  it('uses the day before maturity as the default and maximum sale date for a matured bond', async () => {
+    const user = userEvent.setup();
+    const historicalMaturedBond = {
+      ...maturedBond,
+      total_quantity: 10,
+      position_cost_basis: '9500.00',
+      position_status: 'open',
+      placement_date: '2024-05-15',
+      maturity_date: '2025-05-15',
+      operations: [{
+        id: 'purchase-historical', operation_type: 'purchase', amount: '9500.00', quantity: 10, operation_date: '2025-05-01', realized_result: null,
+      }],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [historicalMaturedBond] })));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 25000' });
+    await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 25000' }));
+    await user.click(screen.getByRole('button', { name: 'Зафиксировать продажу' }));
+
+    const saleDate = within(screen.getByRole('dialog', { name: 'Зафиксировать продажу' })).getByLabelText('Дата продажи');
+    expect(saleDate).toHaveValue('2025-05-14');
+    expect(saleDate).toHaveAttribute('max', '2025-05-14');
+  });
+
+  it('shows the bond name only in purchase and sale modal subtitles', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+
+    const { dialog: purchaseDialog } = await openPurchaseForm(user, card);
+    expect(within(purchaseDialog).getByText('ОФЗ 26238')).toBeInTheDocument();
+    expect(within(purchaseDialog).queryByText(/Покупка для/)).not.toBeInTheDocument();
+    await user.click(within(purchaseDialog).getByRole('button', { name: 'Закрыть окно' }));
+
+    const saleDialog = await openSaleForm(user, card);
+    expect(within(saleDialog).getByText('ОФЗ 26238')).toBeInTheDocument();
+    expect(within(saleDialog).queryByText(/^Продажа /)).not.toBeInTheDocument();
+  });
+
+  it('localizes known sale field errors returned in English', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { method } = requestDetails(input, init);
+      return method === 'POST'
+        ? jsonResponse({
+          code: 'validation_error', message: 'Request validation failed',
+          field_errors: { quantity: 'Sale quantity must not exceed the open position at the sale date' },
+        }, 422)
+        : jsonResponse({ items: [activeBond] });
+    }));
+    renderPortfolio();
+    const dialog = await openSaleForm(user, await screen.findByRole('article', { name: 'ОФЗ 26238' }));
+    await user.type(within(dialog).getByLabelText('Сумма продажи'), '1000');
+    await user.type(within(dialog).getByLabelText('Количество'), '1');
+    await user.click(within(dialog).getByRole('button', { name: 'Зафиксировать' }));
+
+    expect(await within(dialog).findByText('Количество превышает доступный остаток на выбранную дату')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Sale quantity/)).not.toBeInTheDocument();
+  });
+
+  it('shows a localized fallback when sale field errors contain only unknown fields', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { method } = requestDetails(input, init);
+      return method === 'POST'
+        ? jsonResponse({
+          code: 'validation_error', message: 'Request validation failed', field_errors: { ledger: 'Unknown ledger error' },
+        }, 422)
+        : jsonResponse({ items: [activeBond] });
+    }));
+    renderPortfolio();
+    const dialog = await openSaleForm(user, await screen.findByRole('article', { name: 'ОФЗ 26238' }));
+    await user.type(within(dialog).getByLabelText('Сумма продажи'), '1000');
+    await user.type(within(dialog).getByLabelText('Количество'), '1');
+    await user.click(within(dialog).getByRole('button', { name: 'Зафиксировать' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Не удалось проверить данные продажи. Проверьте поля и попробуйте снова.');
+    expect(within(dialog).queryByText(/Unknown ledger error/)).not.toBeInTheDocument();
+  });
+
+  it('renders signed quantities, exact cost-basis help, and result tones without signing operation amounts', async () => {
+    const user = userEvent.setup();
+    const signedBond = {
+      ...activeBond,
+      realized_result: '-100.00',
+      operations: [
+        { id: 'sale-loss', operation_type: 'sale', amount: '900.00', quantity: 1, operation_date: '2026-08-10', realized_result: '-100.00' },
+        { id: 'sale-zero', operation_type: 'sale', amount: '1000.00', quantity: 1, operation_date: '2026-08-09', realized_result: '0.00' },
+        { id: 'purchase-sign', operation_type: 'purchase', amount: '2000.00', quantity: 2, operation_date: '2026-08-08', realized_result: null },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [signedBond] })));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
+    const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+
+    expect(within(details).getByText('Полная остаточная себестоимость облигаций в открытой позиции после всех покупок и продаж. Для закрытой позиции равна нулю.')).toBeInTheDocument();
+    expect(within(details).getAllByText('−1 шт.')).toHaveLength(2);
+    expect(within(details).getByText('+2 шт.')).toBeInTheDocument();
+    expect(within(details).queryByText('Покупка')).not.toBeInTheDocument();
+    expect(within(details).queryByText('Продажа')).not.toBeInTheDocument();
+    expect(within(details).getByText(/900,00.₽/)).toBeInTheDocument();
+    expect(within(details).queryByText(/\+900,00.₽/)).not.toBeInTheDocument();
+    const operationRows = within(within(details).getByRole('region', { name: 'История операций' })).getAllByRole('listitem');
+    const lossResult = within(operationRows[0]!).getByText(/−100,00.₽/);
+    expect(lossResult).toHaveAttribute('data-result-sign', 'negative');
+    expect(lossResult.parentElement).toHaveTextContent(/10 августа 2026 г\..*−100,00.₽/);
+    expect(lossResult.parentElement).not.toHaveTextContent(/900,00.₽/);
+    expect(operationRows[1]!.querySelector('[data-result-sign="zero"]')).toHaveTextContent(/0,00.₽/);
+    expect(within(details).queryByText(/Результат:/)).not.toBeInTheDocument();
+  });
+
+  it('shows the unified operations ledger with position metrics and removes the last operation after local confirmation', async () => {
+    const user = userEvent.setup();
+    const closedBond = {
+      ...activeBond,
+      total_quantity: 0,
+      position_cost_basis: '0.00',
+      realized_result: '999.65',
+      position_status: 'closed',
+      operations: [{
+        id: 'sale-1', operation_type: 'sale', amount: '76000.35', quantity: 75, operation_date: '2026-08-10', realized_result: '999.65',
+      }],
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { method } = requestDetails(input, init);
+      return method === 'DELETE' ? jsonResponse({ item: null }) : jsonResponse({ items: [closedBond] });
+    }));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    const addBond = screen.getByRole('button', { name: 'Добавить облигацию' });
+    expect(within(card).queryByText('Позиция закрыта')).not.toBeInTheDocument();
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
+    const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+
+    expect(within(details).getByText('История операций')).toBeInTheDocument();
+    expect(within(details).getByText('−75 шт.')).toBeInTheDocument();
+    expect(within(details).getByText('Результат сделок')).toBeInTheDocument();
+    expect(within(details).getByRole('button', { name: 'Как рассчитывается результат сделок' })).toBeInTheDocument();
+    await user.click(within(details).getByRole('button', { name: 'Удалить операцию продажи' }));
+
+    const confirmation = screen.getByRole('dialog', { name: 'Удалить операцию' });
+    expect(screen.getByRole('dialog', { name: 'ОФЗ 26238' })).toBe(details);
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    expect(within(confirmation).getByText('ОФЗ 26238')).toBeInTheDocument();
+    await user.click(within(confirmation).getByRole('button', { name: 'Удалить' }));
+    await waitFor(() => expect(screen.queryByRole('article', { name: 'ОФЗ 26238' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(addBond).toHaveFocus());
+  });
+
+  it('returns to operation details and restores the same delete control after cancel', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
+    const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+    const deleteSale = within(details).getAllByRole('button', { name: 'Удалить операцию покупки' })[0];
+    if (!deleteSale) throw new Error('Delete operation button is missing');
+    await user.click(deleteSale);
+    expect(screen.getByRole('dialog', { name: 'ОФЗ 26238' })).toBe(details);
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    await user.click(within(screen.getByRole('dialog', { name: 'Удалить операцию' })).getByRole('button', { name: 'Отмена' }));
+
+    const restoredDetails = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+    const restoredDelete = within(restoredDetails).getAllByRole('button', { name: 'Удалить операцию покупки' })[0];
+    await waitFor(() => expect(restoredDelete).toHaveFocus());
+  });
+
+  it('returns updated details and focuses a neighboring operation after a non-last deletion', async () => {
+    const user = userEvent.setup();
+    const updatedBond = {
+      ...activeBond,
+      total_quantity: 50,
+      position_cost_basis: '50000.35',
+      operations: [activeBond.operations[1]],
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { method } = requestDetails(input, init);
+      return method === 'DELETE' ? jsonResponse({ item: updatedBond }) : jsonResponse({ items: [activeBond] });
+    }));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
+    const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+    const deleteButtons = within(details).getAllByRole('button', { name: 'Удалить операцию покупки' });
+    const firstDelete = deleteButtons[0];
+    if (!firstDelete) throw new Error('Delete operation button is missing');
+    await user.click(firstDelete);
+    await user.click(within(screen.getByRole('dialog', { name: 'Удалить операцию' })).getByRole('button', { name: 'Удалить' }));
+
+    const updatedDetails = await screen.findByRole('dialog', { name: 'ОФЗ 26238' });
+    expect(within(updatedDetails).getByRole('region', { name: 'История операций' })).toHaveTextContent('1 операция');
+    const neighboringDelete = within(updatedDetails).getByRole('button', { name: 'Удалить операцию покупки' });
+    await waitFor(() => expect(neighboringDelete).toHaveFocus());
+    expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toHaveTextContent('50 шт.');
   });
 });

@@ -29,6 +29,10 @@ const FIELD_MAP: Record<string, keyof AddPurchaseFormValues> = {
 
 export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPurchaseFormProps) {
   const today = todayInputValue();
+  const earliestPurchaseDate = bond.operations.reduce<string | null>((earliest, operation) => {
+    if (operation.operationType !== 'purchase') return earliest;
+    return earliest === null || operation.operationDate < earliest ? operation.operationDate : earliest;
+  }, null) ?? bond.placementDate;
   const [submitError, setSubmitError] = useState<string | null>(null);
   const mutation = useAddPortfolioPurchase(userId);
   const {
@@ -69,7 +73,6 @@ export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPu
 
   return (
     <form className={styles.form} noValidate onSubmit={submit}>
-      <p className={styles.selectedBond}>Покупка для <strong>{bond.name}</strong></p>
       <div className={styles.grid}>
         <ControlledNumberField
           control={control}
@@ -93,7 +96,7 @@ export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPu
         <TextField
           type="date"
           label="Дата покупки"
-          min={bond.placementDate}
+          min={earliestPurchaseDate}
           max={today}
           wide
           error={errors.purchaseDate?.message}
@@ -101,7 +104,7 @@ export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPu
             required: 'Укажите дату покупки',
             validate: (value) => {
               if (value > today) return 'Дата покупки не может быть в будущем';
-              if (value < bond.placementDate) return 'Дата покупки должна быть не раньше размещения';
+              if (value < earliestPurchaseDate) return 'Дата покупки должна быть не раньше первой покупки';
               return value < bond.maturityDate || 'Дата покупки должна быть раньше погашения';
             },
           })}
@@ -109,7 +112,9 @@ export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPu
       </div>
       {submitError ? <p className={styles.formError} role="alert">{submitError} Повторите попытку.</p> : null}
       <div className={styles.submitRow}>
-        <p>После добавления покупки произойдет перерасчет процента годовых</p>
+        <p>
+          После добавления покупки пересчитается купонная доходность за {bond.couponYieldYear} год
+        </p>
         <Button className={styles.submitButton} type="submit" disabled={!isValid || busy}>
           {busy ? 'Фиксируем…' : 'Зафиксировать'}
         </Button>

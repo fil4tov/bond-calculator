@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from uuid import UUID
 
@@ -10,9 +10,23 @@ from sqlalchemy.orm import selectinload
 from app.errors import ApiError
 
 from . import clock
-from .calculations import CouponPosition, PurchasePosition, calculate_bond_metrics
-from .models import Bond, BondCouponSchedule, BondPurchase
-from .schemas import BondCard, BondCreate, BondPurchaseItem, MaturityRemaining, NextCoupon, PurchaseCreate
+from .calculations import (
+    CouponPosition,
+    OperationPosition,
+    calculate_bond_metrics,
+    calculate_operation_realized_results,
+)
+from .models import Bond, BondCouponSchedule, BondOperation
+from .schemas import (
+    BondCard,
+    BondCreate,
+    BondOperationItem,
+    MaturityRemaining,
+    NextCoupon,
+    OperationDeleteResponse,
+    PurchaseCreate,
+    SaleCreate,
+)
 from .t_invest_gateway import TInvestGateway
 
 _NAME_UNIQUE_CONSTRAINT = "uq_bonds_user_name_normalized"
@@ -62,13 +76,35 @@ def _coupon_position(coupon: BondCouponSchedule) -> CouponPosition:
     )
 
 
+def _operation_position(operation: BondOperation) -> OperationPosition:
+    return OperationPosition(
+        operation_type=operation.operation_type,  # type: ignore[arg-type]
+        amount=operation.amount,
+        quantity=operation.quantity,
+        operation_date=operation.operation_date,
+        created_at=operation.created_at,
+        operation_id=operation.id.hex,
+    )
+
+
+def _ordered_operations(bond: Bond, *, reverse: bool = False) -> list[BondOperation]:
+    return sorted(
+        bond.operations,
+        key=lambda item: (item.operation_date, item.created_at, item.id.hex),
+        reverse=reverse,
+    )
+
+
 def build_bond_card(bond: Bond, *, today: date) -> BondCard:
+    ordered_operations = _ordered_operations(bond)
+    operation_positions = tuple(_operation_position(item) for item in ordered_operations)
     metrics = calculate_bond_metrics(
         maturity_date=bond.maturity_date,
-        purchases=tuple(PurchasePosition(p.amount_spent, p.quantity, p.purchase_date) for p in bond.purchases),
+        operations=operation_positions,
         coupons=tuple(_coupon_position(coupon) for coupon in bond.coupon_schedules),
         today=today,
     )
+    operation_realized_results = calculate_operation_realized_results(operation_positions)
     next_coupon = None
     if metrics.next_coupon_pay_date is not None:
         next_coupon = NextCoupon(
@@ -93,32 +129,40 @@ def build_bond_card(bond: Bond, *, today: date) -> BondCard:
         status=metrics.status,
         total_quantity=metrics.total_quantity,
         total_spent=_fixed_decimal(metrics.total_spent, 2),
+        position_cost_basis=_fixed_decimal(metrics.position_cost_basis, 2),
+        realized_result=_fixed_decimal(metrics.realized_result, 2),
+        position_status=metrics.position_status,
         paid_coupon_total=_fixed_decimal(metrics.paid_coupon_total, 2),
-        annual_coupon_yield_percent=_fixed_decimal(metrics.annual_coupon_yield_percent, 4),
+        calendar_year_coupon_yield_percent=_fixed_decimal(
+            metrics.calendar_year_coupon_yield_percent, 4
+        ),
+        coupon_yield_year=metrics.coupon_yield_year,
         maturity_remaining=MaturityRemaining(
             years=metrics.remaining_years,
             months=metrics.remaining_months,
             days_until=metrics.remaining_days_until,
         ),
         next_coupon=next_coupon,
-        purchases=[
-            BondPurchaseItem(
-                id=purchase.id,
-                amount_spent=_fixed_decimal(purchase.amount_spent, 2),
-                quantity=purchase.quantity,
-                purchase_date=purchase.purchase_date,
+        operations=[
+            BondOperationItem(
+                id=operation.id,
+                operation_type=operation.operation_type,  # type: ignore[arg-type]
+                amount=_fixed_decimal(operation.amount, 2),
+                realized_result=(
+                    _fixed_decimal(operation_realized_results[operation.id.hex], 2)
+                    if operation_realized_results[operation.id.hex] is not None
+                    else None
+                ),
+                quantity=operation.quantity,
+                operation_date=operation.operation_date,
             )
-            for purchase in sorted(
-                bond.purchases,
-                key=lambda item: (item.purchase_date, item.created_at, item.id.hex),
-                reverse=True,
-            )
+            for operation in _ordered_operations(bond, reverse=True)
         ],
     )
 
 
 def _load_bond_relations() -> tuple[object, object]:
-    return selectinload(Bond.purchases), selectinload(Bond.coupon_schedules)
+    return selectinload(Bond.operations), selectinload(Bond.coupon_schedules)
 
 
 async def is_name_available(db: AsyncSession, user_id: UUID, name: str) -> bool:
@@ -166,7 +210,15 @@ async def create_bond(
         placement_date=data.placement_date,
         maturity_date=data.maturity_date,
     )
-    bond.purchases.append(BondPurchase(user_id=user_id, amount_spent=data.amount_spent, quantity=data.quantity, purchase_date=data.purchase_date))
+    bond.operations.append(
+        BondOperation(
+            user_id=user_id,
+            operation_type="purchase",
+            amount=data.amount_spent,
+            quantity=data.quantity,
+            operation_date=data.purchase_date,
+        )
+    )
     bond.coupon_schedules = [
         BondCouponSchedule(
             figi=coupon.figi, coupon_date=coupon.coupon_date, coupon_number=coupon.coupon_number,
@@ -195,22 +247,161 @@ async def create_bond(
 
 async def add_purchase(db: AsyncSession, user_id: UUID, bond_id: UUID, data: PurchaseCreate) -> BondCard:
     bond = await db.scalar(
-        select(Bond).options(*_load_bond_relations()).where(Bond.id == bond_id, Bond.user_id == user_id)
+        select(Bond)
+        .options(*_load_bond_relations())
+        .where(Bond.id == bond_id, Bond.user_id == user_id)
+        .with_for_update()
     )
     if bond is None:
         raise _bond_not_found()
-    if data.purchase_date < bond.placement_date:
-        raise ApiError(status_code=422, code="validation_error", message="Request validation failed", field_errors={"purchase_date": "Purchase date must not be before placement date"})
+    earliest_purchase_date = min(
+        (
+            operation.operation_date
+            for operation in bond.operations
+            if operation.operation_type == "purchase"
+        ),
+        default=bond.placement_date,
+    )
+    if data.purchase_date < earliest_purchase_date:
+        raise ApiError(status_code=422, code="validation_error", message="Request validation failed", field_errors={"purchase_date": "Purchase date must not be before the earliest purchase date"})
     if data.purchase_date >= bond.maturity_date:
         raise ApiError(status_code=422, code="validation_error", message="Request validation failed", field_errors={"purchase_date": "Purchase date must be before maturity date"})
-    if bond.purchases and data.purchase_date < min(purchase.purchase_date for purchase in bond.purchases):
-        raise ApiError(status_code=422, code="validation_error", message="Request validation failed", field_errors={"purchase_date": "Purchase date must not be earlier than the first purchase"})
-    bond.purchases.append(BondPurchase(user_id=user_id, amount_spent=data.amount_spent, quantity=data.quantity, purchase_date=data.purchase_date))
+    bond.operations.append(
+        BondOperation(
+            user_id=user_id,
+            operation_type="purchase",
+            amount=data.amount_spent,
+            quantity=data.quantity,
+            operation_date=data.purchase_date,
+        )
+    )
     try:
         await db.flush()
         card = build_bond_card(bond, today=clock.utc_today())
         await db.commit()
         return card
+    except Exception:
+        await db.rollback()
+        raise
+
+
+def _validate_operation_date(bond: Bond, operation_date: date, *, field: str) -> None:
+    if operation_date < bond.placement_date:
+        raise ApiError(
+            status_code=422,
+            code="validation_error",
+            message="Request validation failed",
+            field_errors={field: "Operation date must not be before placement date"},
+        )
+    if operation_date >= bond.maturity_date:
+        raise ApiError(
+            status_code=422,
+            code="validation_error",
+            message="Request validation failed",
+            field_errors={field: "Operation date must be before maturity date"},
+        )
+
+
+async def add_sale(db: AsyncSession, user_id: UUID, bond_id: UUID, data: SaleCreate) -> BondCard:
+    bond = await db.scalar(
+        select(Bond)
+        .options(*_load_bond_relations())
+        .where(Bond.id == bond_id, Bond.user_id == user_id)
+        .with_for_update()
+    )
+    if bond is None:
+        raise _bond_not_found()
+    _validate_operation_date(bond, data.sale_date, field="sale_date")
+    prospective_operations = tuple(
+        [
+            *(_operation_position(item) for item in _ordered_operations(bond)),
+            OperationPosition(
+                "sale",
+                data.amount_received,
+                data.quantity,
+                data.sale_date,
+                datetime.now(UTC),
+            ),
+        ]
+    )
+    try:
+        calculate_bond_metrics(
+            maturity_date=bond.maturity_date,
+            operations=prospective_operations,
+            coupons=(),
+            today=clock.utc_today(),
+        )
+    except ValueError as error:
+        raise ApiError(
+            status_code=422,
+            code="validation_error",
+            message="Request validation failed",
+            field_errors={
+                "quantity": "Sale quantity must not exceed the open position at the sale date"
+            },
+        ) from error
+    bond.operations.append(
+        BondOperation(
+            user_id=user_id,
+            operation_type="sale",
+            amount=data.amount_received,
+            quantity=data.quantity,
+            operation_date=data.sale_date,
+        )
+    )
+    try:
+        await db.flush()
+        card = build_bond_card(bond, today=clock.utc_today())
+        await db.commit()
+        return card
+    except Exception:
+        await db.rollback()
+        raise
+
+
+async def delete_operation(
+    db: AsyncSession, user_id: UUID, bond_id: UUID, operation_id: UUID
+) -> OperationDeleteResponse:
+    bond = await db.scalar(
+        select(Bond)
+        .options(*_load_bond_relations())
+        .where(Bond.id == bond_id, Bond.user_id == user_id)
+        .with_for_update()
+    )
+    if bond is None:
+        raise _bond_not_found()
+    operation = next((item for item in bond.operations if item.id == operation_id), None)
+    if operation is None:
+        raise ApiError(status_code=404, code="operation_not_found", message="Operation not found")
+    remaining = tuple(
+        _operation_position(item)
+        for item in _ordered_operations(bond)
+        if item.id != operation_id
+    )
+    try:
+        calculate_bond_metrics(
+            maturity_date=bond.maturity_date,
+            operations=remaining,
+            coupons=(),
+            today=clock.utc_today(),
+        )
+    except ValueError as error:
+        raise ApiError(
+            status_code=422,
+            code="operation_delete_blocked",
+            message="Operation cannot be deleted because it would oversell the position",
+            field_errors={"operation_id": str(error)},
+        ) from error
+    try:
+        if len(remaining) == 0:
+            await db.delete(bond)
+            await db.commit()
+            return OperationDeleteResponse(item=None)
+        bond.operations.remove(operation)
+        await db.flush()
+        card = build_bond_card(bond, today=clock.utc_today())
+        await db.commit()
+        return OperationDeleteResponse(item=card)
     except Exception:
         await db.rollback()
         raise

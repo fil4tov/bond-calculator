@@ -1,6 +1,6 @@
 import { apiRequest } from '#shared/api';
 
-import type { AddBondPurchaseInput, BondPortfolioItem, BondPortfolioStatus, CreateBondInput, TInvestBondLookup } from './types';
+import type { AddBondPurchaseInput, AddBondSaleInput, BondOperationType, BondPortfolioItem, BondPortfolioStatus, BondPositionStatus, CreateBondInput, TInvestBondLookup, TInvestBondSearchItem } from './types';
 
 interface BondPortfolioItemDto {
   id: string;
@@ -12,8 +12,12 @@ interface BondPortfolioItemDto {
   status: BondPortfolioStatus;
   total_quantity: number;
   total_spent: string;
+  position_cost_basis: string;
+  realized_result: string;
+  position_status: BondPositionStatus;
   paid_coupon_total: string;
-  annual_coupon_yield_percent: string;
+  calendar_year_coupon_yield_percent: string;
+  coupon_yield_year: number;
   maturity_remaining: { years: number; months: number; days_until: number };
   next_coupon: {
     period_start: string;
@@ -25,11 +29,13 @@ interface BondPortfolioItemDto {
     period_days: number;
     elapsed_period_days: number;
   } | null;
-  purchases: Array<{
+  operations: Array<{
     id: string;
-    amount_spent: string;
+    operation_type: BondOperationType;
+    amount: string;
     quantity: number;
-    purchase_date: string;
+    operation_date: string;
+    realized_result: string | null;
   }>;
 }
 
@@ -46,8 +52,12 @@ const adaptBond = (dto: BondPortfolioItemDto): BondPortfolioItem => ({
   status: dto.status,
   totalQuantity: dto.total_quantity,
   totalSpent: dto.total_spent,
+  positionCostBasis: dto.position_cost_basis,
+  realizedResult: dto.realized_result,
+  positionStatus: dto.position_status,
   paidCouponTotal: dto.paid_coupon_total,
-  annualCouponYieldPercent: dto.annual_coupon_yield_percent,
+  calendarYearCouponYieldPercent: dto.calendar_year_coupon_yield_percent,
+  couponYieldYear: dto.coupon_yield_year,
   maturityRemaining: {
     years: dto.maturity_remaining.years,
     months: dto.maturity_remaining.months,
@@ -63,11 +73,13 @@ const adaptBond = (dto: BondPortfolioItemDto): BondPortfolioItem => ({
     periodDays: dto.next_coupon.period_days,
     elapsedPeriodDays: dto.next_coupon.elapsed_period_days,
   } : null,
-  purchases: dto.purchases.map((purchase) => ({
-    id: purchase.id,
-    amountSpent: purchase.amount_spent,
-    quantity: purchase.quantity,
-    purchaseDate: purchase.purchase_date,
+  operations: dto.operations.map((operation) => ({
+    id: operation.id,
+    operationType: operation.operation_type,
+    amount: operation.amount,
+    quantity: operation.quantity,
+    operationDate: operation.operation_date,
+    realizedResult: operation.realized_result,
   })),
 });
 
@@ -92,8 +104,24 @@ interface TInvestBondLookupDto {
   maturity_date: string;
 }
 
-export async function lookupTInvestBond(ticker: string, signal?: AbortSignal): Promise<TInvestBondLookup | null> {
-  const params = new URLSearchParams({ ticker });
+interface TInvestBondSearchItemDto {
+  ticker: string;
+  instrument_uid: string;
+  name: string;
+}
+
+export async function searchTInvestBonds(query: string, signal?: AbortSignal): Promise<TInvestBondSearchItem[]> {
+  const params = new URLSearchParams({ query });
+  const response = await apiRequest<{ items: TInvestBondSearchItemDto[] }>(`portfolio/bonds/t-invest-search?${params.toString()}`, { signal });
+  return response.items.slice(0, 10).map((item) => ({
+    ticker: item.ticker,
+    instrumentUid: item.instrument_uid,
+    name: item.name,
+  }));
+}
+
+export async function lookupTInvestBond(instrumentUid: string, signal?: AbortSignal): Promise<TInvestBondLookup | null> {
+  const params = new URLSearchParams({ instrument_uid: instrumentUid });
   const response = await apiRequest<{ item: TInvestBondLookupDto | null }>(`portfolio/bonds/t-invest-lookup?${params.toString()}`, { signal });
   if (!response.item) return null;
   return {
@@ -136,6 +164,26 @@ export async function addBondPurchase(bondId: string, input: AddBondPurchaseInpu
     },
   });
   return adaptBond(response);
+}
+
+export async function addBondSale(bondId: string, input: AddBondSaleInput) {
+  const response = await apiRequest<BondPortfolioItemDto>(`portfolio/bonds/${bondId}/sales`, {
+    method: 'post',
+    json: {
+      amount_received: input.amountReceived,
+      quantity: input.quantity,
+      sale_date: input.saleDate,
+    },
+  });
+  return adaptBond(response);
+}
+
+export async function deletePortfolioOperation(bondId: string, operationId: string) {
+  const response = await apiRequest<{ item: BondPortfolioItemDto | null }>(
+    `portfolio/bonds/${bondId}/operations/${operationId}`,
+    { method: 'delete' },
+  );
+  return response.item ? adaptBond(response.item) : null;
 }
 
 export async function deletePortfolioBond(bondId: string) {

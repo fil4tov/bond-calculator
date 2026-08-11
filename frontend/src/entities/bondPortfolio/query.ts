@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { addBondPurchase, checkBondNameAvailability, createBond, deletePortfolioBond, getPortfolioBonds, lookupTInvestBond } from './api';
-import type { AddBondPurchaseInput, BondPortfolioItem, CreateBondInput } from './types';
+import { addBondPurchase, addBondSale, checkBondNameAvailability, createBond, deletePortfolioBond, deletePortfolioOperation, getPortfolioBonds, lookupTInvestBond, searchTInvestBonds } from './api';
+import type { AddBondPurchaseInput, AddBondSaleInput, BondPortfolioItem, CreateBondInput } from './types';
 
 export const portfolioQueryKey = (userId: string) => ['bondPortfolio', userId, 'bonds'] as const;
 const nameAvailabilityQueryKey = (userId: string, name: string) => ['bondPortfolio', userId, 'nameAvailability', name] as const;
-export const tInvestLookupQueryKey = (userId: string, ticker: string) => ['bondPortfolio', userId, 'tInvestLookup', ticker] as const;
+export const tInvestSearchQueryKey = (userId: string, query: string) => ['bondPortfolio', userId, 'tInvestSearch', query] as const;
+export const tInvestLookupQueryKey = (userId: string, instrumentUid: string) => ['bondPortfolio', userId, 'tInvestLookup', instrumentUid] as const;
 
 export function replacePortfolioBond<T extends { id: string }>(items: T[] | undefined, updated: T) {
   if (!items) return [updated];
@@ -41,10 +42,19 @@ export function useBondNameAvailability(userId: string, name: string, enabled: b
   });
 }
 
-export function useTInvestBondLookup(userId: string, ticker: string, enabled: boolean) {
+export function useTInvestBondSearch(userId: string, query: string, enabled: boolean) {
   return useQuery({
-    queryKey: tInvestLookupQueryKey(userId, ticker),
-    queryFn: ({ signal }) => lookupTInvestBond(ticker, signal),
+    queryKey: tInvestSearchQueryKey(userId, query),
+    queryFn: ({ signal }) => searchTInvestBonds(query, signal),
+    enabled: Boolean(userId) && enabled,
+    retry: false,
+  });
+}
+
+export function useTInvestBondLookup(userId: string, instrumentUid: string, enabled: boolean) {
+  return useQuery({
+    queryKey: tInvestLookupQueryKey(userId, instrumentUid),
+    queryFn: ({ signal }) => lookupTInvestBond(instrumentUid, signal),
     enabled: Boolean(userId) && enabled,
     retry: false,
   });
@@ -66,6 +76,29 @@ export function useAddPortfolioPurchase(userId: string) {
     mutationFn: ({ bondId, input }: { bondId: string; input: AddBondPurchaseInput }) => addBondPurchase(bondId, input),
     onSuccess: (bond) => {
       queryClient.setQueryData<BondPortfolioItem[]>(portfolioQueryKey(userId), (items) => upsertPortfolioBond(items, bond));
+    },
+  });
+}
+
+export function useAddPortfolioSale(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ bondId, input }: { bondId: string; input: AddBondSaleInput }) => addBondSale(bondId, input),
+    onSuccess: (bond) => {
+      queryClient.setQueryData<BondPortfolioItem[]>(portfolioQueryKey(userId), (items) => upsertPortfolioBond(items, bond));
+    },
+  });
+}
+
+export function useDeletePortfolioOperation(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ bondId, operationId }: { bondId: string; operationId: string }) => deletePortfolioOperation(bondId, operationId),
+    onSuccess: (bond, { bondId }) => {
+      queryClient.setQueryData<BondPortfolioItem[]>(portfolioQueryKey(userId), (items) => {
+        if (!bond) return items?.filter((item) => item.id !== bondId);
+        return upsertPortfolioBond(items, bond);
+      });
     },
   });
 }

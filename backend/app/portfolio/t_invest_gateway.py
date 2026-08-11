@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any, Protocol
 
 from grpc import StatusCode
-from t_tech.invest import AsyncClient, InstrumentIdType
+from t_tech.invest import AsyncClient, InstrumentIdType, InstrumentType
 from t_tech.invest.exceptions import AioRequestError
 
 from app.errors import ApiError
@@ -15,6 +15,13 @@ class AsyncClientContext(Protocol):
     async def __aenter__(self) -> Any: ...
 
     async def __aexit__(self, *_args: object) -> object: ...
+
+
+@dataclass(frozen=True)
+class TInvestBondSearchItem:
+    ticker: str
+    instrument_uid: str
+    name: str
 
 
 @dataclass(frozen=True)
@@ -84,13 +91,51 @@ class TInvestGateway:
         except Exception as error:
             raise _unavailable() from error
 
-    async def lookup_bond(self, ticker: str) -> TInvestBond | None:
+    async def search_bonds(self, query: str) -> tuple[TInvestBondSearchItem, ...]:
+        try:
+            async with self._client() as client:
+                response = await client.instruments.find_instrument(
+                    query=query,
+                    instrument_kind=InstrumentType.INSTRUMENT_TYPE_BOND,
+                )
+        except ApiError:
+            raise
+        except Exception as error:
+            raise _unavailable() from error
+
+        normalized_query = query.casefold()
+        ordered = sorted(
+            enumerate(response.instruments),
+            key=lambda item: (
+                getattr(item[1], "ticker", "").casefold() != normalized_query,
+                item[0],
+            ),
+        )
+        results: list[TInvestBondSearchItem] = []
+        seen: set[str] = set()
+        for _, instrument in ordered:
+            uid = getattr(instrument, "uid", "")
+            if not uid:
+                continue
+            identity = getattr(instrument, "position_uid", "") or uid
+            if identity in seen:
+                continue
+            seen.add(identity)
+            results.append(TInvestBondSearchItem(
+                ticker=instrument.ticker,
+                instrument_uid=uid,
+                name=instrument.name,
+            ))
+            if len(results) == 10:
+                break
+        return tuple(results)
+
+    async def lookup_bond(self, instrument_uid: str) -> TInvestBond | None:
         try:
             async with self._client() as client:
                 response = await client.instruments.bond_by(
-                    id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_TICKER,
-                    id=ticker,
-                    class_code="TQCB",
+                    id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_UID,
+                    id=instrument_uid,
                 )
         except ApiError:
             raise

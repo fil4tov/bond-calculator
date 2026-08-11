@@ -17,11 +17,16 @@ export interface BondNextCoupon {
   elapsedPeriodDays: number;
 }
 
-export interface BondPurchaseHistoryItem {
+export type BondOperationType = 'purchase' | 'sale';
+export type BondPositionStatus = 'open' | 'closed';
+
+export interface BondOperation {
   id: string;
-  amountSpent: string;
+  operationType: BondOperationType;
+  amount: string;
   quantity: number;
-  purchaseDate: string;
+  operationDate: string;
+  realizedResult: string | null;
 }
 
 export interface BondPortfolioItem {
@@ -34,11 +39,15 @@ export interface BondPortfolioItem {
   status: BondPortfolioStatus;
   totalQuantity: number;
   totalSpent: string;
+  positionCostBasis: string;
+  realizedResult: string;
+  positionStatus: BondPositionStatus;
   paidCouponTotal: string;
-  annualCouponYieldPercent: string;
+  calendarYearCouponYieldPercent: string;
+  couponYieldYear: number;
   maturityRemaining: BondMaturityRemaining;
   nextCoupon: BondNextCoupon | null;
-  purchases: BondPurchaseHistoryItem[];
+  operations: BondOperation[];
 }
 
 export interface CreateBondInput {
@@ -64,8 +73,20 @@ export interface TInvestBondLookup {
   maturityDate: string;
 }
 
+export interface TInvestBondSearchItem {
+  ticker: string;
+  instrumentUid: string;
+  name: string;
+}
+
 export interface AddBondPurchaseInput {
   amountSpent: string;
   quantity: number;
   purchaseDate: string;
+}
+
+export interface AddBondSaleInput {
+  amountReceived: string;
+  quantity: number;
+  saleDate: string;
 }

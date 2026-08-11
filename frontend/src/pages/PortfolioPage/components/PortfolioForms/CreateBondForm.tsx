@@ -1,23 +1,17 @@
 import { useEffect, useId, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 
-import { useBondNameAvailability, useCreatePortfolioBond, useTInvestBondLookup } from '#entities/bondPortfolio';
-import type { TInvestBondLookup } from '#entities/bondPortfolio';
+import { useBondNameAvailability, useCreatePortfolioBond, useTInvestBondLookup, useTInvestBondSearch } from '#entities/bondPortfolio';
+import type { TInvestBondSearchItem } from '#entities/bondPortfolio';
 import { ApiError } from '#shared/api';
 import { parseFormattedNumber } from '#shared/lib/number';
 import { Button, ControlledNumberField, TextField } from '#shared/ui';
 
 import { canonicalDecimal, todayInputValue, validateMoney, validateQuantity } from '../../utils';
 import styles from './PortfolioForms.module.scss';
+import { SelectedBondPreview } from './SelectedBondPreview';
 
 interface CreateBondFormValues {
-  ticker: string;
-  instrumentUid: string;
-  name: string;
-  nominal: string;
-  paymentsPerYear: string;
-  placementDate: string;
-  maturityDate: string;
   amountSpent: string;
   quantity: string;
   purchaseDate: string;
@@ -30,112 +24,134 @@ interface CreateBondFormProps {
 }
 
 const FIELD_MAP: Record<string, keyof CreateBondFormValues> = {
-  instrument_uid: 'instrumentUid', ticker: 'ticker', name: 'name', nominal: 'nominal', payments_per_year: 'paymentsPerYear',
-  placement_date: 'placementDate', maturity_date: 'maturityDate', amount_spent: 'amountSpent', quantity: 'quantity', purchase_date: 'purchaseDate',
+  amount_spent: 'amountSpent', quantity: 'quantity', purchase_date: 'purchaseDate',
 };
-
-const normalizeTicker = (value: string) => value.trim().toUpperCase();
-
-function validatePaymentsPerYear(value: string) {
-  const compact = value.replace(/[\s\u00a0\u202f]/g, '');
-  if (!compact) return 'Введите количество выплат в год';
-  const parsed = parseFormattedNumber(value);
-  return /^\d+$/.test(compact) && Number.isInteger(parsed) && parsed >= 0
-    || 'Введите целое неотрицательное число';
-}
+const MAX_VISIBLE_SEARCH_RESULTS = 5;
 
 export function CreateBondForm({ userId, onSuccess, onBusyChange }: CreateBondFormProps) {
   const today = todayInputValue();
-  const listboxId = `${useId()}-ticker-options`;
-  const [debouncedTicker, setDebouncedTicker] = useState('');
-  const [debouncedName, setDebouncedName] = useState('');
-  const [selectedBond, setSelectedBond] = useState<TInvestBondLookup | null>(null);
+  const formId = useId();
+  const listboxId = `${formId}-ticker-options`;
+  const purchaseHeadingId = `${formId}-purchase-heading`;
+  const [searchText, setSearchText] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [selectedInstrumentUid, setSelectedInstrumentUid] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [optionActive, setOptionActive] = useState(false);
+  const [activeOptionIndex, setActiveOptionIndex] = useState(-1);
+  const [selectedBondError, setSelectedBondError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const mutation = useCreatePortfolioBond(userId);
   const {
-    control, register, handleSubmit, setError, getValues, setValue,
+    control, register, handleSubmit, reset, setError,
     formState: { errors, isValid, isSubmitting },
   } = useForm<CreateBondFormValues>({
     mode: 'onChange',
-    defaultValues: {
-      ticker: '', instrumentUid: '', name: '', nominal: '', paymentsPerYear: '', placementDate: '', maturityDate: '',
-      amountSpent: '', quantity: '', purchaseDate: today,
-    },
+    defaultValues: { amountSpent: '', quantity: '', purchaseDate: today },
   });
-  const ticker = useWatch({ control, name: 'ticker' });
-  const name = useWatch({ control, name: 'name' });
-  const normalizedTicker = normalizeTicker(ticker);
-  const trimmedName = name.trim();
-  const locallyValidName = trimmedName.length >= 1 && trimmedName.length <= 120;
+  const normalizedQuery = searchText.trim();
 
   useEffect(() => {
-    if (!normalizedTicker) return undefined;
-    const timeout = window.setTimeout(() => setDebouncedTicker(normalizedTicker), 350);
+    if (normalizedQuery.length < 2) return undefined;
+    const timeout = window.setTimeout(() => setDebouncedQuery(normalizedQuery), 350);
     return () => window.clearTimeout(timeout);
-  }, [normalizedTicker]);
+  }, [normalizedQuery]);
 
-  useEffect(() => {
-    if (!locallyValidName) return undefined;
-    const timeout = window.setTimeout(() => setDebouncedName(trimmedName), 350);
-    return () => window.clearTimeout(timeout);
-  }, [locallyValidName, trimmedName]);
-
-  const lookup = useTInvestBondLookup(userId, debouncedTicker, Boolean(debouncedTicker));
-  const lookupMatchesTicker = Boolean(normalizedTicker) && debouncedTicker === normalizedTicker;
-  const lookupSearching = Boolean(normalizedTicker) && (
-    !lookupMatchesTicker || lookup.isFetching || lookup.isPending
+  const search = useTInvestBondSearch(
+    userId,
+    debouncedQuery,
+    Boolean(debouncedQuery) && !selectedInstrumentUid,
   );
-  const lookupError = lookupMatchesTicker && lookup.isError;
-  const lookupItem = lookupMatchesTicker ? lookup.data : undefined;
-  const showLookup = dropdownOpen && Boolean(normalizedTicker) && !selectedBond;
+  const searchMatchesQuery = normalizedQuery.length >= 2 && debouncedQuery === normalizedQuery;
+  const searchPending = normalizedQuery.length >= 2 && (
+    !searchMatchesQuery || search.isFetching || search.isPending
+  );
+  const searchError = searchMatchesQuery && search.isError;
+  const searchItems = searchMatchesQuery ? search.data : undefined;
+  const visibleSearchItems = searchItems?.slice(0, MAX_VISIBLE_SEARCH_RESULTS);
+  const showLookup = dropdownOpen && normalizedQuery.length >= 2 && !selectedInstrumentUid;
+
+  const lookup = useTInvestBondLookup(
+    userId,
+    selectedInstrumentUid ?? '',
+    Boolean(selectedInstrumentUid),
+  );
+  const selectedBond = lookup.data ?? null;
+  const lookupPending = Boolean(selectedInstrumentUid) && (lookup.isFetching || lookup.isPending);
+  const lookupMissing = Boolean(selectedInstrumentUid) && !lookupPending && !lookup.isError && lookup.data === null;
+  let lookupErrorMessage: string | null = null;
+  let lookupRetryable = false;
+  if (lookup.isError) {
+    if (lookup.error instanceof ApiError && lookup.error.code === 't_invest_bond_matured') {
+      lookupErrorMessage = 'Облигация уже погашена и не может быть добавлена.';
+    } else if (lookup.error instanceof ApiError && lookup.error.code === 't_invest_bond_not_placed') {
+      lookupErrorMessage = 'Облигация ещё не размещена и не может быть добавлена.';
+    } else {
+      lookupErrorMessage = 'Не удалось загрузить данные облигации.';
+      lookupRetryable = true;
+    }
+  } else if (lookupMissing) {
+    lookupErrorMessage = 'Облигация больше недоступна.';
+  }
 
   const availability = useBondNameAvailability(
     userId,
-    debouncedName,
-    locallyValidName && debouncedName === trimmedName,
+    selectedBond?.name ?? '',
+    Boolean(selectedBond),
   );
-  let nameStatus: 'idle' | 'checking' | 'available' | 'duplicate' | 'error' = 'idle';
-  if (locallyValidName) {
-    if (debouncedName !== trimmedName || availability.isFetching) nameStatus = 'checking';
-    else if (availability.isError) nameStatus = 'error';
-    else if (availability.data === true) nameStatus = 'available';
-    else if (availability.data === false) nameStatus = 'duplicate';
-    else nameStatus = 'checking';
-  }
-  const checkingName = nameStatus === 'checking';
-  const nameAvailable = nameStatus === 'available';
-  const selectionIsCurrent = selectedBond?.ticker === normalizedTicker && getValues('instrumentUid') === selectedBond.instrumentUid;
+  let availabilityStatus: 'checking' | 'available' | 'duplicate' | 'error' = 'checking';
+  if (selectedBondError) availabilityStatus = 'duplicate';
+  else if (availability.isError) availabilityStatus = 'error';
+  else if (availability.isFetching || availability.isPending) availabilityStatus = 'checking';
+  else if (availability.data === true) availabilityStatus = 'available';
+  else if (availability.data === false) availabilityStatus = 'duplicate';
+
+  const selectionIsCurrent = Boolean(selectedBond) && (
+    selectedBond?.ticker.localeCompare(normalizedQuery, 'ru-RU', { sensitivity: 'accent' }) === 0
+  );
+  const nameAvailable = availabilityStatus === 'available' && !selectedBondError;
   const busy = isSubmitting || mutation.isPending;
 
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
 
-  const selectBond = (bond: TInvestBondLookup) => {
-    setSelectedBond(bond);
+  const resetPurchase = () => reset({ amountSpent: '', quantity: '', purchaseDate: today });
+
+  const selectBond = (bond: TInvestBondSearchItem) => {
+    setSelectedInstrumentUid(bond.instrumentUid);
+    setSearchText(bond.ticker);
     setDropdownOpen(false);
-    setOptionActive(false);
-    setValue('ticker', bond.ticker, { shouldValidate: true, shouldDirty: true });
-    setValue('instrumentUid', bond.instrumentUid, { shouldValidate: true, shouldDirty: true });
-    setValue('name', bond.name, { shouldValidate: true, shouldDirty: true });
-    setValue('nominal', bond.nominal, { shouldValidate: true, shouldDirty: true });
-    setValue('paymentsPerYear', String(bond.paymentsPerYear), { shouldValidate: true, shouldDirty: true });
-    setValue('placementDate', bond.placementDate, { shouldValidate: true, shouldDirty: true });
-    setValue('maturityDate', bond.maturityDate, { shouldValidate: true, shouldDirty: true });
+    setActiveOptionIndex(-1);
+    setSelectedBondError(null);
+    setSubmitError(null);
+    resetPurchase();
+  };
+
+  const changeSearch = (value: string) => {
+    const nextQuery = value.trim();
+    setSearchText(value);
+    setDropdownOpen(nextQuery.length >= 2);
+    setActiveOptionIndex(-1);
+    setSubmitError(null);
+    if (nextQuery.length < 2) setDebouncedQuery('');
+    if (selectedInstrumentUid) {
+      setSelectedInstrumentUid(null);
+      setSelectedBondError(null);
+      resetPurchase();
+    }
   };
 
   const submit = handleSubmit(async (values) => {
-    if (!selectionIsCurrent || !selectedBond) return;
+    if (!selectionIsCurrent || !selectedBond || !nameAvailable) return;
     setSubmitError(null);
+    setSelectedBondError(null);
     try {
       await mutation.mutateAsync({
-        instrumentUid: values.instrumentUid,
+        instrumentUid: selectedBond.instrumentUid,
         ticker: selectedBond.ticker,
-        name: values.name.trim(),
-        nominal: canonicalDecimal(values.nominal),
-        paymentsPerYear: parseFormattedNumber(values.paymentsPerYear),
-        placementDate: values.placementDate,
-        maturityDate: values.maturityDate,
+        name: selectedBond.name,
+        nominal: selectedBond.nominal,
+        paymentsPerYear: selectedBond.paymentsPerYear,
+        placementDate: selectedBond.placementDate,
+        maturityDate: selectedBond.maturityDate,
         amountSpent: canonicalDecimal(values.amountSpent),
         quantity: parseFormattedNumber(values.quantity),
         purchaseDate: values.purchaseDate,
@@ -147,8 +163,10 @@ export function CreateBondForm({ userId, onSuccess, onBusyChange }: CreateBondFo
           const mappedField = FIELD_MAP[field];
           if (mappedField) setError(mappedField, { type: 'server', message });
         });
-        if (error.code === 'bond_name_taken' && !error.fieldErrors?.name) {
-          setError('name', { type: 'server', message: 'Облигация с таким названием уже существует' });
+        const nameError = error.fieldErrors?.name;
+        if (nameError) setSelectedBondError(nameError);
+        else if (error.code === 'bond_name_taken') {
+          setSelectedBondError('Облигация с таким названием уже существует');
         }
         setSubmitError(error.message);
       } else {
@@ -158,111 +176,149 @@ export function CreateBondForm({ userId, onSuccess, onBusyChange }: CreateBondFo
   });
 
   return (
-    <form className={styles.form} noValidate onSubmit={submit}>
-      <input type="hidden" {...register('instrumentUid')} />
-      <div className={styles.grid}>
-        <div className={`${styles.wideField} ${styles.tickerField}`}>
-          <TextField
-            label="Тикер"
-            placeholder="Например, SU26238"
-            autoComplete="off"
-            role="combobox"
-            aria-autocomplete="list"
-            aria-expanded={showLookup}
-            aria-controls={showLookup ? listboxId : undefined}
-            aria-activedescendant={showLookup && lookupItem && optionActive ? `${listboxId}-option` : undefined}
-            error={errors.ticker?.message}
-            {...register('ticker', { onChange: (event) => {
-              const nextTicker = normalizeTicker(event.target.value);
-              setDropdownOpen(Boolean(nextTicker));
-              setOptionActive(false);
-              if (!nextTicker) setDebouncedTicker('');
-              if (selectedBond && event.target.value !== selectedBond.ticker) {
-                setSelectedBond(null);
-                setValue('instrumentUid', '', { shouldValidate: true });
-              }
-            } })}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowDown' && lookupItem) { event.preventDefault(); setDropdownOpen(true); setOptionActive(true); }
-              if (event.key === 'Enter' && optionActive && lookupItem) { event.preventDefault(); selectBond(lookupItem); }
-              if (event.key === 'Escape') { setDropdownOpen(false); setOptionActive(false); }
-            }}
-          />
-          {showLookup ? (
-            <div id={listboxId} className={styles.lookupMenu} role="listbox" aria-label="Результаты поиска тикера">
-              {lookupSearching ? <p aria-live="polite">Ищем облигацию…</p> : null}
-              {!lookupSearching && lookupItem ? (
-                <button
-                  id={`${listboxId}-option`}
-                  type="button"
-                  role="option"
-                  tabIndex={-1}
-                  aria-selected={optionActive}
-                  className={styles.lookupOption}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => selectBond(lookupItem)}
-                >
-                  <strong>{lookupItem.ticker}</strong><span>{lookupItem.name}</span>
-                </button>
-              ) : null}
-              {!lookupSearching && lookupItem === null ? <p>Облигация не найдена</p> : null}
-              {lookupError ? (
-                <p className={styles.inlineError} role="alert">
-                  {lookup.error instanceof Error ? lookup.error.message : 'Не удалось найти облигацию.'}{' '}
-                  <button type="button" onClick={() => void lookup.refetch()}>Повторить поиск</button>
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-          {selectedBond ? <p className={styles.selectedBond}>Выбрана: <strong>{selectedBond.ticker} — {selectedBond.name}</strong></p> : null}
-        </div>
-        <div className={styles.wideField}>
-          <TextField
-            label="Название"
-            placeholder="Например, ОФЗ 26238"
-            autoComplete="off"
-            error={errors.name?.message}
-            {...register('name', {
-              onChange: (event) => { if (!event.target.value.trim()) setDebouncedName(''); },
-              validate: (value) => {
-                const trimmed = value.trim();
-                if (!trimmed) return 'Введите название';
-                return trimmed.length <= 120 || 'Не больше 120 символов';
-              },
-            })}
-          />
-          {locallyValidName ? (
-            <div className={styles.availability} aria-live="polite">
-              {nameStatus === 'checking' ? <span>Проверяем…</span> : null}
-              {nameStatus === 'available' ? <span className={styles.success}>Имя свободно</span> : null}
-              {nameStatus === 'duplicate' ? <span className={styles.inlineError}>Облигация с таким названием уже есть</span> : null}
-              {nameStatus === 'error' ? <span className={styles.inlineError}>Не удалось проверить имя. <button type="button" onClick={() => void availability.refetch()}>Повторить проверку</button></span> : null}
-            </div>
-          ) : null}
-        </div>
-        <ControlledNumberField control={control} name="nominal" label="Номинал облигации" aria-label="Номинал облигации" unit="₽" inputMode="decimal" error={errors.nominal?.message} rules={{ validate: (value) => validateMoney(value, { allowZero: false, label: 'Номинал облигации' }) }} />
-        <ControlledNumberField control={control} name="paymentsPerYear" label="Количество выплат в год" aria-label="Количество выплат в год" inputMode="numeric" integer error={errors.paymentsPerYear?.message} rules={{ validate: validatePaymentsPerYear }} />
-        <TextField type="date" label="Дата размещения" max={today} error={errors.placementDate?.message} {...register('placementDate', { required: 'Укажите дату размещения', validate: (value) => {
-          if (value > today) return 'Дата размещения не может быть в будущем';
-          const purchase = getValues('purchaseDate'); if (purchase && value > purchase) return 'Дата размещения должна быть не позднее даты покупки';
-          const maturity = getValues('maturityDate'); return !maturity || value < maturity || 'Дата размещения должна быть раньше погашения';
-        }, deps: ['purchaseDate', 'maturityDate'] })} />
-        <TextField type="date" label="Дата погашения" min={today} error={errors.maturityDate?.message} {...register('maturityDate', { required: 'Укажите дату погашения', validate: (value) => {
-          if (value <= today) return 'Дата погашения должна быть позже сегодняшней';
-          const placement = getValues('placementDate'); return !placement || value > placement || 'Дата погашения должна быть позже размещения';
-        }, deps: ['placementDate', 'purchaseDate'] })} />
-        <ControlledNumberField control={control} name="amountSpent" label="Сумма покупки" aria-label="Сумма покупки" unit="₽" inputMode="decimal" error={errors.amountSpent?.message} rules={{ validate: (value) => validateMoney(value, { allowZero: false, label: 'Сумма покупки' }) }} />
-        <ControlledNumberField control={control} name="quantity" label="Количество" inputMode="numeric" integer error={errors.quantity?.message} rules={{ validate: validateQuantity }} />
-        <TextField type="date" label="Дата покупки" className={styles.wideField} max={today} error={errors.purchaseDate?.message} {...register('purchaseDate', { required: 'Укажите дату покупки', validate: (value) => {
-          if (value > today) return 'Дата покупки не может быть в будущем';
-          const placement = getValues('placementDate'); if (placement && value < placement) return 'Дата покупки должна быть не раньше размещения';
-          const maturity = getValues('maturityDate'); return !maturity || value < maturity || 'Дата покупки должна быть раньше погашения';
-        }, deps: ['placementDate', 'maturityDate'] })} />
+    <form
+      className={`${styles.form} ${styles.createForm}`}
+      noValidate
+      onSubmit={submit}
+    >
+      <div className={`${styles.tickerField} ${selectedInstrumentUid ? styles.tickerFieldSelected : ''}`}>
+        <TextField
+          name="bondSearch"
+          label="Название или тикер"
+          placeholder="Например, ОФЗ или SU26238"
+          autoComplete="off"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showLookup}
+          aria-controls={showLookup ? listboxId : undefined}
+          aria-activedescendant={showLookup && activeOptionIndex >= 0 ? `${listboxId}-option-${activeOptionIndex}` : undefined}
+          value={searchText}
+          onChange={(event) => changeSearch(event.target.value)}
+          onBlur={() => setDropdownOpen(false)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' && visibleSearchItems?.length) {
+              event.preventDefault();
+              setDropdownOpen(true);
+              setActiveOptionIndex((index) => (index + 1) % visibleSearchItems.length);
+            }
+            if (event.key === 'ArrowUp' && visibleSearchItems?.length) {
+              event.preventDefault();
+              setDropdownOpen(true);
+              setActiveOptionIndex((index) => (
+                index <= 0 ? visibleSearchItems.length - 1 : index - 1
+              ));
+            }
+            if (event.key === 'Enter' && activeOptionIndex >= 0 && visibleSearchItems?.[activeOptionIndex]) {
+              event.preventDefault();
+              selectBond(visibleSearchItems[activeOptionIndex]);
+            }
+            if (event.key === 'Escape') {
+              setDropdownOpen(false);
+              setActiveOptionIndex(-1);
+            }
+          }}
+        />
+        {showLookup ? (
+          <div id={listboxId} className={styles.lookupMenu} role="listbox" aria-label="Результаты поиска облигаций">
+            {searchPending ? <p aria-live="polite">Ищем облигации…</p> : null}
+            {!searchPending ? visibleSearchItems?.map((item, index) => (
+              <button
+                id={`${listboxId}-option-${index}`}
+                key={item.instrumentUid}
+                type="button"
+                role="option"
+                tabIndex={-1}
+                aria-selected={activeOptionIndex === index}
+                className={styles.lookupOption}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActiveOptionIndex(index)}
+                onClick={() => selectBond(item)}
+              >
+                <strong>{item.ticker}</strong><span>{item.name}</span>
+              </button>
+            )) : null}
+            {!searchPending && searchItems?.length === 0 ? <p>Облигации не найдены</p> : null}
+            {searchError ? (
+              <p className={styles.inlineError} role="alert">
+                Не удалось найти облигации.{' '}
+                <button type="button" onClick={() => void search.refetch()}>Повторить поиск</button>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-      {submitError ? <p className={styles.formError} role="alert">{submitError}</p> : null}
-      <div className={styles.submitRow}>
-        <Button className={styles.submitButton} type="submit" disabled={!isValid || !selectionIsCurrent || !nameAvailable || checkingName || busy}>{busy ? 'Сохраняем…' : 'Сохранить'}</Button>
-      </div>
+
+      {lookupPending ? <p className={styles.lookupStatus} aria-live="polite">Загружаем данные облигации…</p> : null}
+      {lookupErrorMessage ? (
+        <p className={styles.inlineError} role="alert">
+          {lookupErrorMessage}{' '}
+          {lookupRetryable ? <button type="button" onClick={() => void lookup.refetch()}>Повторить загрузку</button> : null}
+        </p>
+      ) : null}
+
+      {selectedBond ? (
+        <>
+          <SelectedBondPreview
+            bond={selectedBond}
+            status={availabilityStatus}
+            statusMessage={selectedBondError ?? undefined}
+            onRetry={availabilityStatus === 'error' ? () => void availability.refetch() : undefined}
+          />
+          <section className={styles.purchaseSection} aria-labelledby={purchaseHeadingId}>
+            <div className={styles.purchaseHeading}>
+              <span aria-hidden="true" />
+              <h3 id={purchaseHeadingId}>Первая покупка</h3>
+            </div>
+            <div className={styles.grid}>
+              <ControlledNumberField
+                control={control}
+                name="amountSpent"
+                label="Сумма покупки"
+                aria-label="Сумма покупки"
+                unit="₽"
+                inputMode="decimal"
+                error={errors.amountSpent?.message}
+                rules={{ validate: (value) => validateMoney(value, { allowZero: false, label: 'Сумма покупки' }) }}
+              />
+              <ControlledNumberField
+                control={control}
+                name="quantity"
+                label="Количество"
+                inputMode="numeric"
+                integer
+                error={errors.quantity?.message}
+                rules={{ validate: validateQuantity }}
+              />
+              <TextField
+                type="date"
+                label="Дата покупки"
+                min={selectedBond.placementDate}
+                max={today}
+                wide
+                error={errors.purchaseDate?.message}
+                {...register('purchaseDate', {
+                  required: 'Укажите дату покупки',
+                  validate: (value) => {
+                    if (value > today) return 'Дата покупки не может быть в будущем';
+                    if (value < selectedBond.placementDate) return 'Дата покупки должна быть не раньше размещения';
+                    return value < selectedBond.maturityDate || 'Дата покупки должна быть раньше погашения';
+                  },
+                })}
+              />
+            </div>
+          </section>
+          {submitError ? <p className={styles.formError} role="alert">{submitError}</p> : null}
+          <div className={styles.submitRow}>
+            <Button
+              className={styles.submitButton}
+              type="submit"
+              disabled={!isValid || !selectionIsCurrent || !nameAvailable || busy}
+            >
+              {busy ? 'Сохраняем…' : 'Сохранить'}
+            </Button>
+          </div>
+        </>
+      ) : null}
     </form>
   );
 }

@@ -82,6 +82,19 @@ class PurchaseCreate(BaseModel):
         return value
 
 
+class SaleCreate(BaseModel):
+    amount_received: PositiveMoney
+    quantity: PositiveQuantity
+    sale_date: date
+
+    @field_validator("sale_date")
+    @classmethod
+    def validate_sale_date(cls, value: date) -> date:
+        if value > clock.utc_today():
+            raise ValueError("sale_date must not be after today")
+        return value
+
+
 class MaturityRemaining(BaseModel):
     years: int
     months: int
@@ -99,11 +112,13 @@ class NextCoupon(BaseModel):
     elapsed_period_days: int
 
 
-class BondPurchaseItem(BaseModel):
+class BondOperationItem(BaseModel):
     id: UUID
-    amount_spent: str
+    operation_type: Literal["purchase", "sale"]
+    amount: str
+    realized_result: str | None
     quantity: int
-    purchase_date: date
+    operation_date: date
 
 
 class BondCard(BaseModel):
@@ -118,15 +133,23 @@ class BondCard(BaseModel):
     status: Literal["active", "payment_pending", "matured"]
     total_quantity: int
     total_spent: str
+    position_cost_basis: str
+    realized_result: str
+    position_status: Literal["open", "closed"]
     paid_coupon_total: str
-    annual_coupon_yield_percent: str
+    calendar_year_coupon_yield_percent: str
+    coupon_yield_year: int
     maturity_remaining: MaturityRemaining
     next_coupon: NextCoupon | None
-    purchases: list[BondPurchaseItem]
+    operations: list[BondOperationItem]
 
 
 class BondList(BaseModel):
     items: list[BondCard]
+
+
+class OperationDeleteResponse(BaseModel):
+    item: BondCard | None
 
 
 class NameAvailability(BaseModel):
@@ -145,3 +168,13 @@ class TInvestLookupItem(BaseModel):
 
 class TInvestLookupResponse(BaseModel):
     item: TInvestLookupItem | None
+
+
+class TInvestSearchItem(BaseModel):
+    ticker: str
+    instrument_uid: str
+    name: str
+
+
+class TInvestSearchResponse(BaseModel):
+    items: list[TInvestSearchItem]

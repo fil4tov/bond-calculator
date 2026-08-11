@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.auth.models import AuthSession
 from app.config import get_settings
 from app.db import Base
-from app.portfolio.models import Bond, BondPurchase
+from app.portfolio.models import Bond, BondOperation
 from app.users.models import User
 
-_MODELS = (User, AuthSession, Bond, BondPurchase)
+_MODELS = (User, AuthSession, Bond, BondOperation)
 config = context.config
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
 

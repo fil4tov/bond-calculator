@@ -4,12 +4,12 @@ from uuid import UUID
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.main import app
 from app.portfolio import clock
-from app.portfolio.models import Bond, BondCouponSchedule, BondPurchase
+from app.portfolio.models import Bond, BondCouponSchedule, BondOperation
 from app.portfolio.router import get_t_invest_gateway
 from app.portfolio.t_invest_gateway import TInvestCoupon
 
@@ -88,15 +88,18 @@ async def test_create_list_and_add_purchase_return_stored_schedule_card(client: 
     assert added.status_code == 201
     assert added.json()["total_quantity"] == 75
     assert added.json()["total_spent"] == "75000.70"
-    assert [purchase["purchase_date"] for purchase in added.json()["purchases"]] == [
+    assert "purchases" not in added.json()
+    assert [operation["operation_date"] for operation in added.json()["operations"]] == [
         (clock.utc_today() - timedelta(days=1)).isoformat(),
         (clock.utc_today() - timedelta(days=2)).isoformat(),
     ]
-    assert added.json()["purchases"][0] == {
-        "id": added.json()["purchases"][0]["id"],
-        "amount_spent": "25000.35",
+    assert added.json()["operations"][0] == {
+        "id": added.json()["operations"][0]["id"],
+        "operation_type": "purchase",
+        "amount": "25000.35",
+        "realized_result": None,
         "quantity": 25,
-        "purchase_date": (clock.utc_today() - timedelta(days=1)).isoformat(),
+        "operation_date": (clock.utc_today() - timedelta(days=1)).isoformat(),
     }
     assert (await client.get("/api/portfolio/bonds")).json() == {"items": [added.json()]}
 
@@ -127,14 +130,30 @@ async def test_foreign_and_missing_purchase_and_delete_are_indistinguishable(cli
 
 
 @pytest.mark.asyncio
-async def test_delete_cascades_purchases_and_schedule(client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]) -> None:
+async def test_delete_cascades_operations_and_schedule(client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]) -> None:
     await register(client, "DeleteOwner")
     bond_id = UUID((await client.post("/api/portfolio/bonds", json=valid_bond_payload())).json()["id"])
     assert (await client.delete(f"/api/portfolio/bonds/{bond_id}")).status_code == 204
     async with session_factory() as session:
         assert await session.scalar(select(Bond.id).where(Bond.id == bond_id)) is None
-        assert await session.scalar(select(BondPurchase.id).where(BondPurchase.bond_id == bond_id)) is None
+        assert await session.scalar(select(BondOperation.id).where(BondOperation.bond_id == bond_id)) is None
         assert await session.scalar(select(BondCouponSchedule.id).where(BondCouponSchedule.bond_id == bond_id)) is None
+
+
+@pytest.mark.asyncio
+async def test_delete_works_on_migrated_schema_without_legacy_purchases_table(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await register(client, "MigratedDeleteOwner")
+    bond_id = (await client.post("/api/portfolio/bonds", json=valid_bond_payload())).json()["id"]
+    async with session_factory() as session:
+        await session.execute(text("DROP TABLE IF EXISTS bond_purchases"))
+        await session.commit()
+
+    response = await client.delete(f"/api/portfolio/bonds/{bond_id}")
+
+    assert response.status_code == 204
 
 
 @pytest.mark.asyncio
@@ -158,13 +177,26 @@ async def test_create_validation_uses_existing_422_contract(client: AsyncClient,
 
 
 @pytest.mark.asyncio
-async def test_purchase_rejects_before_placement_and_before_existing_first_purchase(client: AsyncClient) -> None:
+async def test_purchase_rejects_dates_before_the_earliest_purchase(client: AsyncClient) -> None:
     await register(client, "DatesOwner")
     created = await client.post("/api/portfolio/bonds", json=valid_bond_payload())
     bond_id = created.json()["id"]
-    for value in (date.min, clock.utc_today() - timedelta(days=2)):
-        response = await client.post(f"/api/portfolio/bonds/{bond_id}/purchases", json={"amount_spent": "1.00", "quantity": 1, "purchase_date": value.isoformat()})
-        assert response.status_code == 422 and "purchase_date" in response.json()["field_errors"]
+    invalid = await client.post(
+        f"/api/portfolio/bonds/{bond_id}/purchases",
+        json={"amount_spent": "1.00", "quantity": 1, "purchase_date": date.min.isoformat()},
+    )
+    assert invalid.status_code == 422 and "purchase_date" in invalid.json()["field_errors"]
+    backdated = await client.post(
+        f"/api/portfolio/bonds/{bond_id}/purchases",
+        json={
+            "amount_spent": "1.00",
+            "quantity": 1,
+            "purchase_date": (clock.utc_today() - timedelta(days=2)).isoformat(),
+        },
+    )
+    assert backdated.status_code == 422
+    assert backdated.json()["code"] == "validation_error"
+    assert "purchase_date" in backdated.json()["field_errors"]
 
 
 @pytest.mark.asyncio

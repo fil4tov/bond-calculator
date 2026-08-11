@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.errors import ApiError
 from app.portfolio import clock, service
-from app.portfolio.models import Bond, BondCouponSchedule, BondPurchase
+from app.portfolio.models import Bond, BondCouponSchedule, BondOperation
 from app.portfolio.schemas import BondCreate
 from app.portfolio.t_invest_gateway import TInvestCoupon
 from app.users.models import User
@@ -46,13 +46,15 @@ async def test_unique_index_race_is_mapped_to_bond_name_taken(client: AsyncClien
 @pytest.mark.asyncio
 async def test_non_name_integrity_error_is_not_mapped_to_duplicate(session_factory: async_sessionmaker[AsyncSession]) -> None:
     async with session_factory() as session:
-        await session.execute(text("PRAGMA foreign_keys = ON")); await session.commit()
+        if session.get_bind().dialect.name == "sqlite":
+            await session.execute(text("PRAGMA foreign_keys = ON"))
+            await session.commit()
         with pytest.raises(IntegrityError):
             await service.create_bond(session, uuid4(), bond_data("Orphan Bond"), EmptyGateway())
 
 
 @pytest.mark.asyncio
-async def test_database_rejects_invalid_bond_and_purchase_constraints(client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]) -> None:
+async def test_database_rejects_invalid_bond_and_operation_constraints(client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]) -> None:
     await client.post("/api/auth/register", json={"username": "ConstraintOwner", "password": "password123"})
     async with session_factory() as session:
         user = (await session.scalars(select(User))).one()
@@ -61,7 +63,7 @@ async def test_database_rejects_invalid_bond_and_purchase_constraints(client: As
     async with session_factory() as session:
         user = (await session.scalars(select(User))).one()
         bond = Bond(user_id=user.id, instrument_uid="uid", ticker="T", name="Valid", nominal=Decimal("1"), payments_per_year=0, placement_date=date(2026, 1, 1), maturity_date=date(2027, 1, 1))
-        bond.purchases.append(BondPurchase(user_id=user.id, amount_spent=Decimal("0"), quantity=0, purchase_date=date(2026, 1, 1)))
+        bond.operations.append(BondOperation(user_id=user.id, operation_type="purchase", amount=Decimal("0"), quantity=0, operation_date=date(2026, 1, 1)))
         session.add(bond)
         with pytest.raises(IntegrityError): await session.commit()
 
@@ -72,11 +74,11 @@ async def test_metadata_defaults_populate_created_at_and_schedule_precision(clie
     async with session_factory() as session:
         user = (await session.scalars(select(User))).one()
         bond = Bond(user_id=user.id, instrument_uid="uid", ticker="T", name="Raw", nominal=Decimal("1000"), payments_per_year=0, placement_date=date(2026, 1, 1), maturity_date=date(2027, 1, 1))
-        bond.purchases.append(BondPurchase(user_id=user.id, amount_spent=Decimal("0.01"), quantity=2_147_483_647, purchase_date=date(2026, 1, 1)))
+        bond.operations.append(BondOperation(user_id=user.id, operation_type="purchase", amount=Decimal("0.01"), quantity=2_147_483_647, operation_date=date(2026, 1, 1)))
         bond.coupon_schedules.append(BondCouponSchedule(figi="F", coupon_date=date(2026, 6, 1), coupon_number=1, fix_date=None, pay_one_bond_amount=Decimal("0.123456789"), pay_one_bond_currency="RUB", coupon_type=1, coupon_start_date=date(2026, 1, 1), coupon_end_date=date(2026, 6, 1), coupon_period=151))
         session.add(bond); await session.commit()
-        persisted = (await session.scalars(select(Bond).options(selectinload(Bond.purchases), selectinload(Bond.coupon_schedules)))).one()
-        assert persisted.created_at is not None and persisted.purchases[0].created_at is not None
+        persisted = (await session.scalars(select(Bond).options(selectinload(Bond.operations), selectinload(Bond.coupon_schedules)))).one()
+        assert persisted.created_at is not None and persisted.operations[0].created_at is not None
         assert persisted.coupon_schedules[0].pay_one_bond_amount == Decimal("0.123456789")
 
 

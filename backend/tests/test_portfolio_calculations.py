@@ -52,7 +52,8 @@ def test_metrics_use_stored_coupon_dates_and_fix_date_inclusive_entitlement() ->
     assert metrics.next_coupon_amount == Decimal("62.50")
     assert metrics.next_coupon_amount_per_bond == Decimal("12.50")
     assert metrics.next_coupon_pay_date == date(2027, 1, 1)
-    assert metrics.annual_coupon_yield_percent == Decimal("3.1250")
+    assert metrics.calendar_year_coupon_yield_percent == Decimal("2.0000")
+    assert metrics.coupon_yield_year == 2026
 
 
 def test_metrics_accept_purchase_before_coupon_end_without_fix_date_and_mark_pending() -> None:
@@ -83,7 +84,8 @@ def test_empty_stored_schedule_has_zero_metrics_and_no_next_coupon() -> None:
     )
 
     assert metrics.paid_coupon_total == Decimal("0.00")
-    assert metrics.annual_coupon_yield_percent == Decimal("0.0000")
+    assert metrics.calendar_year_coupon_yield_percent == Decimal("0.0000")
+    assert metrics.coupon_yield_year == 2026
     assert metrics.next_coupon_pay_date is None
 
 
@@ -113,3 +115,44 @@ def test_purchase_on_coupon_end_is_not_eligible_without_fix_date() -> None:
     )
 
     assert metrics.paid_coupon_total == Decimal("0.00")
+
+
+def test_calendar_year_yield_includes_past_and_future_entitled_coupons() -> None:
+    metrics = calculate_bond_metrics(
+        maturity_date=date(2026, 12, 31),
+        purchases=(
+            PurchasePosition(Decimal("1000.00"), 2, date(2025, 12, 30)),
+            PurchasePosition(Decimal("900.00"), 3, date(2026, 6, 1)),
+        ),
+        coupons=(
+            coupon(
+                coupon_date=date(2026, 1, 1),
+                amount="10.00",
+                start=date(2025, 7, 1),
+                end=date(2025, 12, 31),
+                fix_date=date(2025, 12, 31),
+            ),
+            coupon(
+                coupon_date=date(2026, 7, 1),
+                amount="10.00",
+                start=date(2026, 1, 1),
+                end=date(2026, 6, 30),
+            ),
+            coupon(
+                coupon_date=date(2026, 12, 31),
+                amount="10.00",
+                start=date(2026, 7, 1),
+                end=date(2026, 12, 30),
+            ),
+            coupon(
+                coupon_date=date(2027, 1, 1),
+                amount="100.00",
+                start=date(2026, 7, 1),
+                end=date(2026, 12, 31),
+            ),
+        ),
+        today=date(2026, 8, 11),
+    )
+
+    assert metrics.calendar_year_coupon_yield_percent == Decimal("7.2632")
+    assert metrics.coupon_yield_year == 2026

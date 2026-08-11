@@ -1,5 +1,7 @@
 import { parseFormattedNumber } from '#shared/lib/number';
 
+type QuantityOperation = { operationType: 'purchase' | 'sale'; quantity: number; operationDate: string };
+
 export const MONEY_PATTERN = /^\d+(?:[.,]\d{1,2})?$/;
 const TOO_MANY_FRACTION_DIGITS_PATTERN = /^\d+[.,]\d{3,}$/;
 const MAX_MONEY_INTEGER_DIGITS = 16;
@@ -81,15 +83,17 @@ export function validateQuantity(value: string) {
 }
 
 function roundDecimal(value: string, fractionDigits: number) {
-  const match = /^(\d+)(?:\.(\d+))?$/.exec(value);
-  if (!match) throw new Error('Expected a plain non-negative decimal string');
-  const integer = match[1] ?? '0';
-  const fraction = match[2] ?? '';
+  const match = /^(-)?(\d+)(?:\.(\d+))?$/.exec(value);
+  if (!match) throw new Error('Expected a plain decimal string');
+  const negative = Boolean(match[1]);
+  const integer = match[2] ?? '0';
+  const fraction = match[3] ?? '';
   const scale = 10n ** BigInt(fractionDigits);
   const keptFraction = fraction.slice(0, fractionDigits).padEnd(fractionDigits, '0');
   let scaled = BigInt(integer) * scale + BigInt(keptFraction || '0');
   if ((fraction[fractionDigits] ?? '0') >= '5') scaled += 1n;
   return {
+    negative: negative && scaled !== 0n,
     integer: scaled / scale,
     fraction: (scaled % scale).toString().padStart(fractionDigits, '0'),
   };
@@ -98,11 +102,12 @@ function roundDecimal(value: string, fractionDigits: number) {
 function formatExactDecimal(value: string, formatter: Intl.NumberFormat) {
   const rounded = roundDecimal(value, 2);
   const groupedInteger = INTEGER_FORMATTER.format(rounded.integer);
-  return formatter.formatToParts(0n).map((part) => {
+  const formatted = formatter.formatToParts(0n).map((part) => {
     if (part.type === 'integer') return groupedInteger;
     if (part.type === 'fraction') return rounded.fraction;
     return part.value;
   }).join('');
+  return rounded.negative ? `−${formatted}` : formatted;
 }
 
 export function formatMoney(value: string) {
@@ -113,7 +118,20 @@ export function formatPercent(value: string) {
   return `${formatExactDecimal(value, PERCENT_FORMATTER)} %`;
 }
 
+export function couponYieldDescription(year: number) {
+  return `Для каждого купона за ${year} год сумма выплаты по бумагам в позиции на дату отсечения делится на историческую себестоимость этой позиции на ту же дату и умножается на 100%. Полученные доходности купонов складываются. Дата отсечения — дата фиксации права, а если её нет — конец купонного периода, без учёта операций в этот день. Учитываются уже выплаченные и будущие купоны; возврат номинала не входит.`;
+}
+
 export function formatDate(value: string) {
   return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
     .format(new Date(`${value}T00:00:00Z`));
+}
+
+export function availableQuantityOnDate(operations: QuantityOperation[], date: string) {
+  return operations.reduce((available, operation) => {
+    if (operation.operationDate > date) return available;
+    return operation.operationType === 'purchase'
+      ? available + operation.quantity
+      : available - operation.quantity;
+  }, 0);
 }

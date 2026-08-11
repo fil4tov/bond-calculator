@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from grpc import StatusCode
-from t_tech.invest import InstrumentIdType
+from t_tech.invest import InstrumentIdType, InstrumentType
 from t_tech.invest import channels
 from t_tech.invest.exceptions import AioRequestError
 
@@ -40,17 +40,43 @@ def money(units: int, nano: int, currency: str = "RUB") -> SimpleNamespace:
 
 
 class FakeInstruments:
-    async def bond_by(self, *, id_type: object, id: str, class_code: str) -> SimpleNamespace:
-        if (
-            id_type != InstrumentIdType.INSTRUMENT_ID_TYPE_TICKER
-            or id != "SU26238RMFS4"
-            or class_code != "TQCB"
-        ):
-            raise AssertionError("gateway must request the TQCB bond by ticker")
+    async def find_instrument(
+        self, *, query: str, instrument_kind: object
+    ) -> SimpleNamespace:
+        if query != "ofz" or instrument_kind != InstrumentType.INSTRUMENT_TYPE_BOND:
+            raise AssertionError("gateway must search bonds by the original query")
+        instruments = [
+            SimpleNamespace(
+                uid="duplicate-main",
+                position_uid="position-duplicate",
+                ticker="OTHER",
+                name="Duplicate main",
+            ),
+            SimpleNamespace(
+                uid="duplicate-secondary",
+                position_uid="position-duplicate",
+                ticker="OFZ",
+                name="Duplicate secondary",
+            ),
+            *[
+                SimpleNamespace(
+                    uid=f"instrument-{index}",
+                    position_uid=f"position-{index}",
+                    ticker=f"SU{index:05d}",
+                    name=f"OFZ {index}",
+                )
+                for index in range(10)
+            ],
+        ]
+        return SimpleNamespace(instruments=instruments)
+
+    async def bond_by(self, *, id_type: object, id: str) -> SimpleNamespace:
+        if id_type != InstrumentIdType.INSTRUMENT_ID_TYPE_UID or id != "instrument-uid":
+            raise AssertionError("gateway must request the bond by UID")
         return SimpleNamespace(
             instrument=SimpleNamespace(
                 uid="instrument-uid",
-                ticker=id,
+                ticker="SU26238RMFS4",
                 name="OFZ 26238",
                 nominal=money(1000, 0),
                 coupon_quantity_per_year=2,
@@ -116,7 +142,7 @@ class FailingClient:
 async def test_gateway_converts_t_invest_bond_and_coupon_money_without_float() -> None:
     gateway = TInvestGateway(api_key="token", client_factory=lambda _token: FakeClient())
 
-    bond = await gateway.lookup_bond("SU26238RMFS4")
+    bond = await gateway.lookup_bond("instrument-uid")
     coupons = await gateway.get_coupon_schedule("instrument-uid", date(2026, 1, 1), date(2026, 12, 31))
 
     assert bond is not None
@@ -124,6 +150,18 @@ async def test_gateway_converts_t_invest_bond_and_coupon_money_without_float() -
     assert bond.placement_date == date(2020, 1, 1)
     assert coupons[0].pay_one_bond_amount == Decimal("12.345678901")
     assert coupons[0].coupon_date == date(2026, 6, 30)
+
+
+@pytest.mark.asyncio
+async def test_gateway_searches_bonds_deduplicates_modes_prioritizes_exact_ticker_and_limits() -> None:
+    gateway = TInvestGateway(api_key="token", client_factory=lambda _token: FakeClient())
+
+    results = await gateway.search_bonds("ofz")
+
+    assert len(results) == 10
+    assert results[0].instrument_uid == "duplicate-secondary"
+    assert results[0].ticker == "OFZ"
+    assert all(item.instrument_uid != "duplicate-main" for item in results)
 
 
 @pytest.mark.asyncio

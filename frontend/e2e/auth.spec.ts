@@ -5,6 +5,9 @@ test('registers, opens the portfolio and revokes access on logout', async ({ pag
 
   await page.goto('/');
   await page.getByRole('button', { name: 'Войти или зарегистрироваться' }).click();
+  const authDialog = page.getByRole('dialog', { name: 'Вход и регистрация' });
+  await expect(authDialog.locator(':scope > div').first()).toHaveCSS('border-bottom-style', 'solid');
+  await expect(authDialog.locator(':scope > div').first()).toHaveCSS('border-bottom-width', '1px');
   await page.getByRole('tab', { name: 'Регистрация' }).click();
   await page.getByLabel(/^Логин/).fill(username);
   await page.getByLabel(/^Пароль/).fill('e2e-password-123');
