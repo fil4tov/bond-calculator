@@ -19,7 +19,11 @@ describe('Modal', () => {
       </Modal>,
     );
 
-    expect(screen.getByRole('dialog', { name: 'Подтвердите операцию' })).toHaveAttribute('aria-modal', 'true');
+    const dialog = screen.getByRole('dialog', { name: 'Подтвердите операцию' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    const scrollViewport = dialog.querySelector('[data-modal-scroll-viewport]');
+    expect(scrollViewport).toContainElement(screen.getByRole('heading', { name: 'Подтвердите операцию' }));
+    expect(scrollViewport).toContainElement(screen.getByText('Содержимое'));
     expect(screen.getByText('ПОРТФЕЛЬ')).toBeInTheDocument();
     expect(screen.getByText('Это действие нельзя отменить')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Закрыть окно' })).toBeInTheDocument();

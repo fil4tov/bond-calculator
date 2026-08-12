@@ -171,24 +171,26 @@ export function Modal({
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
       >
-        <div className={styles.header}>
-          <div>
-            {eyebrow ? <span className={styles.eyebrow}>{eyebrow}</span> : null}
-            <h2 id={titleId}>{title}</h2>
-            {subtitle ? <p id={subtitleId} className={styles.subtitle}>{subtitle}</p> : null}
+        <div className={styles.scrollViewport} data-modal-scroll-viewport>
+          <div className={styles.header}>
+            <div>
+              {eyebrow ? <span className={styles.eyebrow}>{eyebrow}</span> : null}
+              <h2 id={titleId}>{title}</h2>
+              {subtitle ? <p id={subtitleId} className={styles.subtitle}>{subtitle}</p> : null}
+            </div>
+            <button
+              ref={closeRef}
+              type="button"
+              className={styles.close}
+              aria-label="Закрыть окно"
+              disabled={busy}
+              onClick={requestClose}
+            >
+              <FiX aria-hidden="true" />
+            </button>
           </div>
-          <button
-            ref={closeRef}
-            type="button"
-            className={styles.close}
-            aria-label="Закрыть окно"
-            disabled={busy}
-            onClick={requestClose}
-          >
-            <FiX aria-hidden="true" />
-          </button>
+          {children}
         </div>
-        {children}
       </div>
     </div>
   );

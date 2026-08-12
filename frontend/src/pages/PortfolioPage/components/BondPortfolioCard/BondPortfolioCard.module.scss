@@ -9,7 +9,7 @@
 }
 
 .main {
-  --card-hover-tint: rgb(23 35 30 / 3%);
+  --card-hover-tint: rgb(23 35 30 / 6%);
   --hover-x: 50%;
   --hover-y: 50%;
 
@@ -63,7 +63,7 @@
 
 .value { align-items: flex-end; text-align: right; }
 .value strong { display: inline-flex; align-items: center; gap: 7px; font-size: 19px; font-weight: 850; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.value span { color: var(--accent-text); font-size: 13px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.value span { color: var(--positive-amount); font-size: 13px; font-weight: 750; font-variant-numeric: tabular-nums; }
 .value .yieldLine { position: relative; z-index: 3; display: inline-flex; align-items: center; justify-content: flex-end; gap: 7px; pointer-events: none; }
 .yieldHelp { display: inline-flex; pointer-events: auto; }
 .value .yieldHelp > span { color: var(--muted); }

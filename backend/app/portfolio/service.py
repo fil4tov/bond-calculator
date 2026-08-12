@@ -121,6 +121,11 @@ def build_bond_card(
         )
     return BondCard(
         id=bond.id,
+        created_at=(
+            bond.created_at.replace(tzinfo=UTC)
+            if bond.created_at.tzinfo is None
+            else bond.created_at
+        ),
         instrument_uid=bond.instrument_uid,
         ticker=bond.ticker,
         name=bond.name,

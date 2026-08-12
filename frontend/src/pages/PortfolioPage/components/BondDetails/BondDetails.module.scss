@@ -9,7 +9,7 @@
 .issueGrid > div, .metricsGrid > div { min-width: 0; padding: 16px 18px; }
 .issueGrid > div:nth-child(even), .metricsGrid > div:nth-child(even) { border-left: 1px solid var(--divider); }
 .issueGrid > div:nth-child(n + 3), .metricsGrid > div:nth-child(n + 3) { border-top: 1px solid var(--divider); }
-.issueGrid > div:last-child, .metricsGrid > div:last-child { grid-column: 1 / -1; }
+.issueGrid > div:last-child { grid-column: 1 / -1; }
 .issueGrid dt, .metricsGrid dt { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
 .metricsGrid .metricLabel { display: flex; align-items: center; gap: 7px; }
 .metricsGrid .metricLabel [role='tooltip'] { font-size: 13px; }
@@ -35,11 +35,11 @@
 .timelineMarker { z-index: 1; width: 13px; height: 13px; margin-top: 4px; border: 3px solid var(--card); border-radius: 50%; background: var(--accent-text); box-shadow: 0 0 0 1px var(--divider); }
 .purchaseData { display: grid; min-width: 0; gap: 5px; }
 .purchaseData strong { overflow-wrap: anywhere; font-size: 17px; font-weight: 850; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.purchaseData span { width: fit-content; color: var(--accent-text); font-size: 12px; font-weight: 800; }
+.purchaseData span { width: fit-content; color: var(--positive-amount); font-size: 12px; font-weight: 800; }
 .purchaseData .saleQuantity { color: var(--loss); }
 .operationMeta { display: grid; min-width: 0; align-content: start; justify-items: end; gap: 5px; }
-.realizedResult { color: var(--accent-text); font-size: 12px; font-weight: 800; }
-.positive { color: var(--accent-text); }
+.realizedResult { color: var(--positive-amount); font-size: 12px; font-weight: 800; }
+.positive { color: var(--positive-amount); }
 .negative { color: var(--loss); }
 .zero { color: var(--muted); }
 .operationMeta time { padding-top: 4px; color: var(--muted); font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; }

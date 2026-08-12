@@ -4,7 +4,7 @@ import { FiTrash2 } from 'react-icons/fi';
 import type { BondPortfolioItem } from '#entities/bondPortfolio';
 import { Tooltip } from '#shared/ui';
 
-import { couponYieldDescription, formatDate, formatDayCount, formatMoney, formatPercent, formatYearCount } from '../../utils';
+import { couponYieldDescription, formatDate, formatDayCount, formatMoney, formatPercent, formatYearCount, marketValueWithoutAciDescription } from '../../utils';
 import styles from './BondDetails.module.scss';
 
 function maturityValue(bond: BondPortfolioItem) {
@@ -67,8 +67,17 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
       <dl className={styles.metricsGrid}>
         <div>
           <dt className={styles.metricLabel}>
+            <span>Текущая рыночная стоимость</span>
+            <Tooltip label="Как рассчитывается текущая рыночная стоимость без НКД">
+              {marketValueWithoutAciDescription()}
+            </Tooltip>
+          </dt>
+          <dd>{bond.marketValueWithoutAci === null ? '—' : formatMoney(bond.marketValueWithoutAci)}</dd>
+        </div>
+        <div>
+          <dt className={styles.metricLabel}>
             <span>{hasSale ? 'Вложено в оставшиеся облигации' : 'Вложено в облигации'}</span>
-            <Tooltip label="Как рассчитывается сумма, вложенная в оставшиеся облигации">
+            <Tooltip label="Как рассчитывается сумма, вложенная в оставшиеся облигации" align="right">
               Сколько из потраченных на покупки денег приходится на облигации, которые ещё остаются в портфеле. После продажи сумма уменьшается на среднюю стоимость проданных облигаций. Это не текущая рыночная цена.
             </Tooltip>
           </dt>
@@ -78,7 +87,7 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
         <div>
           <dt className={styles.metricLabel}>
             <span>Купонная доходность за {bond.couponYieldYear} год</span>
-            <Tooltip label={`Как рассчитывается купонная доходность за ${bond.couponYieldYear} год`}>
+            <Tooltip label={`Как рассчитывается купонная доходность за ${bond.couponYieldYear} год`} align="right">
               {couponYieldDescription(bond.couponYieldYear)}
             </Tooltip>
           </dt>
@@ -88,11 +97,11 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
         <div>
           <dt className={styles.metricLabel}>
             <span>Результат сделок</span>
-            <Tooltip label="Как рассчитывается результат сделок">
+            <Tooltip label="Как рассчитывается результат сделок" align="right">
               Сумма результатов всех продаж: полученная сумма сделки минус списанная средняя стоимость проданных облигаций.
             </Tooltip>
           </dt>
-          <dd className={styles[resultSign(bond.realizedResult)]} data-result-sign={resultSign(bond.realizedResult)}>{formatMoney(bond.realizedResult)}</dd>
+          <dd className={styles[resultSign(bond.realizedResult)]} data-result-sign={resultSign(bond.realizedResult)}>{formatOperationResult(bond.realizedResult)}</dd>
         </div>
       </dl>
 

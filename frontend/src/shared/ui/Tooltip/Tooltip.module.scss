@@ -16,7 +16,7 @@
     top: auto;
     right: auto;
     bottom: calc(100% + 10px);
-    left: var(--tooltip-mobile-left, 0);
+    left: var(--tooltip-mobile-left, -100vw);
     width: calc(100vw - 32px);
     max-height: min(var(--tooltip-mobile-max-height, 280px), 280px);
     overflow-y: auto;

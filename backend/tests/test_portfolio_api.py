@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -114,6 +114,8 @@ async def test_create_list_and_add_purchase_return_stored_schedule_card(client: 
     created = await client.post("/api/portfolio/bonds", json=payload)
     assert created.status_code == 201
     card = created.json()
+    created_at = datetime.fromisoformat(card["created_at"])
+    assert created_at.tzinfo is not None
     assert card["name"] == "OFZ 26238"
     assert card["ticker"] == "SU26238RMFS4"
     assert "coupon_amount" not in card and "coupon_period_days" not in card
@@ -121,6 +123,7 @@ async def test_create_list_and_add_purchase_return_stored_schedule_card(client: 
     assert card["next_coupon"]["amount_per_bond"] == "35.40"
     added = await client.post(f"/api/portfolio/bonds/{card['id']}/purchases", json={"amount_spent": "25000.35", "quantity": 25, "purchase_date": (clock.utc_today() - timedelta(days=1)).isoformat()})
     assert added.status_code == 201
+    assert added.json()["created_at"] == card["created_at"]
     assert added.json()["total_quantity"] == 75
     assert added.json()["total_spent"] == "75000.70"
     assert "purchases" not in added.json()

@@ -1,17 +1,21 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { FiPlus, FiRefreshCw } from 'react-icons/fi';
 
 import { useDeletePortfolioBond, useDeletePortfolioOperation, usePortfolioBonds } from '#entities/bondPortfolio';
 import type { BondOperation, BondPortfolioItem } from '#entities/bondPortfolio';
 import { useUserStore } from '#entities/user';
-import { Button, Typography } from '#shared/ui';
+import { Button, Tooltip, Typography } from '#shared/ui';
 import { SiteHeader } from '#widgets/SiteHeader';
 
 import { BondDetails } from './components/BondDetails';
 import { BondPortfolioCard } from './components/BondPortfolioCard';
 import { AddPurchaseForm, AddSaleForm, CreateBondForm } from './components/PortfolioForms';
 import { ModalShell } from './components/ModalShell';
+import { PortfolioSortControls } from './components/PortfolioSortControls';
 import styles from './PortfolioPage.module.scss';
+import { readPortfolioSortPreference, sortPortfolioBonds, writePortfolioSortPreference } from './sorting';
+import type { PortfolioSortField, PortfolioSortPreference } from './sorting';
+import { formatMoney } from './utils';
 
 interface PortfolioPageProps {
   theme: 'light' | 'dark';
@@ -33,6 +37,14 @@ interface OperationDeleteConfirmation {
   returnFocusTarget: HTMLElement;
 }
 
+function sumMoneyValues(values: readonly string[]) {
+  const totalKopecks = values.reduce((total, value) => {
+    const [rubles = '0', kopecks = ''] = value.split('.');
+    return total + BigInt(rubles) * 100n + BigInt(kopecks.padEnd(2, '0').slice(0, 2));
+  }, 0n);
+  return `${totalKopecks / 100n}.${(totalKopecks % 100n).toString().padStart(2, '0')}`;
+}
+
 function LoadingState() {
   return (
     <div className={styles.skeletonList} aria-label="Загрузка портфеля" aria-live="polite">
@@ -50,7 +62,7 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
   const userId = user?.id ?? '';
   const portfolio = usePortfolioBonds(userId);
   const hasPortfolioData = portfolio.data !== undefined;
-  const portfolioData = portfolio.data ?? [];
+  const portfolioData = portfolio.data;
   const initialPortfolioLoadError = portfolio.isError && !hasPortfolioData;
   const deleteBond = useDeletePortfolioBond(userId);
   const deleteOperation = useDeletePortfolioOperation(userId);
@@ -58,7 +70,33 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
   const [operationDeleteConfirmation, setOperationDeleteConfirmation] = useState<OperationDeleteConfirmation | null>(null);
   const [modalBusy, setModalBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const storedSortPreference = useMemo(() => readPortfolioSortPreference(userId), [userId]);
+  const [sessionSortPreferences, setSessionSortPreferences] = useState<Record<string, PortfolioSortPreference>>({});
+  const sortPreference = sessionSortPreferences[userId] ?? storedSortPreference;
   const addBondRef = useRef<HTMLButtonElement>(null);
+  const sortedPortfolioData = useMemo(
+    () => sortPortfolioBonds(portfolio.data ?? [], sortPreference),
+    [portfolio.data, sortPreference],
+  );
+  const expectedCouponIncome = useMemo(
+    () => sumMoneyValues((portfolio.data ?? []).map((bond) => bond.calendarYearCouponIncome)),
+    [portfolio.data],
+  );
+  const couponIncomeYear = portfolioData?.[0]?.couponYieldYear ?? new Date().getUTCFullYear();
+
+  const updateSortPreference = (next: PortfolioSortPreference) => {
+    setSessionSortPreferences((current) => ({ ...current, [userId]: next }));
+    if (userId) writePortfolioSortPreference(userId, next);
+  };
+  const handleSortFieldChange = (field: PortfolioSortField) => {
+    updateSortPreference({ ...sortPreference, field });
+  };
+  const handleSortDirectionToggle = () => {
+    updateSortPreference({
+      ...sortPreference,
+      direction: sortPreference.direction === 'asc' ? 'desc' : 'asc',
+    });
+  };
 
   const openCreate = () => { setModalBusy(false); setModal({ kind: 'create' }); };
   const openDetails = (bond: BondPortfolioItem, returnFocusTarget: HTMLElement) => {
@@ -162,26 +200,42 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
             <Button type="button" variant="secondary" trailingIcon={<FiRefreshCw />} onClick={() => void portfolio.refetch()}>Повторить запрос</Button>
           </div>
         ) : null}
-        {hasPortfolioData && portfolioData.length === 0 ? (
+        {hasPortfolioData && portfolioData?.length === 0 ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyCoupon} aria-hidden="true"><span>₽</span></div>
             <h2>Портфель пока пуст</h2>
           </div>
         ) : null}
-        {hasPortfolioData && portfolioData.length > 0 ? (
-          <div className={styles.cardList}>
-            {portfolioData.map((bond) => (
-              <BondPortfolioCard
-                key={bond.id}
-                bond={bond}
-                onOpenDetails={(returnFocusTarget) => openDetails(bond, returnFocusTarget)}
-                onAddPurchase={(returnFocusTarget) => openPurchase(bond, returnFocusTarget)}
-                onAddSale={(returnFocusTarget) => openSale(bond, returnFocusTarget)}
-                onDelete={(returnFocusTarget) => openBondDelete(bond, returnFocusTarget)}
-                deleteDisabled={deleteBond.isPending}
+        {hasPortfolioData && (portfolioData?.length ?? 0) > 0 ? (
+          <>
+            <div className={styles.portfolioToolbar}>
+              <PortfolioSortControls
+                preference={sortPreference}
+                onFieldChange={handleSortFieldChange}
+                onDirectionToggle={handleSortDirectionToggle}
               />
-            ))}
-          </div>
+              <div className={styles.couponIncomeSummary}>
+                <strong>+{formatMoney(expectedCouponIncome)}</strong>
+                <span className={styles.couponIncomePeriod}>за год.</span>
+                <Tooltip label={`Что означает ожидаемый купонный доход за ${couponIncomeYear} год`} align="right">
+                  Ожидаемый купонный доход за {couponIncomeYear} год со всех облигаций в портфеле.
+                </Tooltip>
+              </div>
+            </div>
+            <div className={styles.cardList}>
+              {sortedPortfolioData.map((bond) => (
+                <BondPortfolioCard
+                  key={bond.id}
+                  bond={bond}
+                  onOpenDetails={(returnFocusTarget) => openDetails(bond, returnFocusTarget)}
+                  onAddPurchase={(returnFocusTarget) => openPurchase(bond, returnFocusTarget)}
+                  onAddSale={(returnFocusTarget) => openSale(bond, returnFocusTarget)}
+                  onDelete={(returnFocusTarget) => openBondDelete(bond, returnFocusTarget)}
+                  deleteDisabled={deleteBond.isPending}
+                />
+              ))}
+            </div>
+          </>
         ) : null}
       </section>
 

@@ -12,6 +12,31 @@
 }
 .registry { margin-top: 54px; }
 
+.portfolioToolbar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.couponIncomeSummary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.couponIncomeSummary strong { color: var(--positive-amount); font-size: 17px; font-weight: 850; white-space: nowrap; }
+.couponIncomePeriod { color: var(--ink); font-size: 17px; font-weight: 700; white-space: nowrap; }
+.couponIncomeSummary > span { color: var(--muted); }
+.couponIncomeSummary > .couponIncomePeriod { color: var(--ink); }
+
 .cardList, .skeletonList { display: flex; flex-direction: column; }
 .cardList { gap: 20px; }
 .skeletonList { gap: 12px; }
@@ -28,7 +53,13 @@
 .confirmation { display: grid; gap: 24px; }
 .confirmation p { margin: 0; color: var(--muted); line-height: 1.5; }
 .confirmation .confirmationError { color: var(--loss); }
-.confirmationActions { display: flex; justify-content: flex-end; gap: 12px; }
+.confirmationActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 24px;
+  border-top: 1px solid var(--divider);
+}
 
 .skeletonCard { display: grid; min-height: 118px; padding: 18px 22px; border: 1px solid var(--card-border); border-radius: 18px; background: var(--card); grid-template-columns: 2fr 1fr; gap: 12px 22px; }
 .skeletonCard span { min-height: 26px; border-radius: 8px; background: linear-gradient(100deg, var(--divider) 15%, var(--green-soft) 45%, var(--divider) 75%); background-size: 240% 100%; animation: skeleton 1.4s ease infinite; }
@@ -39,6 +70,8 @@
   .pageShell { padding-top: 48px; }
   .intro { grid-template-columns: 1fr; gap: 28px; margin-top: 54px; }
   .addButton { width: min(100%, 320px); }
+  .portfolioToolbar { flex-wrap: wrap; }
+  .couponIncomeSummary { margin-left: auto; }
 }
 
 @media (max-width: 580px) {
@@ -47,6 +80,8 @@
   .intro h1 { font-size: clamp(43px, 14vw, 58px); }
   .addButton { width: 100%; }
   .registry { margin-top: 36px; }
+  .portfolioToolbar { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .couponIncomeSummary { width: 100%; min-width: 0; margin-left: 0; justify-content: flex-start; }
   .emptyState, .errorState { grid-template-columns: 1fr; padding: 24px 20px; }
   .emptyCoupon { width: 62px; height: 74px; }
   .skeletonCard { grid-template-columns: 1fr; padding: 16px; }

@@ -1,5 +1,5 @@
 import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
@@ -123,6 +123,7 @@ class BondOperationItem(BaseModel):
 
 class BondCard(BaseModel):
     id: UUID
+    created_at: datetime
     instrument_uid: str
     ticker: str
     name: str

@@ -24,6 +24,7 @@ const searchResponse = (item = lookupItem) => ({
 });
 
 const activeBond = {
+  created_at: '2026-08-08T10:00:00Z',
   id: 'bond-1', name: 'ОФЗ 26238', nominal: '1000.00', payments_per_year: 2,
   placement_date: '2025-05-15', maturity_date: '2041-05-15', status: 'active',
   total_quantity: 75, total_spent: '75000.70',
@@ -142,6 +143,7 @@ async function openSaleForm(user: ReturnType<typeof userEvent.setup>, card: HTML
 
 describe('PortfolioPage', () => {
   beforeEach(() => {
+    localStorage.clear();
     useUserStore.setState({ status: 'authenticated', user: { id: 'user-1', username: 'moxxie' } });
   });
 
@@ -204,6 +206,71 @@ describe('PortfolioPage', () => {
     )).not.toBeInTheDocument();
   });
 
+  it('sorts newest bonds first by default and persists field and direction changes', async () => {
+    const user = userEvent.setup();
+    const older = { ...activeBond, id: 'older', name: 'Облигация 2', created_at: '2026-08-01T10:00:00Z' };
+    const newer = { ...activeBond, id: 'newer', name: 'Облигация 10', created_at: '2026-08-02T10:00:00Z' };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [older, newer] })));
+
+    renderPortfolio();
+
+    await screen.findByRole('article', { name: 'Облигация 10' });
+    expect(screen.getAllByRole('article').map((card) => card.getAttribute('aria-label'))).toEqual([
+      'Облигация 10',
+      'Облигация 2',
+    ]);
+
+    await user.click(screen.getByRole('button', { name: 'По убыванию. Переключить по возрастанию' }));
+    expect(screen.getAllByRole('article').map((card) => card.getAttribute('aria-label'))).toEqual([
+      'Облигация 2',
+      'Облигация 10',
+    ]);
+
+    await user.click(screen.getByRole('button', { name: 'Критерий сортировки: По дате добавления' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'По имени' }));
+    expect(screen.getByRole('button', { name: 'По возрастанию. Переключить по убыванию' })).toBeInTheDocument();
+    expect(localStorage.getItem('bond-portfolio-sort:user-1')).toBe('{"version":1,"field":"name","direction":"asc"}');
+  });
+
+  it('restores a saved preference for the authenticated user', async () => {
+    localStorage.setItem('bond-portfolio-sort:user-1', '{"version":1,"field":"name","direction":"desc"}');
+    const second = { ...activeBond, id: 'second', name: 'Облигация 2', created_at: '2026-08-02T10:00:00Z' };
+    const tenth = { ...activeBond, id: 'tenth', name: 'Облигация 10', created_at: '2026-08-01T10:00:00Z' };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [second, tenth] })));
+
+    renderPortfolio();
+
+    await screen.findByRole('article', { name: 'Облигация 10' });
+    expect(screen.getByRole('button', { name: 'Критерий сортировки: По имени' })).toBeInTheDocument();
+    expect(screen.getAllByRole('article').map((card) => card.getAttribute('aria-label'))).toEqual([
+      'Облигация 10',
+      'Облигация 2',
+    ]);
+  });
+
+  it('re-sorts automatically when refreshed query data changes', async () => {
+    const older = { ...activeBond, id: 'older', name: 'Старая', created_at: '2026-08-01T10:00:00Z' };
+    const newer = { ...activeBond, id: 'newer', name: 'Новая', created_at: '2026-08-02T10:00:00Z' };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ items: [older, newer] }))
+      .mockResolvedValueOnce(jsonResponse({ items: [
+        { ...older, created_at: '2026-08-03T10:00:00Z' },
+        newer,
+      ] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { queryClient } = renderPortfolio();
+
+    await screen.findByRole('article', { name: 'Новая' });
+    expect(screen.getAllByRole('article')[0]).toHaveAccessibleName('Новая');
+
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['bondPortfolio', 'user-1', 'bonds'] });
+    });
+
+    await waitFor(() => expect(screen.getAllByRole('article')[0]).toHaveAccessibleName('Старая'));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('renders compact active and matured rows with real coupon progress', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond, maturedBond] })));
 
@@ -211,6 +278,9 @@ describe('PortfolioPage', () => {
 
     const activeCard = await screen.findByRole('article', { name: 'ОФЗ 26238' });
     const maturedCard = screen.getByRole('article', { name: 'ОФЗ 25000' });
+    expect(screen.getByText(/\+8.496,00.₽/)).toBeInTheDocument();
+    expect(screen.getByText('за год.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Что означает ожидаемый купонный доход за 2026 год' })).toBeInTheDocument();
     expect(activeCard).toHaveTextContent(/74.250,00.₽/);
     expect(within(activeCard).getByText('75 шт.')).toBeInTheDocument();
     expect(activeCard).toHaveTextContent(/\+4.248,00.₽/);
@@ -362,6 +432,7 @@ describe('PortfolioPage', () => {
       Array.from(within(dialog).getByText('Вложено в облигации').closest('dl')!.querySelectorAll('dt'))
         .map((label) => label.firstElementChild?.textContent ?? label.textContent),
     ).toEqual([
+      'Текущая рыночная стоимость',
       'Вложено в облигации',
       'Количество',
       'Купонная доходность за 2026 год',
@@ -416,6 +487,7 @@ describe('PortfolioPage', () => {
       Array.from(within(dialog).getByText('Вложено в облигации').closest('dl')!.querySelectorAll('dt'))
         .map((label) => label.firstElementChild?.textContent ?? label.textContent),
     ).toEqual([
+      'Текущая рыночная стоимость',
       'Вложено в облигации',
       'Количество',
       'Купонная доходность за 2026 год',
@@ -1305,6 +1377,7 @@ describe('PortfolioPage', () => {
     await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
     const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
 
+    expect(within(details).getByText('Результат сделок').closest('div')).toHaveTextContent(/−100,00.₽/);
     expect(within(details).getByText('Вложено в оставшиеся облигации')).toBeInTheDocument();
     expect(within(details).getByText('Сколько из потраченных на покупки денег приходится на облигации, которые ещё остаются в портфеле. После продажи сумма уменьшается на среднюю стоимость проданных облигаций. Это не текущая рыночная цена.')).toBeInTheDocument();
     expect(within(details).getAllByText('−1 шт.')).toHaveLength(3);
@@ -1354,6 +1427,7 @@ describe('PortfolioPage', () => {
     expect(within(details).getByText('История операций')).toBeInTheDocument();
     expect(within(details).getByText('−75 шт.')).toBeInTheDocument();
     expect(within(details).getByText('Результат сделок')).toBeInTheDocument();
+    expect(within(details).getByText('Результат сделок').closest('div')).toHaveTextContent(/\+999,65.₽/);
     expect(within(details).getByRole('button', { name: 'Как рассчитывается результат сделок' })).toBeInTheDocument();
     await user.click(within(details).getByRole('button', { name: 'Удалить операцию продажи' }));
 

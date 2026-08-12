@@ -1,0 +1,95 @@
+.controls {
+  display: flex;
+  width: fit-content;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.dropdown { min-width: 246px; max-width: 100%; }
+
+.trigger,
+.direction,
+.option {
+  border: 1px solid var(--card-border);
+  color: var(--ink);
+  background: var(--card);
+  font: inherit;
+}
+
+.trigger,
+.direction {
+  min-height: 44px;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.trigger {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 14px 0 16px;
+  font-weight: 750;
+  text-align: left;
+}
+
+.trigger:hover,
+.direction:hover { background: var(--green-soft); }
+.trigger:active,
+.direction:active { transform: translateY(1px); }
+.trigger:focus-visible,
+.direction:focus-visible,
+.option:focus-visible { outline: 3px solid color-mix(in srgb, var(--green) 35%, transparent); outline-offset: 2px; }
+
+.trigger svg { flex: 0 0 auto; transition: transform 160ms ease; }
+.trigger .chevronOpen { transform: rotate(180deg); }
+
+.direction {
+  display: grid;
+  width: 44px;
+  flex: 0 0 44px;
+  padding: 0;
+  place-items: center;
+  color: var(--ink);
+}
+.direction svg { width: 19px; height: 19px; }
+
+.menu { right: auto; left: 0; width: 320px; }
+.menu > div { display: grid; padding: 8px; }
+
+.option {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.option:hover { background: var(--green-soft); }
+.option[aria-checked='true'] { background: var(--green-soft); }
+.option svg { flex: 0 0 auto; }
+
+@media (max-width: 580px) {
+  .controls {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+  .dropdown { width: 100%; min-width: 0; }
+  .menu { right: auto; left: 0; width: min(320px, calc(100vw - 80px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger,
+  .direction,
+  .trigger svg { transition: none; }
+}

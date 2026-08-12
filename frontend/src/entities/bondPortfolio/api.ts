@@ -4,6 +4,7 @@ import type { AddBondPurchaseInput, AddBondSaleInput, BondOperationType, BondPor
 
 interface BondPortfolioItemDto {
   id: string;
+  created_at: string;
   name: string;
   nominal: string;
   payments_per_year: number;
@@ -46,6 +47,7 @@ interface NameAvailabilityDto { available: boolean }
 
 const adaptBond = (dto: BondPortfolioItemDto): BondPortfolioItem => ({
   id: dto.id,
+  createdAt: dto.created_at,
   name: dto.name,
   nominal: dto.nominal,
   paymentsPerYear: dto.payments_per_year,

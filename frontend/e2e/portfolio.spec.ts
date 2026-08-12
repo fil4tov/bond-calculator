@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Locator } from '@playwright/test';
 
 async function expectHeaderDivider(dialog: Locator) {
-  const header = dialog.locator(':scope > div').first();
+  const header = dialog.locator('[data-modal-scroll-viewport] > div').first();
   await expect(header).toHaveCSS('border-bottom-style', 'solid');
   await expect(header).toHaveCSS('border-bottom-width', '1px');
 }
@@ -22,6 +22,120 @@ function displayDate(date: Date) {
     timeZone: 'UTC',
   }).format(date);
 }
+
+function sortableBond(id: string, name: string, createdAt: string) {
+  return {
+    id,
+    created_at: createdAt,
+    instrument_uid: `instrument-${id}`,
+    ticker: `TEST-${id}`,
+    name,
+    nominal: '1000.00',
+    payments_per_year: 2,
+    placement_date: '2025-01-01',
+    maturity_date: '2030-01-01',
+    status: 'active',
+    total_quantity: 10,
+    total_spent: '10000.00',
+    position_cost_basis: '10000.00',
+    realized_result: '0.00',
+    position_status: 'open',
+    paid_coupon_total: '0.00',
+    market_value_without_aci: '10000.00',
+    calendar_year_coupon_income: '0.00',
+    calendar_year_coupon_yield_percent: '0.0000',
+    coupon_yield_year: 2026,
+    maturity_remaining: { years: 3, months: 4, days_until: 1200 },
+    next_coupon: null,
+    operations: [{
+      id: `purchase-${id}`,
+      operation_type: 'purchase',
+      amount: '10000.00',
+      realized_result: null,
+      quantity: 10,
+      operation_date: '2026-08-01',
+    }],
+  };
+}
+
+test('sorts portfolio cards and keeps responsive controls aligned', async ({ page }, testInfo) => {
+  const username = `portfolio_sort_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  const older = sortableBond('older', 'Облигация 10', '2026-08-01T10:00:00Z');
+  const newer = sortableBond('newer', 'Облигация 2', '2026-08-02T10:00:00Z');
+  older.calendar_year_coupon_income = '100.10';
+  newer.calendar_year_coupon_income = '200.20';
+
+  await page.route('**/api/portfolio/bonds', async (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: { items: [older, newer] } });
+    return route.continue();
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Войти или зарегистрироваться' }).click();
+  await page.getByRole('tab', { name: 'Регистрация' }).click();
+  await page.getByLabel(/^Логин/).fill(username);
+  await page.getByLabel(/^Пароль/).fill('e2e-password-123');
+  await page.getByRole('button', { name: 'Создать аккаунт' }).click();
+  await page.getByRole('button', { name: `Открыть меню пользователя ${username}` }).click();
+  await page.getByRole('link', { name: 'Портфель', exact: true }).click();
+
+  const cards = page.getByRole('article');
+  await expect(cards).toHaveCount(2);
+  await expect(page.getByText(/\+300,30.₽/)).toBeVisible();
+  await expect(page.getByText('за год.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Что означает ожидаемый купонный доход за 2026 год' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    await page.evaluate(() => document.documentElement.clientWidth),
+  );
+  await expect.poll(() => cards.evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')))).toEqual([
+    'Облигация 2',
+    'Облигация 10',
+  ]);
+
+  const controls = page.locator('[aria-label="Сортировка облигаций"]');
+  const trigger = page.getByRole('button', { name: 'Критерий сортировки: По дате добавления' });
+  const direction = page.getByRole('button', { name: 'По убыванию. Переключить по возрастанию' });
+  const [controlsBox, triggerBox, directionBox, cardBox] = await Promise.all([
+    controls.boundingBox(),
+    trigger.boundingBox(),
+    direction.boundingBox(),
+    cards.first().boundingBox(),
+  ]);
+  if (!controlsBox || !triggerBox || !directionBox || !cardBox) throw new Error('Не удалось измерить панель сортировки');
+  expect(Math.abs(controlsBox.x - cardBox.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(triggerBox.y - directionBox.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(directionBox.width - directionBox.height)).toBeLessThanOrEqual(1);
+  if (testInfo.project.name === 'mobile') {
+    expect(Math.abs(controlsBox.width - cardBox.width)).toBeLessThanOrEqual(2);
+    expect(triggerBox.width).toBeGreaterThan(directionBox.width);
+  } else {
+    expect(controlsBox.width).toBeLessThan(cardBox.width);
+  }
+
+  await direction.click();
+  await expect.poll(() => cards.evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')))).toEqual([
+    'Облигация 10',
+    'Облигация 2',
+  ]);
+  await trigger.click();
+  const selectedOption = page.getByRole('menuitemradio', { name: 'По дате добавления' });
+  const ordinaryOption = page.getByRole('menuitemradio', { name: 'По имени' });
+  const [selectedTypography, ordinaryTypography] = await Promise.all([
+    selectedOption.evaluate((element) => ({ color: getComputedStyle(element).color, fontWeight: getComputedStyle(element).fontWeight })),
+    ordinaryOption.evaluate((element) => ({ color: getComputedStyle(element).color, fontWeight: getComputedStyle(element).fontWeight })),
+  ]);
+  expect(selectedTypography).toEqual(ordinaryTypography);
+  await page.getByRole('menuitemradio', { name: 'По имени' }).click();
+  await expect(page.getByRole('button', { name: 'Критерий сортировки: По имени' })).toBeFocused();
+  await expect.poll(() => cards.evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')))).toEqual([
+    'Облигация 2',
+    'Облигация 10',
+  ]);
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith('bond-portfolio-sort:'));
+    return key ? localStorage.getItem(key) : null;
+  })).toContain('"field":"name"');
+});
 
 test('records purchases and sales, restores operations, and removes the position', async ({ page }) => {
   const username = `portfolio_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -156,10 +270,34 @@ test('records purchases and sales, restores operations, and removes the position
   await expect(progress).toHaveAttribute('aria-valuenow', /\d+/);
 
   const detailsTrigger = card.getByRole('button', { name: `Открыть сведения об облигации ${bondName}` });
+  const originalViewport = page.viewportSize();
+  if (!originalViewport) throw new Error('Viewport is unavailable');
+  await page.setViewportSize({ width: originalViewport.width, height: 600 });
   await detailsTrigger.click();
   const detailsDialog = page.getByRole('dialog', { name: bondName });
   await expectHeaderDivider(detailsDialog);
+  const modalScrollViewport = detailsDialog.locator('[data-modal-scroll-viewport]');
+  const modalScrollMetrics = await modalScrollViewport.evaluate((element) => {
+    const dialog = element.parentElement;
+    if (!dialog) throw new Error('Modal shell is missing');
+    return {
+      dialogOverflow: getComputedStyle(dialog).overflow,
+      dialogRadius: getComputedStyle(dialog).borderTopRightRadius,
+      viewportOverflowY: getComputedStyle(element).overflowY,
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+    };
+  });
+  expect(modalScrollMetrics.dialogOverflow).toBe('hidden');
+  expect(modalScrollMetrics.dialogRadius).not.toBe('0px');
+  expect(modalScrollMetrics.viewportOverflowY).toBe('auto');
+  expect(modalScrollMetrics.scrollHeight).toBeGreaterThan(modalScrollMetrics.clientHeight);
+  await modalScrollViewport.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  expect(await modalScrollViewport.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await modalScrollViewport.evaluate((element) => { element.scrollTop = 0; });
+  await page.setViewportSize(originalViewport);
   await expect(detailsDialog.getByText('Вложено в облигации')).toBeVisible();
+  await expect(detailsDialog.getByText('Текущая рыночная стоимость', { exact: true })).toBeVisible();
   await expect(detailsDialog.getByText(`Купонная доходность за ${today.getUTCFullYear()} год`)).toBeVisible();
   const yieldHelp = detailsDialog.getByRole('button', {
     name: `Как рассчитывается купонная доходность за ${today.getUTCFullYear()} год`,
@@ -189,7 +327,7 @@ test('records purchases and sales, restores operations, and removes the position
       gridColumnEnd: style.gridColumnEnd,
     };
   });
-  expect(realizedMetricLayout).toEqual({ borderTopWidth: '1px', gridColumnStart: '1', gridColumnEnd: '-1' });
+  expect(realizedMetricLayout).toEqual({ borderTopWidth: '1px', gridColumnStart: 'auto', gridColumnEnd: 'auto' });
   const nextCoupon = detailsDialog.getByRole('region', { name: 'Ближайший купон' });
   await expect(nextCoupon).toContainText(/•.*₽ шт\./);
   await expect(nextCoupon).not.toContainText('Сумма ближайшей выплаты');
@@ -280,7 +418,20 @@ test('records purchases and sales, restores operations, and removes the position
   expect(saleMetaText).not.toMatch(/12.000,00.₽/);
 
   const deleteSale = saleOperation.getByRole('button', { name: 'Удалить операцию продажи' });
-  await deleteSale.click();
+  await deleteSale.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  const deleteSaleHitTarget = await deleteSale.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const hit = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+    return {
+      button: { top: bounds.top, right: bounds.right, bottom: bounds.bottom, left: bounds.left },
+      belongsToButton: hit !== null && element.contains(hit),
+      hitTag: hit?.tagName ?? null,
+      hitText: hit?.textContent ?? null,
+      hitClass: hit?.getAttribute('class') ?? null,
+    };
+  });
+  expect(deleteSaleHitTarget.belongsToButton, JSON.stringify(deleteSaleHitTarget)).toBe(true);
+  await deleteSale.click({ force: true });
   const deleteOperationDialog = page.getByRole('dialog', { name: 'Удалить операцию' });
   await expect(page.getByRole('dialog', { name: bondName })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(2);
@@ -289,7 +440,8 @@ test('records purchases and sales, restores operations, and removes the position
   await expect(page.getByRole('dialog', { name: bondName })).toBeVisible();
   await expect(deleteSale).toBeFocused();
 
-  await deleteSale.click();
+  await deleteSale.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  await deleteSale.click({ force: true });
   await page.getByRole('dialog', { name: 'Удалить операцию' }).getByRole('button', { name: 'Удалить' }).click();
   const restoredDetails = page.getByRole('dialog', { name: bondName });
   await expect(restoredDetails.getByRole('region', { name: 'История операций' })).toContainText('2 операции');

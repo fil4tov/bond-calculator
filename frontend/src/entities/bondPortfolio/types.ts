@@ -31,6 +31,7 @@ export interface BondOperation {
 
 export interface BondPortfolioItem {
   id: string;
+  createdAt: string;
   name: string;
   nominal: string;
   paymentsPerYear: number;

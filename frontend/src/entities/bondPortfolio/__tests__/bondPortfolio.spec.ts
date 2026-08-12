@@ -11,6 +11,7 @@ const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringif
 
 const activeDto = {
   id: 'bond-1',
+  created_at: '2026-08-08T10:15:30+00:00',
   name: 'ОФЗ 26238',
   nominal: '1000.00',
   payments_per_year: 2,
@@ -45,6 +46,7 @@ describe('bond portfolio API boundary', () => {
 
     await expect(getPortfolioBonds()).resolves.toEqual([{
       id: 'bond-1',
+      createdAt: '2026-08-08T10:15:30+00:00',
       name: 'ОФЗ 26238',
       nominal: '1000.00',
       paymentsPerYear: 2,
