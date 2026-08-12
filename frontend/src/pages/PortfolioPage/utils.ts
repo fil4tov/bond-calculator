@@ -119,15 +119,23 @@ export function formatPercent(value: string) {
 }
 
 export function couponYieldDescription(year: number) {
-  return `Для каждого купона за ${year} год сумма выплаты по бумагам в позиции на дату отсечения делится на историческую себестоимость этой позиции на ту же дату и умножается на 100%. Полученные доходности купонов складываются. Дата отсечения — дата фиксации права, а если её нет — конец купонного периода, без учёта операций в этот день. Учитываются уже выплаченные и будущие купоны; возврат номинала не входит.`;
+  return `Для каждого купона отдельно сравниваем выплату с суммой, вложенной на тот момент. Затем складываем полученные проценты за ${year} год.`;
 }
 
 export function marketValueWithoutAciDescription() {
   return 'Текущая рыночная стоимость без учета НКД.';
 }
 
+export function marketValueAndAciDescription() {
+  return 'Сумма всех облигаций по текущей рыночной стоимости + НКД';
+}
+
 export function calendarYearCouponIncomeDescription(year: number) {
   return `Ожидаемый купонный доход за ${year} год без учета выплаченного НКД по операциям продажи.`;
+}
+
+export function annualCouponYieldDescription() {
+  return 'Показывает, какую купонную доходность принесла бы облигация за полный год, если размер ближайшего купона не изменится';
 }
 
 export function formatDate(value: string) {

@@ -15,10 +15,12 @@ interface BondPortfolioItemDto {
   total_spent: string;
   position_cost_basis: string;
   market_value_without_aci: string | null;
+  accrued_coupon_income: string | null;
   realized_result: string;
   position_status: BondPositionStatus;
   paid_coupon_total: string;
   calendar_year_coupon_yield_percent: string;
+  annual_coupon_yield_percent: string | null;
   calendar_year_coupon_income: string;
   coupon_yield_year: number;
   maturity_remaining: { years: number; months: number; days_until: number };
@@ -58,10 +60,12 @@ const adaptBond = (dto: BondPortfolioItemDto): BondPortfolioItem => ({
   totalSpent: dto.total_spent,
   positionCostBasis: dto.position_cost_basis,
   marketValueWithoutAci: dto.market_value_without_aci,
+  accruedCouponIncome: dto.accrued_coupon_income,
   realizedResult: dto.realized_result,
   positionStatus: dto.position_status,
   paidCouponTotal: dto.paid_coupon_total,
   calendarYearCouponYieldPercent: dto.calendar_year_coupon_yield_percent,
+  annualCouponYieldPercent: dto.annual_coupon_yield_percent,
   calendarYearCouponIncome: dto.calendar_year_coupon_income,
   couponYieldYear: dto.coupon_yield_year,
   maturityRemaining: {

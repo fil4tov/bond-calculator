@@ -42,10 +42,12 @@ export interface BondPortfolioItem {
   totalSpent: string;
   positionCostBasis: string;
   marketValueWithoutAci: string | null;
+  accruedCouponIncome: string | null;
   realizedResult: string;
   positionStatus: BondPositionStatus;
   paidCouponTotal: string;
   calendarYearCouponYieldPercent: string;
+  annualCouponYieldPercent: string | null;
   calendarYearCouponIncome: string;
   couponYieldYear: number;
   maturityRemaining: BondMaturityRemaining;

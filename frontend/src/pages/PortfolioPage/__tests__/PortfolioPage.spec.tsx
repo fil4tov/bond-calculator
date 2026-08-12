@@ -28,8 +28,8 @@ const activeBond = {
   id: 'bond-1', name: 'ОФЗ 26238', nominal: '1000.00', payments_per_year: 2,
   placement_date: '2025-05-15', maturity_date: '2041-05-15', status: 'active',
   total_quantity: 75, total_spent: '75000.70',
-  position_cost_basis: '75000.70', market_value_without_aci: '74250.00', realized_result: '0.00', position_status: 'open',
-  paid_coupon_total: '1770.00', calendar_year_coupon_yield_percent: '7.0800', calendar_year_coupon_income: '4248.00', coupon_yield_year: 2026,
+  position_cost_basis: '75000.70', market_value_without_aci: '74250.00', accrued_coupon_income: '925.93', realized_result: '0.00', position_status: 'open',
+  paid_coupon_total: '1770.00', calendar_year_coupon_yield_percent: '7.0800', annual_coupon_yield_percent: '14.0070', calendar_year_coupon_income: '4248.00', coupon_yield_year: 2026,
   maturity_remaining: { years: 14, months: 9, days_until: 5392 },
   next_coupon: {
     period_start: '2026-05-15', period_end: '2026-11-15', pay_date: '2026-11-16',
@@ -47,7 +47,7 @@ const activeBond = {
 
 const maturedBond = {
   ...activeBond, id: 'bond-2', name: 'ОФЗ 25000', status: 'matured', maturity_date: '2025-05-15',
-  market_value_without_aci: null, maturity_remaining: { years: 0, months: 0, days_until: 0 }, next_coupon: null,
+  market_value_without_aci: null, accrued_coupon_income: null, maturity_remaining: { years: 0, months: 0, days_until: 0 }, next_coupon: null,
 };
 
 const pendingBond = {
@@ -68,6 +68,7 @@ const zeroCouponBond = {
   id: 'bond-4',
   name: 'Бескупонная облигация',
   calendar_year_coupon_yield_percent: '0.0000',
+  annual_coupon_yield_percent: null,
   next_coupon: null,
 };
 
@@ -428,6 +429,16 @@ describe('PortfolioPage', () => {
     ).toEqual(['Номинал', 'Выплат в год', 'Дата размещения', 'Дата погашения', 'Срок до погашения']);
     expect(within(dialog).queryByText('Купон')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Купонный период')).not.toBeInTheDocument();
+    const marketValue = within(dialog).getByText('Текущая рыночная стоимость')
+      .closest('div')!.querySelector('dd')!;
+    expect(marketValue).toHaveTextContent(/75.175,93.₽.*74.250,00.₽ \+ 925,93.₽ НКД/);
+    expect(within(marketValue).getByText(/74.250,00.₽ \+ 925,93/)).not.toHaveClass('positive');
+    expect(within(dialog).getByRole('button', {
+      name: 'Что входит в полную стоимость облигаций',
+    })).toBeInTheDocument();
+    expect(within(dialog).getByText(
+      'Сумма всех облигаций по текущей рыночной стоимости + НКД',
+    )).toBeInTheDocument();
     expect(
       Array.from(within(dialog).getByText('Вложено в облигации').closest('dl')!.querySelectorAll('dt'))
         .map((label) => label.firstElementChild?.textContent ?? label.textContent),
@@ -435,10 +446,18 @@ describe('PortfolioPage', () => {
       'Текущая рыночная стоимость',
       'Вложено в облигации',
       'Количество',
-      'Купонная доходность за 2026 год',
+      'Ожидаемый купонный доход за 2026 год',
+      'Доходность отдельных купонов за 2026 год',
+      'Годовая купонная доходность',
       'Выплачено купонов',
       'Результат сделок',
     ]);
+    const expectedCouponIncome = within(dialog).getByText('Ожидаемый купонный доход за 2026 год')
+      .closest('div')!.querySelector('dd')!;
+    expect(expectedCouponIncome).toHaveTextContent(/\+4.248,00.₽/);
+    expect(expectedCouponIncome.className).toMatch(/positive/);
+    const annualCouponYield = within(dialog).getByText('Годовая купонная доходность').closest('div')!;
+    expect(annualCouponYield).toHaveTextContent('14,01 %');
     const nextCoupon = within(dialog).getByRole('region', { name: 'Ближайший купон' });
     expect(nextCoupon).not.toHaveTextContent('Сумма ближайшей выплаты');
     expect(nextCoupon).not.toHaveTextContent('Цена одного купона');
@@ -455,13 +474,19 @@ describe('PortfolioPage', () => {
     expect(operationHistory).not.toHaveTextContent('Продажа');
     expect(within(dialog).getByText('Выплачено купонов').parentElement).toHaveTextContent(/1.770,00.₽/);
     expect(within(dialog).getByRole('button', {
-      name: 'Как рассчитывается купонная доходность за 2026 год',
+      name: 'Как рассчитывается доходность отдельных купонов за 2026 год',
+    })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', {
+      name: 'Как рассчитывается годовая купонная доходность',
     })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', {
       name: 'Как рассчитывается сумма, вложенная в оставшиеся облигации',
     })).toBeInTheDocument();
     expect(within(dialog).getByText(
-      'Для каждого купона за 2026 год сумма выплаты по бумагам в позиции на дату отсечения делится на историческую себестоимость этой позиции на ту же дату и умножается на 100%. Полученные доходности купонов складываются. Дата отсечения — дата фиксации права, а если её нет — конец купонного периода, без учёта операций в этот день. Учитываются уже выплаченные и будущие купоны; возврат номинала не входит.',
+      'Для каждого купона отдельно сравниваем выплату с суммой, вложенной на тот момент. Затем складываем полученные проценты за 2026 год.',
+    )).toBeInTheDocument();
+    expect(within(dialog).getByText(
+      'Показывает, какую купонную доходность принесла бы облигация за полный год, если размер ближайшего купона не изменится',
     )).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(dialog).not.toBeInTheDocument();
@@ -490,10 +515,43 @@ describe('PortfolioPage', () => {
       'Текущая рыночная стоимость',
       'Вложено в облигации',
       'Количество',
-      'Купонная доходность за 2026 год',
+      'Ожидаемый купонный доход за 2026 год',
+      'Доходность отдельных купонов за 2026 год',
+      'Годовая купонная доходность',
       'Выплачено купонов',
       'Результат сделок',
     ]);
+  });
+
+  it('hides accrued coupon income when current data is unavailable', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      items: [{ ...activeBond, accrued_coupon_income: null }],
+    })));
+    renderPortfolio();
+
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
+    const marketValue = within(screen.getByRole('dialog', { name: 'ОФЗ 26238' }))
+      .getByText('Текущая рыночная стоимость').closest('div')!.querySelector('dd')!;
+
+    expect(marketValue).toHaveTextContent(/74.250,00.₽/);
+    expect(marketValue).not.toHaveTextContent('НКД');
+  });
+
+  it('shows a dash when annual coupon yield cannot be calculated', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      items: [{ ...activeBond, annual_coupon_yield_percent: null }],
+    })));
+    renderPortfolio();
+
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
+    const annualYieldMetric = within(screen.getByRole('dialog', { name: 'ОФЗ 26238' }))
+      .getByText('Годовая купонная доходность').closest('div')!;
+
+    expect(annualYieldMetric).toHaveTextContent('—');
   });
 
   it('uses disclosure keyboard behavior and restores purchase focus to ellipsis', async () => {
