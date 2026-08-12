@@ -223,6 +223,25 @@ def test_annual_coupon_yield_matches_calculator_for_the_next_coupon() -> None:
     assert metrics.annual_coupon_yield_percent == Decimal("14.0070")
 
 
+def test_annual_coupon_yield_rounds_exact_halfway_value_up() -> None:
+    metrics = calculate_bond_metrics(
+        maturity_date=date(2027, 1, 1),
+        payments_per_year=1,
+        purchases=(PurchasePosition(Decimal("2000000.00"), 1, date(2026, 1, 1)),),
+        coupons=(
+            coupon(
+                coupon_date=date(2026, 9, 1),
+                amount="1.00",
+                start=date(2026, 1, 1),
+                end=date(2026, 8, 31),
+            ),
+        ),
+        today=date(2026, 8, 12),
+    )
+
+    assert metrics.annual_coupon_yield_percent == Decimal("0.0001")
+
+
 def test_annual_coupon_yield_is_none_without_a_positive_payment_frequency() -> None:
     metrics = calculate_bond_metrics(
         maturity_date=date(2027, 1, 1),
