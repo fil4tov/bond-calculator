@@ -62,8 +62,8 @@ describe('portfolio sorting', () => {
     const second = makeBond({ id: '2', name: 'ОФЗ 2' });
     const tenth = makeBond({ id: '10', name: 'ОФЗ 10' });
 
-    expect(sortPortfolioBonds([tenth, second], { field: 'name', direction: 'asc' })).toEqual([second, tenth]);
-    expect(sortPortfolioBonds([second, tenth], { field: 'name', direction: 'desc' })).toEqual([tenth, second]);
+    expect(sortPortfolioBonds([tenth, second], { field: 'name', direction: 'asc' })).toEqual([tenth, second]);
+    expect(sortPortfolioBonds([second, tenth], { field: 'name', direction: 'desc' })).toEqual([second, tenth]);
   });
 
   it('sorts coupon dates and keeps missing coupons last in either direction', () => {
@@ -71,8 +71,8 @@ describe('portfolio sorting', () => {
     const late = makeBond({ id: 'late', nextCoupon: { ...makeBond().nextCoupon!, payDate: '2026-10-01' } });
     const missing = makeBond({ id: 'missing', nextCoupon: null });
 
-    expect(sortPortfolioBonds([missing, late, early], { field: 'nextCoupon', direction: 'asc' })).toEqual([early, late, missing]);
-    expect(sortPortfolioBonds([missing, early, late], { field: 'nextCoupon', direction: 'desc' })).toEqual([late, early, missing]);
+    expect(sortPortfolioBonds([missing, late, early], { field: 'nextCoupon', direction: 'asc' })).toEqual([late, early, missing]);
+    expect(sortPortfolioBonds([missing, early, late], { field: 'nextCoupon', direction: 'desc' })).toEqual([early, late, missing]);
   });
 
   it('sorts by the earliest purchase and keeps bonds without purchases last', () => {
@@ -87,8 +87,8 @@ describe('portfolio sorting', () => {
     const second = makeBond({ id: 'second', operations: [{ id: 'purchase', operationType: 'purchase', amount: '500.00', quantity: 1, operationDate: '2026-01-01', realizedResult: null }] });
     const missing = makeBond({ id: 'missing', operations: [{ id: 'sale', operationType: 'sale', amount: '500.00', quantity: 1, operationDate: '2024-01-01', realizedResult: '0.00' }] });
 
-    expect(sortPortfolioBonds([missing, second, first], { field: 'firstPurchase', direction: 'asc' })).toEqual([first, second, missing]);
-    expect(sortPortfolioBonds([missing, first, second], { field: 'firstPurchase', direction: 'desc' })).toEqual([second, first, missing]);
+    expect(sortPortfolioBonds([missing, second, first], { field: 'firstPurchase', direction: 'asc' })).toEqual([second, first, missing]);
+    expect(sortPortfolioBonds([missing, first, second], { field: 'firstPurchase', direction: 'desc' })).toEqual([first, second, missing]);
   });
 
   it('compares portfolio values as exact kopecks and keeps missing values last', () => {

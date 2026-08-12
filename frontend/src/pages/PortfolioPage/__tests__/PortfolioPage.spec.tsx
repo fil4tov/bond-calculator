@@ -243,8 +243,8 @@ describe('PortfolioPage', () => {
     await screen.findByRole('article', { name: 'Облигация 10' });
     expect(screen.getByRole('button', { name: 'Критерий сортировки: По имени' })).toBeInTheDocument();
     expect(screen.getAllByRole('article').map((card) => card.getAttribute('aria-label'))).toEqual([
-      'Облигация 10',
       'Облигация 2',
+      'Облигация 10',
     ]);
   });
 

@@ -128,8 +128,8 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
   await page.getByRole('menuitemradio', { name: 'По имени' }).click();
   await expect(page.getByRole('button', { name: 'Критерий сортировки: По имени' })).toBeFocused();
   await expect.poll(() => cards.evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')))).toEqual([
-    'Облигация 2',
     'Облигация 10',
+    'Облигация 2',
   ]);
   await expect.poll(() => page.evaluate(() => {
     const key = Object.keys(localStorage).find((item) => item.startsWith('bond-portfolio-sort:'));

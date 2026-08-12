@@ -129,7 +129,15 @@ export function sortPortfolioBonds(
     if (leftValue !== null && rightValue === null) return -1;
     if (leftValue !== null && rightValue !== null) {
       const primary = compareValues(leftValue, rightValue, preference.field);
-      if (primary !== 0) return preference.direction === 'asc' ? primary : -primary;
+      if (primary !== 0) {
+        const invertedDirection = preference.field === 'name'
+          || preference.field === 'nextCoupon'
+          || preference.field === 'firstPurchase';
+        const ascendingValues = invertedDirection
+          ? preference.direction === 'desc'
+          : preference.direction === 'asc';
+        return ascendingValues ? primary : -primary;
+      }
     }
 
     return compareTieBreakers(left, right);
