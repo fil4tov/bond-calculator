@@ -211,7 +211,7 @@ async def list_bonds(
     refresh_failed: set[UUID] = set()
     refresh_succeeded = False
     for bond in bonds:
-        if bond.instrument_checked_on == today:
+        if bond.instrument_checked_on == today and bond.aci_value is not None:
             continue
         try:
             current_bond = await gateway.lookup_bond(bond.instrument_uid)

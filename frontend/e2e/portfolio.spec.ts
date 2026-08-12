@@ -48,7 +48,16 @@ function sortableBond(id: string, name: string, createdAt: string) {
     annual_coupon_yield_percent: '14.0070',
     coupon_yield_year: new Date().getUTCFullYear(),
     maturity_remaining: { years: 3, months: 4, days_until: 1200 },
-    next_coupon: null,
+    next_coupon: {
+      period_start: '2026-08-01',
+      period_end: '2027-02-01',
+      pay_date: '2027-02-02',
+      amount: '700.35',
+      amount_per_bond: '70.04',
+      days_until: 173,
+      period_days: 184,
+      elapsed_period_days: 12,
+    },
     operations: [{
       id: `purchase-${id}`,
       operation_type: 'purchase',
@@ -142,8 +151,11 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
   await page.getByRole('article', { name: 'Облигация 10' })
     .getByRole('button', { name: 'Открыть сведения об облигации Облигация 10' })
     .click();
-  await expect(detailsDialog.getByText('Годовая купонная доходность', { exact: true })).toBeVisible();
-  await expect(detailsDialog.getByText('14,01 %', { exact: true })).toBeVisible();
+  const annualCouponYieldMetric = detailsDialog
+    .getByText('Годовая купонная доходность', { exact: true })
+    .locator('..')
+    .locator('..');
+  await expect(annualCouponYieldMetric).toContainText('14,01 %');
   const year = new Date().getUTCFullYear();
   await expect(detailsDialog.getByText(`Ожидаемый купонный доход за ${year} год`, { exact: true })).toBeVisible();
   await expect(detailsDialog.getByText(`Доходность отдельных купонов за ${year} год`, { exact: true })).toBeVisible();

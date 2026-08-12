@@ -245,6 +245,28 @@ async def test_list_refreshes_instrument_values_at_most_once_per_utc_day(
 
 
 @pytest.mark.asyncio
+async def test_list_refreshes_current_instrument_marker_when_aci_is_missing(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    gateway = CountingMarketGateway()
+    app.dependency_overrides[get_t_invest_gateway] = lambda: gateway
+    await register(client, "MigratedAciOwner")
+    assert (await client.post("/api/portfolio/bonds", json=valid_bond_payload())).status_code == 201
+    async with session_factory() as session:
+        bond = (await session.scalars(select(Bond))).one()
+        bond.instrument_checked_on = clock.utc_today()
+        bond.aci_value = None
+        await session.commit()
+
+    listed = await client.get("/api/portfolio/bonds")
+
+    assert listed.status_code == 200
+    assert listed.json()["items"][0]["accrued_coupon_income"] == "61.73"
+    assert gateway.lookup_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_list_marks_closed_position_as_zero_without_a_quote(client: AsyncClient) -> None:
     app.dependency_overrides[get_t_invest_gateway] = lambda: MarketGateway()
     await register(client, "ClosedMarketOwner")
