@@ -102,11 +102,21 @@ def build_bond_card(
     operation_positions = tuple(_operation_position(item) for item in ordered_operations)
     metrics = calculate_bond_metrics(
         maturity_date=bond.maturity_date,
+        payments_per_year=bond.payments_per_year,
         operations=operation_positions,
         coupons=tuple(_coupon_position(coupon) for coupon in bond.coupon_schedules),
         today=today,
     )
     operation_realized_results = calculate_operation_realized_results(operation_positions)
+    if metrics.total_quantity == 0:
+        accrued_coupon_income = "0.00"
+    elif bond.aci_value is not None and bond.instrument_checked_on == today:
+        accrued_coupon_income = _fixed_decimal(
+            bond.aci_value * metrics.total_quantity,
+            2,
+        )
+    else:
+        accrued_coupon_income = None
     next_coupon = None
     if metrics.next_coupon_pay_date is not None:
         next_coupon = NextCoupon(
@@ -141,9 +151,15 @@ def build_bond_card(
         position_status=metrics.position_status,
         paid_coupon_total=_fixed_decimal(metrics.paid_coupon_total, 2),
         market_value_without_aci=market_value_without_aci,
+        accrued_coupon_income=accrued_coupon_income,
         calendar_year_coupon_income=_fixed_decimal(metrics.calendar_year_coupon_income, 2),
         calendar_year_coupon_yield_percent=_fixed_decimal(
             metrics.calendar_year_coupon_yield_percent, 4
+        ),
+        annual_coupon_yield_percent=(
+            _fixed_decimal(metrics.annual_coupon_yield_percent, 4)
+            if metrics.annual_coupon_yield_percent is not None
+            else None
         ),
         coupon_yield_year=metrics.coupon_yield_year,
         maturity_remaining=MaturityRemaining(
@@ -195,7 +211,7 @@ async def list_bonds(
     refresh_failed: set[UUID] = set()
     refresh_succeeded = False
     for bond in bonds:
-        if bond.nominal_checked_on == today:
+        if bond.instrument_checked_on == today:
             continue
         try:
             current_bond = await gateway.lookup_bond(bond.instrument_uid)
@@ -206,7 +222,8 @@ async def list_bonds(
             refresh_failed.add(bond.id)
             continue
         bond.nominal = current_bond.nominal
-        bond.nominal_checked_on = today
+        bond.aci_value = current_bond.aci_value
+        bond.instrument_checked_on = today
         refresh_succeeded = True
     if refresh_succeeded:
         await db.commit()
@@ -385,6 +402,7 @@ async def add_sale(db: AsyncSession, user_id: UUID, bond_id: UUID, data: SaleCre
     try:
         calculate_bond_metrics(
             maturity_date=bond.maturity_date,
+            payments_per_year=bond.payments_per_year,
             operations=prospective_operations,
             coupons=(),
             today=clock.utc_today(),
@@ -439,6 +457,7 @@ async def delete_operation(
     try:
         calculate_bond_metrics(
             maturity_date=bond.maturity_date,
+            payments_per_year=bond.payments_per_year,
             operations=remaining,
             coupons=(),
             today=clock.utc_today(),

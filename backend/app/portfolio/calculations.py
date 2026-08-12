@@ -44,6 +44,7 @@ class BondMetrics:
     paid_coupon_total: Decimal
     calendar_year_coupon_income: Decimal
     calendar_year_coupon_yield_percent: Decimal
+    annual_coupon_yield_percent: Decimal | None
     coupon_yield_year: int
     remaining_years: int
     remaining_months: int
@@ -138,6 +139,7 @@ def _coupon_event_yield_percent(
 def calculate_bond_metrics(
     *,
     maturity_date: date,
+    payments_per_year: int,
     purchases: tuple[PurchasePosition, ...] = (),
     operations: tuple[OperationPosition, ...] | None = None,
     coupons: tuple[CouponPosition, ...],
@@ -183,16 +185,30 @@ def calculate_bond_metrics(
             ),
             start=Decimal("0.00"),
         )
-    next_coupon = next(
-        (
-            coupon
-            for coupon in ordered_coupons
-            if coupon.coupon_date > today
-            and coupon.pay_one_bond_amount > 0
-            and _position_at_coupon_cutoff(coupon, replay_operations)[0] > 0
-        ),
-        None,
-    )
+        next_coupon = next(
+            (
+                coupon
+                for coupon in ordered_coupons
+                if coupon.coupon_date > today
+                and coupon.pay_one_bond_amount > 0
+                and _position_at_coupon_cutoff(coupon, replay_operations)[0] > 0
+            ),
+            None,
+        )
+        annual_coupon_yield_percent = (
+            (
+                next_coupon.pay_one_bond_amount
+                * Decimal(payments_per_year)
+                * Decimal(total_quantity)
+                / position_cost_basis
+                * Decimal("100")
+            ).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+            if next_coupon is not None
+            and payments_per_year > 0
+            and total_quantity > 0
+            and position_cost_basis != 0
+            else None
+        )
     future_payment_exists = next_coupon is not None
     status: Literal["active", "payment_pending", "matured"]
     if today < maturity_date:
@@ -204,36 +220,52 @@ def calculate_bond_metrics(
     years, months, days = _remaining_calendar_parts(today, maturity_date)
     if next_coupon is None:
         return BondMetrics(
-            status,
-            total_quantity,
-            total_spent,
-            position_cost_basis,
-            realized_result,
-            "open" if total_quantity else "closed",
-            paid_total,
-            calendar_year_coupon_income,
-            calendar_year_yield,
-            today.year,
-            years,
-            months,
-            days,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            status=status,
+            total_quantity=total_quantity,
+            total_spent=total_spent,
+            position_cost_basis=position_cost_basis,
+            realized_result=realized_result,
+            position_status="open" if total_quantity else "closed",
+            paid_coupon_total=paid_total,
+            calendar_year_coupon_income=calendar_year_coupon_income,
+            calendar_year_coupon_yield_percent=calendar_year_yield,
+            annual_coupon_yield_percent=annual_coupon_yield_percent,
+            coupon_yield_year=today.year,
+            remaining_years=years,
+            remaining_months=months,
+            remaining_days_until=days,
+            next_coupon_period_start=None,
+            next_coupon_period_end=None,
+            next_coupon_pay_date=None,
+            next_coupon_amount=None,
+            next_coupon_amount_per_bond=None,
+            next_coupon_days_until=None,
+            next_coupon_period_days=None,
+            next_coupon_elapsed_period_days=None,
         )
     period_days = next_coupon.coupon_period
     elapsed = min(period_days, max(0, (min(today, next_coupon.coupon_end_date) - next_coupon.coupon_start_date).days))
     return BondMetrics(
-        status, total_quantity, total_spent, position_cost_basis, realized_result,
-        "open" if total_quantity else "closed", paid_total, calendar_year_coupon_income,
-        calendar_year_yield, today.year,
-        years, months, days,
-        next_coupon.coupon_start_date, next_coupon.coupon_end_date, next_coupon.coupon_date,
-        _payment_amount(next_coupon, replay_operations), next_coupon.pay_one_bond_amount,
-        (next_coupon.coupon_date - today).days, period_days, elapsed,
+        status=status,
+        total_quantity=total_quantity,
+        total_spent=total_spent,
+        position_cost_basis=position_cost_basis,
+        realized_result=realized_result,
+        position_status="open" if total_quantity else "closed",
+        paid_coupon_total=paid_total,
+        calendar_year_coupon_income=calendar_year_coupon_income,
+        calendar_year_coupon_yield_percent=calendar_year_yield,
+        annual_coupon_yield_percent=annual_coupon_yield_percent,
+        coupon_yield_year=today.year,
+        remaining_years=years,
+        remaining_months=months,
+        remaining_days_until=days,
+        next_coupon_period_start=next_coupon.coupon_start_date,
+        next_coupon_period_end=next_coupon.coupon_end_date,
+        next_coupon_pay_date=next_coupon.coupon_date,
+        next_coupon_amount=_payment_amount(next_coupon, replay_operations),
+        next_coupon_amount_per_bond=next_coupon.pay_one_bond_amount,
+        next_coupon_days_until=(next_coupon.coupon_date - today).days,
+        next_coupon_period_days=period_days,
+        next_coupon_elapsed_period_days=elapsed,
     )

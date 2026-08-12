@@ -42,6 +42,7 @@ class MarketGateway(ScheduleGateway):
             instrument_uid=uid,
             name="OFZ 26238",
             nominal=Decimal("1000.00"),
+            aci_value=Decimal("1.234567890"),
             payments_per_year=2,
             placement_date=clock.utc_today() - timedelta(days=365),
             maturity_date=clock.utc_today() + timedelta(days=365),
@@ -121,11 +122,13 @@ async def test_create_list_and_add_purchase_return_stored_schedule_card(client: 
     assert "coupon_amount" not in card and "coupon_period_days" not in card
     assert card["total_quantity"] == 50 and card["total_spent"] == "50000.35"
     assert card["next_coupon"]["amount_per_bond"] == "35.40"
+    assert card["annual_coupon_yield_percent"] == "7.0800"
     added = await client.post(f"/api/portfolio/bonds/{card['id']}/purchases", json={"amount_spent": "25000.35", "quantity": 25, "purchase_date": (clock.utc_today() - timedelta(days=1)).isoformat()})
     assert added.status_code == 201
     assert added.json()["created_at"] == card["created_at"]
     assert added.json()["total_quantity"] == 75
     assert added.json()["total_spent"] == "75000.70"
+    assert added.json()["annual_coupon_yield_percent"] == "7.0799"
     assert "purchases" not in added.json()
     assert [operation["operation_date"] for operation in added.json()["operations"]] == [
         (clock.utc_today() - timedelta(days=1)).isoformat(),
@@ -155,7 +158,43 @@ async def test_list_enriches_active_open_position_with_market_value_and_calendar
     assert created.status_code == 201
     card = listed.json()["items"][0]
     assert card["market_value_without_aci"] == "50625.00"
+    assert card["accrued_coupon_income"] == "61.73"
     assert card["calendar_year_coupon_income"] == "0.00"
+    assert card["annual_coupon_yield_percent"] == "7.0800"
+
+    added = await client.post(
+        f"/api/portfolio/bonds/{card['id']}/purchases",
+        json={
+            "amount_spent": "1000.00",
+            "quantity": 1,
+            "purchase_date": clock.utc_today().isoformat(),
+        },
+    )
+    assert added.status_code == 201
+    assert added.json()["accrued_coupon_income"] == "62.96"
+    assert added.json()["annual_coupon_yield_percent"] == "7.0800"
+
+
+@pytest.mark.asyncio
+async def test_sale_recalculates_accrued_coupon_income_for_remaining_position(
+    client: AsyncClient,
+) -> None:
+    app.dependency_overrides[get_t_invest_gateway] = lambda: MarketGateway()
+    await register(client, "SaleAciOwner")
+    created = await client.post("/api/portfolio/bonds", json=valid_bond_payload())
+    assert created.status_code == 201
+    assert (await client.get("/api/portfolio/bonds")).status_code == 200
+
+    sold = await client.post(
+        f"/api/portfolio/bonds/{created.json()['id']}/sales",
+        json={
+            "amount_received": "1000.00",
+            "quantity": 1,
+            "sale_date": clock.utc_today().isoformat(),
+        },
+    )
+    assert sold.status_code == 201
+    assert sold.json()["accrued_coupon_income"] == "60.49"
 
 
 @pytest.mark.asyncio
@@ -168,6 +207,7 @@ async def test_list_keeps_open_position_when_market_data_is_unavailable(client: 
 
     assert listed.status_code == 200
     assert listed.json()["items"][0]["market_value_without_aci"] is None
+    assert listed.json()["items"][0]["accrued_coupon_income"] == "61.73"
 
 
 @pytest.mark.asyncio
@@ -180,10 +220,14 @@ async def test_list_keeps_open_position_when_t_invest_key_is_unavailable(client:
 
     assert listed.status_code == 200
     assert listed.json()["items"][0]["market_value_without_aci"] is None
+    assert listed.json()["items"][0]["accrued_coupon_income"] is None
 
 
 @pytest.mark.asyncio
-async def test_list_refreshes_nominal_at_most_once_per_utc_day(client: AsyncClient) -> None:
+async def test_list_refreshes_instrument_values_at_most_once_per_utc_day(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
     gateway = CountingMarketGateway()
     app.dependency_overrides[get_t_invest_gateway] = lambda: gateway
     await register(client, "DailyNominalOwner")
@@ -193,6 +237,11 @@ async def test_list_refreshes_nominal_at_most_once_per_utc_day(client: AsyncClie
     assert (await client.get("/api/portfolio/bonds")).status_code == 200
 
     assert gateway.lookup_calls == 1
+    async with session_factory() as session:
+        bond = (await session.scalars(select(Bond))).one()
+        assert bond.nominal == Decimal("1000.00")
+        assert bond.aci_value == Decimal("1.234567890")
+        assert bond.instrument_checked_on == clock.utc_today()
 
 
 @pytest.mark.asyncio
@@ -218,6 +267,8 @@ async def test_list_marks_closed_position_as_zero_without_a_quote(client: AsyncC
 
     assert listed.status_code == 200
     assert listed.json()["items"][0]["market_value_without_aci"] == "0.00"
+    assert listed.json()["items"][0]["accrued_coupon_income"] == "0.00"
+    assert listed.json()["items"][0]["annual_coupon_yield_percent"] is None
 
 
 @pytest.mark.asyncio

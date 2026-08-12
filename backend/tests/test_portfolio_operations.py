@@ -65,6 +65,7 @@ def test_replay_uses_weighted_average_cost_and_coupon_cutoff_position() -> None:
     today = date(2026, 8, 11)
     metrics = calculate_bond_metrics(
         maturity_date=date(2027, 1, 1),
+        payments_per_year=2,
         operations=(
             OperationPosition("purchase", Decimal("1000.00"), 10, date(2026, 1, 1)),
             OperationPosition("purchase", Decimal("2000.00"), 10, date(2026, 1, 2)),
@@ -94,6 +95,7 @@ def test_replay_uses_weighted_average_cost_and_coupon_cutoff_position() -> None:
 def test_calendar_year_yield_sums_event_yields_at_historical_cost_basis_cutoffs() -> None:
     metrics = calculate_bond_metrics(
         maturity_date=date(2027, 1, 1),
+        payments_per_year=2,
         operations=(
             OperationPosition("purchase", Decimal("1000.00"), 10, date(2026, 1, 1)),
             OperationPosition("purchase", Decimal("1000.00"), 10, date(2026, 1, 6)),
@@ -125,6 +127,7 @@ def test_calendar_year_yield_sums_event_yields_at_historical_cost_basis_cutoffs(
     assert metrics.position_cost_basis == Decimal("0.00")
     assert metrics.paid_coupon_total == Decimal("300.00")
     assert metrics.calendar_year_coupon_yield_percent == Decimal("20.0000")
+    assert metrics.annual_coupon_yield_percent is None
 
 
 @pytest.mark.asyncio
@@ -149,6 +152,7 @@ async def test_sale_and_operation_delete_return_replayed_card(client: AsyncClien
     assert card["position_cost_basis"] == "500.00"
     assert card["realized_result"] == "100.00"
     assert card["position_status"] == "open"
+    assert card["annual_coupon_yield_percent"] == "20.0000"
     assert [(item["operation_type"], item["amount"]) for item in card["operations"]] == [
         ("sale", "600.00"),
         ("purchase", "1000.00"),
@@ -160,8 +164,10 @@ async def test_sale_and_operation_delete_return_replayed_card(client: AsyncClien
     deleted = await client.delete(f"/api/portfolio/bonds/{bond_id}/operations/{card['operations'][0]['id']}")
 
     assert deleted.status_code == 200
-    assert deleted.json()["item"]["total_quantity"] == 10
-    assert deleted.json()["item"]["realized_result"] == "0.00"
+    deleted_card = deleted.json()["item"]
+    assert deleted_card["total_quantity"] == 10
+    assert deleted_card["realized_result"] == "0.00"
+    assert deleted_card["annual_coupon_yield_percent"] == "20.0000"
 
 
 @pytest.mark.asyncio

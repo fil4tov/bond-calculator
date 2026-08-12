@@ -31,6 +31,7 @@ def coupon(
 def test_metrics_use_stored_coupon_dates_and_fix_date_inclusive_entitlement() -> None:
     metrics = calculate_bond_metrics(
         maturity_date=date(2027, 12, 31),
+        payments_per_year=2,
         purchases=(
             PurchasePosition(Decimal("1000.00"), 2, date(2026, 6, 30)),
             PurchasePosition(Decimal("1000.00"), 3, date(2026, 7, 1)),
@@ -64,6 +65,7 @@ def test_metrics_use_stored_coupon_dates_and_fix_date_inclusive_entitlement() ->
 def test_metrics_accept_purchase_before_coupon_end_without_fix_date_and_mark_pending() -> None:
     metrics = calculate_bond_metrics(
         maturity_date=date(2026, 6, 30),
+        payments_per_year=2,
         purchases=(PurchasePosition(Decimal("500.00"), 4, date(2026, 6, 29)),),
         coupons=(
             coupon(
@@ -83,6 +85,7 @@ def test_metrics_accept_purchase_before_coupon_end_without_fix_date_and_mark_pen
 def test_empty_stored_schedule_has_zero_metrics_and_no_next_coupon() -> None:
     metrics = calculate_bond_metrics(
         maturity_date=date(2027, 1, 1),
+        payments_per_year=2,
         purchases=(PurchasePosition(Decimal("100.00"), 1, date(2026, 1, 1)),),
         coupons=(),
         today=date(2026, 8, 11),
@@ -90,6 +93,7 @@ def test_empty_stored_schedule_has_zero_metrics_and_no_next_coupon() -> None:
 
     assert metrics.paid_coupon_total == Decimal("0.00")
     assert metrics.calendar_year_coupon_yield_percent == Decimal("0.0000")
+    assert metrics.annual_coupon_yield_percent is None
     assert metrics.coupon_yield_year == 2026
     assert metrics.next_coupon_pay_date is None
 
@@ -97,6 +101,7 @@ def test_empty_stored_schedule_has_zero_metrics_and_no_next_coupon() -> None:
 def test_only_positive_future_eligible_event_is_next_and_maturity_without_it_is_matured() -> None:
     metrics = calculate_bond_metrics(
         maturity_date=date(2026, 1, 10),
+        payments_per_year=2,
         purchases=(PurchasePosition(Decimal("0.01"), 2_147_483_647, date(2025, 1, 1)),),
         coupons=(
             coupon(coupon_date=date(2026, 1, 11), amount="0.00", start=date(2025, 7, 1), end=date(2026, 1, 1)),
@@ -114,6 +119,7 @@ def test_only_positive_future_eligible_event_is_next_and_maturity_without_it_is_
 def test_purchase_on_coupon_end_is_not_eligible_without_fix_date() -> None:
     metrics = calculate_bond_metrics(
         maturity_date=date(2027, 1, 1),
+        payments_per_year=2,
         purchases=(PurchasePosition(Decimal("100.00"), 1, date(2026, 6, 30)),),
         coupons=(coupon(coupon_date=date(2026, 7, 1), amount="10.00", start=date(2026, 1, 1), end=date(2026, 6, 30)),),
         today=date(2026, 7, 1),
@@ -125,6 +131,7 @@ def test_purchase_on_coupon_end_is_not_eligible_without_fix_date() -> None:
 def test_calendar_year_yield_includes_past_and_future_entitled_coupons() -> None:
     metrics = calculate_bond_metrics(
         maturity_date=date(2026, 12, 31),
+        payments_per_year=2,
         purchases=(
             PurchasePosition(Decimal("1000.00"), 2, date(2025, 12, 30)),
             PurchasePosition(Decimal("900.00"), 3, date(2026, 6, 1)),
@@ -166,6 +173,7 @@ def test_calendar_year_yield_includes_past_and_future_entitled_coupons() -> None
 def test_calendar_year_coupon_income_includes_known_events_using_coupon_cutoff_position() -> None:
     metrics = calculate_bond_metrics(
         maturity_date=date(2027, 1, 1),
+        payments_per_year=2,
         operations=(
             OperationPosition("purchase", Decimal("1000.00"), 5, date(2025, 12, 30)),
             OperationPosition("sale", Decimal("300.00"), 2, date(2026, 4, 15)),
@@ -194,3 +202,106 @@ def test_calendar_year_coupon_income_includes_known_events_using_coupon_cutoff_p
     )
 
     assert metrics.calendar_year_coupon_income == Decimal("86.00")
+
+
+def test_annual_coupon_yield_matches_calculator_for_the_next_coupon() -> None:
+    metrics = calculate_bond_metrics(
+        maturity_date=date(2028, 6, 22),
+        payments_per_year=12,
+        purchases=(PurchasePosition(Decimal("199957.00"), 200, date(2026, 7, 10)),),
+        coupons=(
+            coupon(
+                coupon_date=date(2026, 9, 1),
+                amount="11.67",
+                start=date(2026, 8, 1),
+                end=date(2026, 8, 31),
+            ),
+        ),
+        today=date(2026, 8, 12),
+    )
+
+    assert metrics.annual_coupon_yield_percent == Decimal("14.0070")
+
+
+def test_annual_coupon_yield_is_none_without_a_positive_payment_frequency() -> None:
+    metrics = calculate_bond_metrics(
+        maturity_date=date(2027, 1, 1),
+        payments_per_year=0,
+        purchases=(PurchasePosition(Decimal("100.00"), 1, date(2026, 1, 1)),),
+        coupons=(
+            coupon(
+                coupon_date=date(2026, 9, 1),
+                amount="10.00",
+                start=date(2026, 1, 1),
+                end=date(2026, 8, 31),
+            ),
+        ),
+        today=date(2026, 8, 12),
+    )
+
+    assert metrics.annual_coupon_yield_percent is None
+
+
+def test_annual_coupon_yield_is_none_without_an_eligible_positive_future_coupon() -> None:
+    metrics = calculate_bond_metrics(
+        maturity_date=date(2027, 1, 1),
+        payments_per_year=2,
+        purchases=(PurchasePosition(Decimal("100.00"), 1, date(2026, 1, 1)),),
+        coupons=(
+            coupon(
+                coupon_date=date(2026, 9, 1),
+                amount="0.00",
+                start=date(2026, 1, 1),
+                end=date(2026, 8, 31),
+            ),
+        ),
+        today=date(2026, 8, 12),
+    )
+
+    assert metrics.annual_coupon_yield_percent is None
+
+
+def test_annual_coupon_yield_is_none_after_the_position_is_fully_sold() -> None:
+    metrics = calculate_bond_metrics(
+        maturity_date=date(2027, 1, 1),
+        payments_per_year=2,
+        operations=(
+            OperationPosition("purchase", Decimal("100.00"), 1, date(2026, 1, 1)),
+            OperationPosition("sale", Decimal("100.00"), 1, date(2026, 8, 1)),
+        ),
+        coupons=(
+            coupon(
+                coupon_date=date(2026, 9, 1),
+                amount="10.00",
+                start=date(2026, 1, 1),
+                end=date(2026, 8, 31),
+            ),
+        ),
+        today=date(2026, 8, 12),
+    )
+
+    assert metrics.annual_coupon_yield_percent is None
+
+
+def test_annual_coupon_yield_uses_current_quantity_and_remaining_cost_basis_after_sale() -> None:
+    metrics = calculate_bond_metrics(
+        maturity_date=date(2027, 1, 1),
+        payments_per_year=2,
+        operations=(
+            OperationPosition("purchase", Decimal("1000.00"), 10, date(2026, 1, 1)),
+            OperationPosition("sale", Decimal("600.00"), 5, date(2026, 8, 1)),
+        ),
+        coupons=(
+            coupon(
+                coupon_date=date(2026, 9, 1),
+                amount="10.00",
+                start=date(2026, 1, 1),
+                end=date(2026, 8, 31),
+            ),
+        ),
+        today=date(2026, 8, 12),
+    )
+
+    assert metrics.total_quantity == 5
+    assert metrics.position_cost_basis == Decimal("500.00")
+    assert metrics.annual_coupon_yield_percent == Decimal("20.0000")

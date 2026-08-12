@@ -33,7 +33,7 @@ class Gateway:
             maturity_date = today
         if instrument_uid == "not-placed":
             placement_date = today + timedelta(days=1)
-        return TInvestBond(ticker="SU26238", instrument_uid=instrument_uid, name="ОФЗ 26238", nominal=Decimal("1000"), payments_per_year=2, placement_date=placement_date, maturity_date=maturity_date)
+        return TInvestBond(ticker="SU26238", instrument_uid=instrument_uid, name="ОФЗ 26238", nominal=Decimal("1000"), aci_value=Decimal("1.25"), payments_per_year=2, placement_date=placement_date, maturity_date=maturity_date)
 
     async def get_coupon_schedule(self, uid: str, from_date: date, to_date: date) -> tuple[TInvestCoupon, ...]:
         if uid == "fail": raise ApiError(status_code=503, code="t_invest_unavailable", message="offline")
@@ -101,7 +101,7 @@ async def test_create_persists_external_schedule_atomically_and_cascades(client:
     response = await client.post("/api/portfolio/bonds", json=payload())
     assert response.status_code == 201
     assert "coupon_amount" not in response.json()
-    assert "annual_coupon_yield_percent" not in response.json()
+    assert response.json()["annual_coupon_yield_percent"] == "4.4444"
     assert response.json()["calendar_year_coupon_yield_percent"] == "0.0000"
     assert response.json()["coupon_yield_year"] == clock.utc_today().year
     assert response.json()["next_coupon"]["amount_per_bond"] == "10.00"
