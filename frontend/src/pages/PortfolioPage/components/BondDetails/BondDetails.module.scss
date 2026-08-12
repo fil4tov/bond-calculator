@@ -14,6 +14,8 @@
 .metricsGrid .metricLabel { display: flex; align-items: center; gap: 7px; }
 .metricsGrid .metricLabel [role='tooltip'] { font-size: 13px; }
 .issueGrid dd, .metricsGrid dd { margin: 8px 0 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.marketValue { display: grid; min-width: 0; justify-items: start; gap: 4px; }
+.marketValueBreakdown { color: var(--ink); font-size: 13px; }
 
 .nextCoupon { padding: 18px 20px; border-radius: 16px; color: #154535; background: linear-gradient(120deg, #dfece5, var(--lime)); }
 .nextCouponLabel { display: block; font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }

@@ -84,6 +84,7 @@ class FakeInstruments:
                 ticker="SU26238RMFS4",
                 name="OFZ 26238",
                 nominal=money(1000, 0),
+                aci_value=money(12, 345_678_901),
                 coupon_quantity_per_year=2,
                 placement_date=datetime(2020, 1, 1, tzinfo=UTC),
                 maturity_date=datetime(2041, 5, 15, tzinfo=UTC),
@@ -169,6 +170,7 @@ async def test_gateway_converts_t_invest_bond_and_coupon_money_without_float() -
 
     assert bond is not None
     assert bond.nominal == Decimal("1000.000000000")
+    assert bond.aci_value == Decimal("12.345678901")
     assert bond.placement_date == date(2020, 1, 1)
     assert coupons[0].pay_one_bond_amount == Decimal("12.345678901")
     assert coupons[0].coupon_date == date(2026, 6, 30)

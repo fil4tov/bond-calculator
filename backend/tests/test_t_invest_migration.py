@@ -31,3 +31,24 @@ def test_nominal_refresh_migration_uses_portable_batch_column_change(monkeypatch
     assert operations.batch_alter_table.call_args_list[0].args == ("bonds",)
     assert batch.add_column.call_args.args[0].name == "nominal_checked_on"
     assert batch.drop_column.call_args.args == ("nominal_checked_on",)
+
+
+def test_accrued_coupon_income_migration_renames_refresh_marker_and_adds_value(monkeypatch: MonkeyPatch) -> None:
+    migration = import_module("migrations.versions.20260812_0008_bond_accrued_coupon_income")
+    operations = MagicMock()
+    batch = MagicMock()
+    operations.batch_alter_table.return_value.__enter__.return_value = batch
+    monkeypatch.setattr(migration, "op", operations)
+
+    migration.upgrade()
+    upgrade_calls = list(batch.method_calls)
+    batch.reset_mock()
+    migration.downgrade()
+
+    assert operations.batch_alter_table.call_args_list[0].args == ("bonds",)
+    assert upgrade_calls[0].args[0] == "nominal_checked_on"
+    assert upgrade_calls[0].kwargs["new_column_name"] == "instrument_checked_on"
+    assert upgrade_calls[1].args[0].name == "aci_value"
+    assert batch.drop_column.call_args.args == ("aci_value",)
+    assert batch.alter_column.call_args.args == ("instrument_checked_on",)
+    assert batch.alter_column.call_args.kwargs["new_column_name"] == "nominal_checked_on"

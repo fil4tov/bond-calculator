@@ -17,6 +17,7 @@ class E2ETInvestGateway:
             instrument_uid="e2e-instrument-1",
             name=f"E2E {normalized}",
             nominal=Decimal("1000.00"),
+            aci_value=Decimal("2.50"),
             payments_per_year=2,
             placement_date=date(2020, 1, 1),
             maturity_date=date(2041, 5, 15),
@@ -39,6 +40,9 @@ class E2ETInvestGateway:
                 coupon_period=(to_date - from_date).days,
             ),
         )
+
+    async def get_last_prices(self, instrument_uids: tuple[str, ...]) -> dict[str, Decimal]:
+        return {instrument_uid: Decimal("100.00") for instrument_uid in instrument_uids}
 
 
 def create_e2e_app():

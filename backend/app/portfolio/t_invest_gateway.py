@@ -31,6 +31,7 @@ class TInvestBond:
     instrument_uid: str
     name: str
     nominal: Decimal
+    aci_value: Decimal
     payments_per_year: int
     placement_date: date
     maturity_date: date
@@ -155,6 +156,7 @@ class TInvestGateway:
             instrument_uid=instrument.uid,
             name=instrument.name,
             nominal=_money_value_to_decimal(instrument.nominal),
+            aci_value=_money_value_to_decimal(instrument.aci_value),
             payments_per_year=instrument.coupon_quantity_per_year,
             placement_date=instrument.placement_date.date(),
             maturity_date=instrument.maturity_date.date(),
