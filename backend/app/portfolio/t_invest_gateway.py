@@ -7,6 +7,7 @@ from typing import Any, Protocol
 from grpc import StatusCode
 from t_tech.invest import AsyncClient, InstrumentIdType, InstrumentType
 from t_tech.invest.exceptions import AioRequestError
+from t_tech.invest.schemas import LastPriceType
 
 from app.errors import ApiError
 
@@ -97,6 +98,7 @@ class TInvestGateway:
                 response = await client.instruments.find_instrument(
                     query=query,
                     instrument_kind=InstrumentType.INSTRUMENT_TYPE_BOND,
+                    api_trade_available_flag=True,
                 )
         except ApiError:
             raise
@@ -157,6 +159,26 @@ class TInvestGateway:
             placement_date=instrument.placement_date.date(),
             maturity_date=instrument.maturity_date.date(),
         )
+
+    async def get_last_prices(self, instrument_uids: tuple[str, ...]) -> dict[str, Decimal]:
+        unique_uids = list(dict.fromkeys(instrument_uids))
+        if not unique_uids:
+            return {}
+        try:
+            async with self._client() as client:
+                response = await client.market_data.get_last_prices(
+                    instrument_id=unique_uids,
+                    last_price_type=LastPriceType.LAST_PRICE_EXCHANGE,
+                )
+        except ApiError:
+            raise
+        except Exception as error:
+            raise _unavailable() from error
+        return {
+            item.instrument_uid: _money_value_to_decimal(item.price)
+            for item in response.last_prices
+            if getattr(item, "instrument_uid", "") and getattr(item, "price", None) is not None
+        }
 
     async def get_coupon_schedule(
         self, uid: str, from_date: date, to_date: date

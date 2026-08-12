@@ -8,10 +8,11 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.main import app
+from app.errors import ApiError
 from app.portfolio import clock
 from app.portfolio.models import Bond, BondCouponSchedule, BondOperation
 from app.portfolio.router import get_t_invest_gateway
-from app.portfolio.t_invest_gateway import TInvestCoupon
+from app.portfolio.t_invest_gateway import TInvestBond, TInvestCoupon, TInvestGateway
 
 
 class ScheduleGateway:
@@ -32,6 +33,40 @@ class ScheduleGateway:
                 coupon_period=(to_date - from_date).days,
             ),
         )
+
+
+class MarketGateway(ScheduleGateway):
+    async def lookup_bond(self, uid: str) -> TInvestBond:
+        return TInvestBond(
+            ticker="SU26238RMFS4",
+            instrument_uid=uid,
+            name="OFZ 26238",
+            nominal=Decimal("1000.00"),
+            payments_per_year=2,
+            placement_date=clock.utc_today() - timedelta(days=365),
+            maturity_date=clock.utc_today() + timedelta(days=365),
+        )
+
+    async def get_last_prices(self, uids: tuple[str, ...]) -> dict[str, Decimal]:
+        return {uid: Decimal("101.250000000") for uid in uids}
+
+
+class UnavailableMarketGateway(MarketGateway):
+    async def get_last_prices(self, _uids: tuple[str, ...]) -> dict[str, Decimal]:
+        raise ApiError(
+            status_code=503,
+            code="t_invest_unavailable",
+            message="T-Invest service is temporarily unavailable",
+        )
+
+
+class CountingMarketGateway(MarketGateway):
+    def __init__(self) -> None:
+        self.lookup_calls = 0
+
+    async def lookup_bond(self, uid: str) -> TInvestBond:
+        self.lookup_calls += 1
+        return await super().lookup_bond(uid)
 
 
 @pytest.fixture(autouse=True)
@@ -102,6 +137,84 @@ async def test_create_list_and_add_purchase_return_stored_schedule_card(client: 
         "operation_date": (clock.utc_today() - timedelta(days=1)).isoformat(),
     }
     assert (await client.get("/api/portfolio/bonds")).json() == {"items": [added.json()]}
+
+
+@pytest.mark.asyncio
+async def test_list_enriches_active_open_position_with_market_value_and_calendar_coupon_income(
+    client: AsyncClient,
+) -> None:
+    app.dependency_overrides[get_t_invest_gateway] = lambda: MarketGateway()
+    await register(client, "MarketValueOwner")
+    created = await client.post("/api/portfolio/bonds", json=valid_bond_payload())
+
+    listed = await client.get("/api/portfolio/bonds")
+
+    assert created.status_code == 201
+    card = listed.json()["items"][0]
+    assert card["market_value_without_aci"] == "50625.00"
+    assert card["calendar_year_coupon_income"] == "0.00"
+
+
+@pytest.mark.asyncio
+async def test_list_keeps_open_position_when_market_data_is_unavailable(client: AsyncClient) -> None:
+    app.dependency_overrides[get_t_invest_gateway] = lambda: UnavailableMarketGateway()
+    await register(client, "UnavailableMarketOwner")
+    assert (await client.post("/api/portfolio/bonds", json=valid_bond_payload())).status_code == 201
+
+    listed = await client.get("/api/portfolio/bonds")
+
+    assert listed.status_code == 200
+    assert listed.json()["items"][0]["market_value_without_aci"] is None
+
+
+@pytest.mark.asyncio
+async def test_list_keeps_open_position_when_t_invest_key_is_unavailable(client: AsyncClient) -> None:
+    await register(client, "UnavailableKeyOwner")
+    assert (await client.post("/api/portfolio/bonds", json=valid_bond_payload())).status_code == 201
+    app.dependency_overrides[get_t_invest_gateway] = lambda: TInvestGateway(api_key=None)
+
+    listed = await client.get("/api/portfolio/bonds")
+
+    assert listed.status_code == 200
+    assert listed.json()["items"][0]["market_value_without_aci"] is None
+
+
+@pytest.mark.asyncio
+async def test_list_refreshes_nominal_at_most_once_per_utc_day(client: AsyncClient) -> None:
+    gateway = CountingMarketGateway()
+    app.dependency_overrides[get_t_invest_gateway] = lambda: gateway
+    await register(client, "DailyNominalOwner")
+    assert (await client.post("/api/portfolio/bonds", json=valid_bond_payload())).status_code == 201
+
+    assert (await client.get("/api/portfolio/bonds")).status_code == 200
+    assert (await client.get("/api/portfolio/bonds")).status_code == 200
+
+    assert gateway.lookup_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_list_marks_closed_position_as_zero_without_a_quote(client: AsyncClient) -> None:
+    app.dependency_overrides[get_t_invest_gateway] = lambda: MarketGateway()
+    await register(client, "ClosedMarketOwner")
+    payload = valid_bond_payload()
+    payload["purchase_date"] = (clock.utc_today() - timedelta(days=2)).isoformat()
+    created = await client.post("/api/portfolio/bonds", json=payload)
+    bond_id = created.json()["id"]
+    assert (
+        await client.post(
+            f"/api/portfolio/bonds/{bond_id}/sales",
+            json={
+                "amount_received": "50000.00",
+                "quantity": 50,
+                "sale_date": (clock.utc_today() - timedelta(days=1)).isoformat(),
+            },
+        )
+    ).status_code == 201
+
+    listed = await client.get("/api/portfolio/bonds")
+
+    assert listed.status_code == 200
+    assert listed.json()["items"][0]["market_value_without_aci"] == "0.00"
 
 
 @pytest.mark.asyncio

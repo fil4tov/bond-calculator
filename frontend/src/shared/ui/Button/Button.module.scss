@@ -34,6 +34,23 @@
 }
 .secondary { min-height: 58px; padding: 7px 8px 7px 22px; color: var(--green-dark); background: var(--lime); &:hover { filter: brightness(0.96); } }
 .ghost { width: auto; min-height: 42px; padding: 8px 14px; color: var(--accent-text); background: transparent; }
+.danger {
+  min-height: 58px;
+  padding: 7px 22px;
+  color: var(--paper);
+  background: var(--loss);
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--loss) 28%, transparent);
+  font-weight: 750;
+
+  &:hover {
+    filter: brightness(0.9);
+    box-shadow: 0 16px 28px color-mix(in srgb, var(--loss) 34%, transparent);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible { outline-color: color-mix(in srgb, var(--loss) 42%, transparent); }
+  &:active { transform: translateY(0); }
+}
 
 .icon {
   display: grid;

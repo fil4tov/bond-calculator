@@ -16,6 +16,7 @@ class Bond(Base):
     ticker: Mapped[str] = mapped_column(String(32), nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     nominal: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    nominal_checked_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     payments_per_year: Mapped[int] = mapped_column(Integer, nullable=False)
     placement_date: Mapped[date] = mapped_column(Date, nullable=False)
     maturity_date: Mapped[date] = mapped_column(Date, nullable=False)

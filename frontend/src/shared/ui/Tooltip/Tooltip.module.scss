@@ -8,3 +8,23 @@
 }
 .right .content { right: 0; left: auto; }
 .tooltip:hover .content, .trigger:focus-visible + .content { visibility: visible; opacity: 1; transform: translateY(0); }
+
+@media (max-width: 580px) {
+  .content,
+  .right .content {
+    position: absolute;
+    top: auto;
+    right: auto;
+    bottom: calc(100% + 10px);
+    left: var(--tooltip-mobile-left, 0);
+    width: calc(100vw - 32px);
+    max-height: min(var(--tooltip-mobile-max-height, 280px), 280px);
+    overflow-y: auto;
+  }
+
+  .content[data-mobile-placement='below'],
+  .right .content[data-mobile-placement='below'] {
+    top: calc(100% + 10px);
+    bottom: auto;
+  }
+}

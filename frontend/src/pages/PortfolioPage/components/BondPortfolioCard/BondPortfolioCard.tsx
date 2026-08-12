@@ -3,7 +3,7 @@ import { useId, useRef, useState } from 'react';
 import type { BondPortfolioItem } from '#entities/bondPortfolio';
 import { Dropdown, Tooltip } from '#shared/ui';
 
-import { couponYieldDescription, formatDayCount, formatMoney, formatPercent, formatYearCount } from '../../utils';
+import { calendarYearCouponIncomeDescription, formatDayCount, formatMoney, formatYearCount, marketValueWithoutAciDescription } from '../../utils';
 import styles from './BondPortfolioCard.module.scss';
 
 interface BondPortfolioCardProps {
@@ -72,15 +72,22 @@ export function BondPortfolioCard({
             </span>
           </span>
           <span className={styles.value}>
-            <strong>{formatMoney(bond.positionCostBasis)}</strong>
+            <strong>
+              {bond.marketValueWithoutAci === null ? '—' : formatMoney(bond.marketValueWithoutAci)}
+              <span className={styles.marketValueHelp}>
+                <Tooltip label="Как рассчитывается рыночная оценка без НКД" align="right">
+                  {marketValueWithoutAciDescription()}
+                </Tooltip>
+              </span>
+            </strong>
             <span className={styles.yieldLine}>
-              {formatPercent(bond.calendarYearCouponYieldPercent)} за {bond.couponYieldYear} год
+              +{formatMoney(bond.calendarYearCouponIncome)}
               <span className={styles.yieldHelp}>
                 <Tooltip
-                  label={`Как рассчитывается купонная доходность за ${bond.couponYieldYear} год`}
+                  label={`Как рассчитывается сумма купонов за ${bond.couponYieldYear} год`}
                   align="right"
                 >
-                  {couponYieldDescription(bond.couponYieldYear)}
+                  {calendarYearCouponIncomeDescription(bond.couponYieldYear)}
                 </Tooltip>
               </span>
             </span>

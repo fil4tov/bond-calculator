@@ -1,7 +1,12 @@
 from datetime import date
 from decimal import Decimal
 
-from app.portfolio.calculations import CouponPosition, PurchasePosition, calculate_bond_metrics
+from app.portfolio.calculations import (
+    CouponPosition,
+    OperationPosition,
+    PurchasePosition,
+    calculate_bond_metrics,
+)
 
 
 def coupon(
@@ -156,3 +161,36 @@ def test_calendar_year_yield_includes_past_and_future_entitled_coupons() -> None
 
     assert metrics.calendar_year_coupon_yield_percent == Decimal("7.2632")
     assert metrics.coupon_yield_year == 2026
+
+
+def test_calendar_year_coupon_income_includes_known_events_using_coupon_cutoff_position() -> None:
+    metrics = calculate_bond_metrics(
+        maturity_date=date(2027, 1, 1),
+        operations=(
+            OperationPosition("purchase", Decimal("1000.00"), 5, date(2025, 12, 30)),
+            OperationPosition("sale", Decimal("300.00"), 2, date(2026, 4, 15)),
+        ),
+        coupons=(
+            coupon(
+                coupon_date=date(2026, 3, 1),
+                amount="10.00",
+                start=date(2025, 9, 1),
+                end=date(2026, 2, 28),
+            ),
+            coupon(
+                coupon_date=date(2026, 9, 1),
+                amount="12.00",
+                start=date(2026, 3, 1),
+                end=date(2026, 8, 31),
+            ),
+            coupon(
+                coupon_date=date(2027, 3, 1),
+                amount="100.00",
+                start=date(2026, 9, 1),
+                end=date(2027, 2, 28),
+            ),
+        ),
+        today=date(2026, 6, 1),
+    )
+
+    assert metrics.calendar_year_coupon_income == Decimal("86.00")

@@ -27,8 +27,8 @@ const activeBond = {
   id: 'bond-1', name: 'ОФЗ 26238', nominal: '1000.00', payments_per_year: 2,
   placement_date: '2025-05-15', maturity_date: '2041-05-15', status: 'active',
   total_quantity: 75, total_spent: '75000.70',
-  position_cost_basis: '75000.70', realized_result: '0.00', position_status: 'open',
-  paid_coupon_total: '1770.00', calendar_year_coupon_yield_percent: '7.0800', coupon_yield_year: 2026,
+  position_cost_basis: '75000.70', market_value_without_aci: '74250.00', realized_result: '0.00', position_status: 'open',
+  paid_coupon_total: '1770.00', calendar_year_coupon_yield_percent: '7.0800', calendar_year_coupon_income: '4248.00', coupon_yield_year: 2026,
   maturity_remaining: { years: 14, months: 9, days_until: 5392 },
   next_coupon: {
     period_start: '2026-05-15', period_end: '2026-11-15', pay_date: '2026-11-16',
@@ -46,7 +46,7 @@ const activeBond = {
 
 const maturedBond = {
   ...activeBond, id: 'bond-2', name: 'ОФЗ 25000', status: 'matured', maturity_date: '2025-05-15',
-  maturity_remaining: { years: 0, months: 0, days_until: 0 }, next_coupon: null,
+  market_value_without_aci: null, maturity_remaining: { years: 0, months: 0, days_until: 0 }, next_coupon: null,
 };
 
 const pendingBond = {
@@ -114,7 +114,7 @@ async function selectLookupBond(user: ReturnType<typeof userEvent.setup>) {
 
 async function fillCreateForm(user: ReturnType<typeof userEvent.setup>) {
   await selectLookupBond(user);
-  await user.type(screen.getByLabelText('Сумма покупки'), '75000,70');
+  await user.type(screen.getByLabelText('Сумма покупки (с учётом НКД и комиссий)'), '75000,70');
   await user.type(screen.getByLabelText('Количество'), '75');
   expect(screen.getByLabelText('Дата покупки')).toHaveValue(todayInput());
   await waitFor(() => expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled());
@@ -211,14 +211,20 @@ describe('PortfolioPage', () => {
 
     const activeCard = await screen.findByRole('article', { name: 'ОФЗ 26238' });
     const maturedCard = screen.getByRole('article', { name: 'ОФЗ 25000' });
-    expect(activeCard).toHaveTextContent(/75.000,70.₽/);
+    expect(activeCard).toHaveTextContent(/74.250,00.₽/);
     expect(within(activeCard).getByText('75 шт.')).toBeInTheDocument();
-    expect(within(activeCard).getByText('7,08 % за 2026 год')).toBeInTheDocument();
+    expect(activeCard).toHaveTextContent(/\+4.248,00.₽/);
     expect(within(activeCard).getByRole('button', {
-      name: 'Как рассчитывается купонная доходность за 2026 год',
+      name: 'Как рассчитывается рыночная оценка без НКД',
     })).toBeInTheDocument();
     expect(within(activeCard).getByText(
-      'Для каждого купона за 2026 год сумма выплаты по бумагам в позиции на дату отсечения делится на историческую себестоимость этой позиции на ту же дату и умножается на 100%. Полученные доходности купонов складываются. Дата отсечения — дата фиксации права, а если её нет — конец купонного периода, без учёта операций в этот день. Учитываются уже выплаченные и будущие купоны; возврат номинала не входит.',
+      'Текущая рыночная стоимость без учета НКД.',
+    )).toBeInTheDocument();
+    expect(within(activeCard).getByRole('button', {
+      name: 'Как рассчитывается сумма купонов за 2026 год',
+    })).toBeInTheDocument();
+    expect(within(activeCard).getByText(
+      'Ожидаемый купонный доход за 2026 год без учета выплаченного НКД по операциям продажи.',
     )).toBeInTheDocument();
     expect(within(activeCard).getByText('Ближайший купон через 99 дней')).toBeInTheDocument();
     expect(within(activeCard).queryByText('Всего вложено')).not.toBeInTheDocument();
@@ -234,6 +240,7 @@ describe('PortfolioPage', () => {
     expect(detailsTrigger).not.toContainElement(progress);
     expect(detailsTrigger).toHaveAttribute('aria-describedby');
     expect(within(maturedCard).getByText('Облигация погашена')).toBeInTheDocument();
+    expect(within(maturedCard).getByText('—')).toBeInTheDocument();
     expect(within(maturedCard).queryByRole('progressbar')).not.toBeInTheDocument();
   });
 
@@ -352,10 +359,10 @@ describe('PortfolioPage', () => {
     expect(within(dialog).queryByText('Купон')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Купонный период')).not.toBeInTheDocument();
     expect(
-      Array.from(within(dialog).getByText('Нереализованный остаток от вложенной суммы').closest('dl')!.querySelectorAll('dt'))
+      Array.from(within(dialog).getByText('Вложено в облигации').closest('dl')!.querySelectorAll('dt'))
         .map((label) => label.firstElementChild?.textContent ?? label.textContent),
     ).toEqual([
-      'Нереализованный остаток от вложенной суммы',
+      'Вложено в облигации',
       'Количество',
       'Купонная доходность за 2026 год',
       'Выплачено купонов',
@@ -378,6 +385,9 @@ describe('PortfolioPage', () => {
     expect(within(dialog).getByText('Выплачено купонов').parentElement).toHaveTextContent(/1.770,00.₽/);
     expect(within(dialog).getByRole('button', {
       name: 'Как рассчитывается купонная доходность за 2026 год',
+    })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', {
+      name: 'Как рассчитывается сумма, вложенная в оставшиеся облигации',
     })).toBeInTheDocument();
     expect(within(dialog).getByText(
       'Для каждого купона за 2026 год сумма выплаты по бумагам в позиции на дату отсечения делится на историческую себестоимость этой позиции на ту же дату и умножается на 100%. Полученные доходности купонов складываются. Дата отсечения — дата фиксации права, а если её нет — конец купонного периода, без учёта операций в этот день. Учитываются уже выплаченные и будущие купоны; возврат номинала не входит.',
@@ -403,10 +413,10 @@ describe('PortfolioPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
 
     expect(
-      Array.from(within(dialog).getByText('Нереализованный остаток от вложенной суммы').closest('dl')!.querySelectorAll('dt'))
+      Array.from(within(dialog).getByText('Вложено в облигации').closest('dl')!.querySelectorAll('dt'))
         .map((label) => label.firstElementChild?.textContent ?? label.textContent),
     ).toEqual([
-      'Нереализованный остаток от вложенной суммы',
+      'Вложено в облигации',
       'Количество',
       'Купонная доходность за 2026 год',
       'Выплачено купонов',
@@ -464,12 +474,15 @@ describe('PortfolioPage', () => {
   it('deletes a confirmed bond from the cache and shows the empty portfolio state', async () => {
     const user = userEvent.setup();
     const requests: Array<{ url: string; method: string }> = [];
+    let deleted = false;
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const details = requestDetails(input, init);
       requests.push(details);
-      return details.method === 'DELETE'
-        ? new Response(null, { status: 204 })
-        : jsonResponse({ items: [activeBond] });
+      if (details.method === 'DELETE') {
+        deleted = true;
+        return new Response(null, { status: 204 });
+      }
+      return jsonResponse({ items: deleted ? [] : [activeBond] });
     }));
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
@@ -537,7 +550,7 @@ describe('PortfolioPage', () => {
     expect(within(dialog).getByRole('combobox', { name: 'Название или тикер' })).toBeInTheDocument();
     expect(within(dialog).queryByRole('region', { name: 'Выбранная облигация' })).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Первая покупка')).not.toBeInTheDocument();
-    expect(within(dialog).queryByLabelText('Сумма покупки')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Сумма покупки (с учётом НКД и комиссий)')).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
   });
 
@@ -547,7 +560,7 @@ describe('PortfolioPage', () => {
     renderPortfolio();
     const card = await screen.findByRole('article', { name: activeBond.name });
     const { dialog } = await openPurchaseForm(user, card);
-    const amount = within(dialog).getByLabelText('Сумма покупки');
+    const amount = within(dialog).getByLabelText('Сумма покупки (с учётом НКД и комиссий)');
 
     await user.click(amount);
 
@@ -618,7 +631,7 @@ describe('PortfolioPage', () => {
     expect(within(dialog).queryByLabelText('Дата размещения')).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText('Дата погашения')).not.toBeInTheDocument();
     expect(within(dialog).getByText('Первая покупка')).toBeInTheDocument();
-    expect(within(dialog).getByLabelText('Сумма покупки')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Сумма покупки (с учётом НКД и комиссий)')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Сохранить' })).toBeDisabled();
   });
 
@@ -657,7 +670,7 @@ describe('PortfolioPage', () => {
     renderPortfolio();
     const dialog = await openCreateForm(user);
     await selectLookupBond(user);
-    const amount = within(dialog).getByLabelText('Сумма покупки');
+    const amount = within(dialog).getByLabelText('Сумма покупки (с учётом НКД и комиссий)');
 
     await user.click(amount);
 
@@ -701,7 +714,7 @@ describe('PortfolioPage', () => {
     renderPortfolio();
     const dialog = await openCreateForm(user);
     await selectLookupBond(user);
-    const amountInput = within(dialog).getByLabelText('Сумма покупки');
+    const amountInput = within(dialog).getByLabelText('Сумма покупки (с учётом НКД и комиссий)');
     const quantityInput = within(dialog).getByLabelText('Количество');
 
     await user.type(amountInput, '9999999999999999,99');
@@ -831,7 +844,7 @@ describe('PortfolioPage', () => {
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Повторить загрузку' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Выбранная облигация' })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Сумма покупки')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Сумма покупки (с учётом НКД и комиссий)')).not.toBeInTheDocument();
   });
 
   it('retries a temporary selected-bond lookup failure', async () => {
@@ -883,7 +896,7 @@ describe('PortfolioPage', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Выбранная облигация' })).toHaveTextContent('SU26238');
     expect(screen.getByRole('region', { name: 'Выбранная облигация' })).toHaveTextContent('ОФЗ 26238');
-    expect(screen.getByLabelText('Сумма покупки')).toBeInTheDocument();
+    expect(screen.getByLabelText('Сумма покупки (с учётом НКД и комиссий)')).toBeInTheDocument();
   });
 
   it('invalidates the selected instrument and resets purchase fields when the ticker changes', async () => {
@@ -901,17 +914,17 @@ describe('PortfolioPage', () => {
 
     await user.type(ticker, 'su26238');
     await user.click(await screen.findByRole('option', { name: /SU26238.*ОФЗ 26238/ }));
-    await user.type(screen.getByLabelText('Сумма покупки'), '9500,70');
+    await user.type(screen.getByLabelText('Сумма покупки (с учётом НКД и комиссий)'), '9500,70');
     await user.type(screen.getByLabelText('Количество'), '10');
     fireEvent.change(ticker, { target: { value: 'su26238' } });
 
     expect(screen.queryByRole('region', { name: 'Выбранная облигация' })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Сумма покупки')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Сумма покупки (с учётом НКД и комиссий)')).not.toBeInTheDocument();
     expect(screen.getByRole('listbox', { name: 'Результаты поиска облигаций' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
 
     await user.click(await screen.findByRole('option', { name: /SU26238.*ОФЗ 26238/ }));
-    expect(screen.getByLabelText('Сумма покупки')).toHaveValue('');
+    expect(screen.getByLabelText('Сумма покупки (с учётом НКД и комиссий)')).toHaveValue('');
     expect(screen.getByLabelText('Количество')).toHaveValue('');
     expect(screen.getByLabelText('Дата покупки')).toHaveValue(todayInput());
   });
@@ -1028,17 +1041,19 @@ describe('PortfolioPage', () => {
 
     expect(await screen.findByText('Не удалось получить расписание выплат')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Выбранная облигация' })).toHaveTextContent('ОФЗ 26238');
-    expect(screen.getByLabelText('Сумма покупки')).toHaveValue(
+    expect(screen.getByLabelText('Сумма покупки (с учётом НКД и комиссий)')).toHaveValue(
       new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(75000.7),
     );
     expect(screen.getByLabelText('Количество')).toHaveValue('75');
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
   });
 
-  it('closes after create and inserts the mutation response into the visible list cache', async () => {
+  it('keeps the created card visible while refetching the portfolio market values', async () => {
     const user = userEvent.setup();
     const exactLookupItem = { ...lookupItem, name: 'ОФЗ 26238 ' };
     let createBody: unknown;
+    let portfolioListRequests = 0;
+    let created = false;
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { url, method } = requestDetails(input, init);
       if (url.includes('t-invest-search')) return jsonResponse(searchResponse(exactLookupItem));
@@ -1046,9 +1061,11 @@ describe('PortfolioPage', () => {
       if (url.includes('name-availability')) return jsonResponse({ available: true });
       if (method === 'POST') {
         createBody = await requestJson(input, init);
-        return jsonResponse(activeBond, 201);
+        created = true;
+        return jsonResponse({ ...activeBond, market_value_without_aci: '1.00' }, 201);
       }
-      return jsonResponse({ items: [] });
+      if (url.includes('portfolio/bonds')) portfolioListRequests += 1;
+      return jsonResponse({ items: created ? [activeBond] : [] });
     }));
     renderPortfolio();
     await openCreateForm(user);
@@ -1058,6 +1075,8 @@ describe('PortfolioPage', () => {
 
     expect(await screen.findByRole('article', { name: 'ОФЗ 26238' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(portfolioListRequests).toBe(2));
+    expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toHaveTextContent(/74.250,00.₽/);
     expect(createBody).toEqual({
       instrument_uid: 'instrument-1',
       ticker: 'SU26238',
@@ -1072,7 +1091,35 @@ describe('PortfolioPage', () => {
     });
   });
 
-  it('updates the matching card from an add-purchase response without reloading the page', async () => {
+  it('keeps the successful mutation card visible when its market-data refetch fails', async () => {
+    const user = userEvent.setup();
+    let portfolioListRequests = 0;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { url, method } = requestDetails(input, init);
+      if (url.includes('t-invest-search')) return jsonResponse(searchResponse());
+      if (url.includes('t-invest-lookup')) return jsonResponse({ item: lookupItem });
+      if (url.includes('name-availability')) return jsonResponse({ available: true });
+      if (method === 'POST') return jsonResponse(activeBond, 201);
+      if (url.includes('portfolio/bonds')) {
+        portfolioListRequests += 1;
+        return portfolioListRequests === 1
+          ? jsonResponse({ items: [] })
+          : jsonResponse({ code: 'request_failed', message: 'Рыночные данные временно недоступны' }, 503);
+      }
+      return jsonResponse({ items: [] });
+    }));
+    renderPortfolio();
+    await openCreateForm(user);
+    await fillCreateForm(user);
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => expect(portfolioListRequests).toBe(2));
+    expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить портфель')).not.toBeInTheDocument();
+  });
+
+  it('updates the matching card from the refetched add-purchase portfolio', async () => {
     const user = userEvent.setup();
     const updatedBond = {
       ...activeBond,
@@ -1080,21 +1127,25 @@ describe('PortfolioPage', () => {
       total_spent: '76000.75',
       position_cost_basis: '76000.75',
     };
+    let purchased = false;
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { method } = requestDetails(input, init);
-      return method === 'POST' ? jsonResponse(updatedBond, 201) : jsonResponse({ items: [activeBond] });
+      if (method === 'POST') {
+        purchased = true;
+        return jsonResponse(updatedBond, 201);
+      }
+      return jsonResponse({ items: [purchased ? updatedBond : activeBond] });
     }));
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
     const { dialog } = await openPurchaseForm(user, card);
-    await user.type(within(dialog).getByLabelText('Сумма покупки'), '1000,05');
+    await user.type(within(dialog).getByLabelText('Сумма покупки (с учётом НКД и комиссий)'), '1000,05');
     await user.type(within(dialog).getByLabelText('Количество'), '2');
     expect(within(dialog).getByLabelText('Дата покупки')).toHaveValue(todayInput());
     await user.click(within(dialog).getByRole('button', { name: 'Зафиксировать' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(within(screen.getByRole('article', { name: 'ОФЗ 26238' })).getByText('77 шт.')).toBeInTheDocument();
-    expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toHaveTextContent(/76.000,75.₽/);
   });
 
   it('limits a sale to the quantity available on its date and updates the card from the sale response', async () => {
@@ -1110,10 +1161,15 @@ describe('PortfolioPage', () => {
       ],
     };
     let requestBody: unknown;
+    let sold = false;
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { method } = requestDetails(input, init);
-      if (method === 'POST') requestBody = await requestJson(input, init);
-      return method === 'POST' ? jsonResponse(soldBond, 201) : jsonResponse({ items: [activeBond] });
+      if (method === 'POST') {
+        requestBody = await requestJson(input, init);
+        sold = true;
+        return jsonResponse(soldBond, 201);
+      }
+      return jsonResponse({ items: [sold ? soldBond : activeBond] });
     }));
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
@@ -1121,7 +1177,7 @@ describe('PortfolioPage', () => {
     const quantity = within(dialog).getByLabelText('Количество');
 
     expect(within(dialog).getByText('Доступно на выбранную дату: 75 шт.')).toBeInTheDocument();
-    await user.type(within(dialog).getByLabelText('Сумма продажи'), '26000');
+    await user.type(within(dialog).getByLabelText('Сумма продажи (с учётом НКД и комиссий)'), '26000');
     await user.type(quantity, '76');
     expect(within(dialog).getByText('Доступно не более 75 шт.')).toBeInTheDocument();
     await user.clear(quantity);
@@ -1130,7 +1186,7 @@ describe('PortfolioPage', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(requestBody).toEqual({ amount_received: '26000.00', quantity: 25, sale_date: todayInput() });
-    expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toHaveTextContent(/50 шт\..*50.000,47.₽/);
+    expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toHaveTextContent('50 шт.');
   });
 
   it('revalidates quantity when the selected sale date reduces the available position', async () => {
@@ -1140,7 +1196,7 @@ describe('PortfolioPage', () => {
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
     const dialog = await openSaleForm(user, card);
 
-    await user.type(within(dialog).getByLabelText('Сумма продажи'), '60000');
+    await user.type(within(dialog).getByLabelText('Сумма продажи (с учётом НКД и комиссий)'), '60000');
     await user.type(within(dialog).getByLabelText('Количество'), '60');
     expect(within(dialog).getByRole('button', { name: 'Зафиксировать' })).toBeEnabled();
 
@@ -1203,7 +1259,7 @@ describe('PortfolioPage', () => {
     }));
     renderPortfolio();
     const dialog = await openSaleForm(user, await screen.findByRole('article', { name: 'ОФЗ 26238' }));
-    await user.type(within(dialog).getByLabelText('Сумма продажи'), '1000');
+    await user.type(within(dialog).getByLabelText('Сумма продажи (с учётом НКД и комиссий)'), '1000');
     await user.type(within(dialog).getByLabelText('Количество'), '1');
     await user.click(within(dialog).getByRole('button', { name: 'Зафиксировать' }));
 
@@ -1223,7 +1279,7 @@ describe('PortfolioPage', () => {
     }));
     renderPortfolio();
     const dialog = await openSaleForm(user, await screen.findByRole('article', { name: 'ОФЗ 26238' }));
-    await user.type(within(dialog).getByLabelText('Сумма продажи'), '1000');
+    await user.type(within(dialog).getByLabelText('Сумма продажи (с учётом НКД и комиссий)'), '1000');
     await user.type(within(dialog).getByLabelText('Количество'), '1');
     await user.click(within(dialog).getByRole('button', { name: 'Зафиксировать' }));
 
@@ -1249,7 +1305,8 @@ describe('PortfolioPage', () => {
     await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
     const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
 
-    expect(within(details).getByText('Например, мы вложили 1000 руб и купили 10 облигаций по 100 руб, потом продали 1шт за 200 рублей. Но эти 100 рублей выгоды')).toBeInTheDocument();
+    expect(within(details).getByText('Вложено в оставшиеся облигации')).toBeInTheDocument();
+    expect(within(details).getByText('Сколько из потраченных на покупки денег приходится на облигации, которые ещё остаются в портфеле. После продажи сумма уменьшается на среднюю стоимость проданных облигаций. Это не текущая рыночная цена.')).toBeInTheDocument();
     expect(within(details).getAllByText('−1 шт.')).toHaveLength(3);
     expect(within(details).getByText('+2 шт.')).toBeInTheDocument();
     expect(within(details).queryByText('Покупка')).not.toBeInTheDocument();
@@ -1278,9 +1335,14 @@ describe('PortfolioPage', () => {
         id: 'sale-1', operation_type: 'sale', amount: '76000.35', quantity: 75, operation_date: '2026-08-10', realized_result: '999.65',
       }],
     };
+    let operationDeleted = false;
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { method } = requestDetails(input, init);
-      return method === 'DELETE' ? jsonResponse({ item: null }) : jsonResponse({ items: [closedBond] });
+      if (method === 'DELETE') {
+        operationDeleted = true;
+        return jsonResponse({ item: null });
+      }
+      return jsonResponse({ items: operationDeleted ? [] : [closedBond] });
     }));
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
@@ -1332,9 +1394,14 @@ describe('PortfolioPage', () => {
       position_cost_basis: '50000.35',
       operations: [activeBond.operations[1]],
     };
+    let operationDeleted = false;
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { method } = requestDetails(input, init);
-      return method === 'DELETE' ? jsonResponse({ item: updatedBond }) : jsonResponse({ items: [activeBond] });
+      if (method === 'DELETE') {
+        operationDeleted = true;
+        return jsonResponse({ item: updatedBond });
+      }
+      return jsonResponse({ items: [operationDeleted ? updatedBond : activeBond] });
     }));
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });

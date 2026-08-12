@@ -78,7 +78,8 @@ export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPu
           control={control}
           name="amountSpent"
           label="Сумма покупки"
-          aria-label="Сумма покупки"
+          hint="(с учётом НКД и комиссий)"
+          aria-label="Сумма покупки (с учётом НКД и комиссий)"
           unit="₽"
           inputMode="decimal"
           error={errors.amountSpent?.message}

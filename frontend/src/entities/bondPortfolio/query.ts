@@ -25,6 +25,13 @@ const upsertPortfolioBond = (items: BondPortfolioItem[] | undefined, updated: Bo
   return next.sort(comparePortfolioBonds);
 };
 
+const refreshPortfolioBonds = (queryClient: ReturnType<typeof useQueryClient>, userId: string) => {
+  void queryClient.invalidateQueries({
+    queryKey: portfolioQueryKey(userId),
+    refetchType: 'active',
+  });
+};
+
 export function usePortfolioBonds(userId: string) {
   return useQuery({
     queryKey: portfolioQueryKey(userId),
@@ -66,6 +73,7 @@ export function useCreatePortfolioBond(userId: string) {
     mutationFn: (input: CreateBondInput) => createBond(input),
     onSuccess: (bond) => {
       queryClient.setQueryData<BondPortfolioItem[]>(portfolioQueryKey(userId), (items) => upsertPortfolioBond(items, bond));
+      refreshPortfolioBonds(queryClient, userId);
     },
   });
 }
@@ -76,6 +84,7 @@ export function useAddPortfolioPurchase(userId: string) {
     mutationFn: ({ bondId, input }: { bondId: string; input: AddBondPurchaseInput }) => addBondPurchase(bondId, input),
     onSuccess: (bond) => {
       queryClient.setQueryData<BondPortfolioItem[]>(portfolioQueryKey(userId), (items) => upsertPortfolioBond(items, bond));
+      refreshPortfolioBonds(queryClient, userId);
     },
   });
 }
@@ -86,6 +95,7 @@ export function useAddPortfolioSale(userId: string) {
     mutationFn: ({ bondId, input }: { bondId: string; input: AddBondSaleInput }) => addBondSale(bondId, input),
     onSuccess: (bond) => {
       queryClient.setQueryData<BondPortfolioItem[]>(portfolioQueryKey(userId), (items) => upsertPortfolioBond(items, bond));
+      refreshPortfolioBonds(queryClient, userId);
     },
   });
 }
@@ -99,6 +109,7 @@ export function useDeletePortfolioOperation(userId: string) {
         if (!bond) return items?.filter((item) => item.id !== bondId);
         return upsertPortfolioBond(items, bond);
       });
+      refreshPortfolioBonds(queryClient, userId);
     },
   });
 }
@@ -111,6 +122,7 @@ export function useDeletePortfolioBond(userId: string) {
       queryClient.setQueryData<BondPortfolioItem[]>(portfolioQueryKey(userId), (items) => (
         items?.filter((item) => item.id !== bondId)
       ));
+      refreshPortfolioBonds(queryClient, userId);
     },
   });
 }

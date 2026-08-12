@@ -42,6 +42,7 @@ class BondMetrics:
     realized_result: Decimal
     position_status: Literal["open", "closed"]
     paid_coupon_total: Decimal
+    calendar_year_coupon_income: Decimal
     calendar_year_coupon_yield_percent: Decimal
     coupon_yield_year: int
     remaining_years: int
@@ -174,6 +175,14 @@ def calculate_bond_metrics(
             ),
             start=Decimal("0"),
         ).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+        calendar_year_coupon_income = sum(
+            (
+                _payment_amount(coupon, replay_operations)
+                for coupon in ordered_coupons
+                if calendar_year_start <= coupon.coupon_date <= calendar_year_end
+            ),
+            start=Decimal("0.00"),
+        )
     next_coupon = next(
         (
             coupon
@@ -202,6 +211,7 @@ def calculate_bond_metrics(
             realized_result,
             "open" if total_quantity else "closed",
             paid_total,
+            calendar_year_coupon_income,
             calendar_year_yield,
             today.year,
             years,
@@ -220,7 +230,8 @@ def calculate_bond_metrics(
     elapsed = min(period_days, max(0, (min(today, next_coupon.coupon_end_date) - next_coupon.coupon_start_date).days))
     return BondMetrics(
         status, total_quantity, total_spent, position_cost_basis, realized_result,
-        "open" if total_quantity else "closed", paid_total, calendar_year_yield, today.year,
+        "open" if total_quantity else "closed", paid_total, calendar_year_coupon_income,
+        calendar_year_yield, today.year,
         years, months, days,
         next_coupon.coupon_start_date, next_coupon.coupon_end_date, next_coupon.coupon_date,
         _payment_amount(next_coupon, replay_operations), next_coupon.pay_one_bond_amount,

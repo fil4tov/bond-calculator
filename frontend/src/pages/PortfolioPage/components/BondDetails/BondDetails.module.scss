@@ -36,6 +36,7 @@
 .purchaseData { display: grid; min-width: 0; gap: 5px; }
 .purchaseData strong { overflow-wrap: anywhere; font-size: 17px; font-weight: 850; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .purchaseData span { width: fit-content; color: var(--accent-text); font-size: 12px; font-weight: 800; }
+.purchaseData .saleQuantity { color: var(--loss); }
 .operationMeta { display: grid; min-width: 0; align-content: start; justify-items: end; gap: 5px; }
 .realizedResult { color: var(--accent-text); font-size: 12px; font-weight: 800; }
 .positive { color: var(--accent-text); }

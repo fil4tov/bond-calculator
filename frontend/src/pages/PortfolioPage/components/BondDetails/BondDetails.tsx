@@ -49,6 +49,7 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
     : bond.status === 'payment_pending'
       ? 'Ожидается выплата'
       : 'Купонные выплаты не предусмотрены';
+  const hasSale = bond.operations.some((operation) => operation.operationType === 'sale');
   return (
     <div className={styles.details}>
       <span className={`${styles.status} ${bond.status === 'matured' ? styles.statusMatured : ''}`}>
@@ -66,9 +67,9 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
       <dl className={styles.metricsGrid}>
         <div>
           <dt className={styles.metricLabel}>
-            <span>Нереализованный остаток от вложенной суммы</span>
-            <Tooltip label="Как рассчитывается остаток позиции">
-              Например, мы вложили 1000 руб и купили 10 облигаций по 100 руб, потом продали 1шт за 200 рублей. Но эти 100 рублей выгоды
+            <span>{hasSale ? 'Вложено в оставшиеся облигации' : 'Вложено в облигации'}</span>
+            <Tooltip label="Как рассчитывается сумма, вложенная в оставшиеся облигации">
+              Сколько из потраченных на покупки денег приходится на облигации, которые ещё остаются в портфеле. После продажи сумма уменьшается на среднюю стоимость проданных облигаций. Это не текущая рыночная цена.
             </Tooltip>
           </dt>
           <dd>{formatMoney(bond.positionCostBasis)}</dd>
@@ -120,7 +121,9 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
               <span className={styles.timelineMarker} aria-hidden="true" />
               <div className={styles.purchaseData}>
                 <strong>{formatMoney(operation.amount)}</strong>
-                <span>{operation.operationType === 'purchase' ? '+' : '−'}{operation.quantity.toLocaleString('ru-RU')} шт.</span>
+                <span className={operation.operationType === 'sale' ? styles.saleQuantity : undefined}>
+                  {operation.operationType === 'purchase' ? '+' : '−'}{operation.quantity.toLocaleString('ru-RU')} шт.
+                </span>
               </div>
               <div className={styles.operationMeta}>
                 <time dateTime={operation.operationDate}>{formatDate(operation.operationDate)}</time>

@@ -7,6 +7,7 @@ from grpc import StatusCode
 from t_tech.invest import InstrumentIdType, InstrumentType
 from t_tech.invest import channels
 from t_tech.invest.exceptions import AioRequestError
+from t_tech.invest.schemas import LastPriceType
 
 from app.errors import ApiError
 from app.portfolio.t_invest_gateway import TInvestGateway
@@ -41,10 +42,14 @@ def money(units: int, nano: int, currency: str = "RUB") -> SimpleNamespace:
 
 class FakeInstruments:
     async def find_instrument(
-        self, *, query: str, instrument_kind: object
+        self, *, query: str, instrument_kind: object, api_trade_available_flag: bool
     ) -> SimpleNamespace:
-        if query != "ofz" or instrument_kind != InstrumentType.INSTRUMENT_TYPE_BOND:
-            raise AssertionError("gateway must search bonds by the original query")
+        if (
+            query != "ofz"
+            or instrument_kind != InstrumentType.INSTRUMENT_TYPE_BOND
+            or api_trade_available_flag is not True
+        ):
+            raise AssertionError("gateway must search API-tradable bonds by the original query")
         instruments = [
             SimpleNamespace(
                 uid="duplicate-main",
@@ -109,8 +114,25 @@ class FakeInstruments:
         )
 
 
+class FakeMarketData:
+    async def get_last_prices(
+        self, *, instrument_id: list[str], last_price_type: object
+    ) -> SimpleNamespace:
+        if instrument_id != ["instrument-uid", "another-uid"]:
+            raise AssertionError("gateway must request each UID once in one batch")
+        if last_price_type != LastPriceType.LAST_PRICE_EXCHANGE:
+            raise AssertionError("gateway must request exchange last prices")
+        return SimpleNamespace(
+            last_prices=[
+                SimpleNamespace(instrument_uid="instrument-uid", price=money(101, 250_000_000)),
+                SimpleNamespace(instrument_uid="another-uid", price=money(99, 0)),
+            ]
+        )
+
+
 class FakeClient:
     instruments = FakeInstruments()
+    market_data = FakeMarketData()
 
     async def __aenter__(self) -> "FakeClient":
         return self
@@ -150,6 +172,18 @@ async def test_gateway_converts_t_invest_bond_and_coupon_money_without_float() -
     assert bond.placement_date == date(2020, 1, 1)
     assert coupons[0].pay_one_bond_amount == Decimal("12.345678901")
     assert coupons[0].coupon_date == date(2026, 6, 30)
+
+
+@pytest.mark.asyncio
+async def test_gateway_gets_unique_exchange_last_prices_as_decimals() -> None:
+    gateway = TInvestGateway(api_key="token", client_factory=lambda _token: FakeClient())
+
+    prices = await gateway.get_last_prices(("instrument-uid", "instrument-uid", "another-uid"))
+
+    assert prices == {
+        "instrument-uid": Decimal("101.250000000"),
+        "another-uid": Decimal("99.000000000"),
+    }
 
 
 @pytest.mark.asyncio

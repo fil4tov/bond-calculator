@@ -137,6 +137,8 @@ class BondCard(BaseModel):
     realized_result: str
     position_status: Literal["open", "closed"]
     paid_coupon_total: str
+    market_value_without_aci: str | None
+    calendar_year_coupon_income: str
     calendar_year_coupon_yield_percent: str
     coupon_yield_year: int
     maturity_remaining: MaturityRemaining

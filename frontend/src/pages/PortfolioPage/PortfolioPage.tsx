@@ -49,6 +49,9 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
   const user = useUserStore((state) => state.user);
   const userId = user?.id ?? '';
   const portfolio = usePortfolioBonds(userId);
+  const hasPortfolioData = portfolio.data !== undefined;
+  const portfolioData = portfolio.data ?? [];
+  const initialPortfolioLoadError = portfolio.isError && !hasPortfolioData;
   const deleteBond = useDeletePortfolioBond(userId);
   const deleteOperation = useDeletePortfolioOperation(userId);
   const [modal, setModal] = useState<OpenModal>(null);
@@ -149,8 +152,8 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
       </section>
 
       <section className={styles.registry} aria-label="Облигации в портфеле">
-        {portfolio.isPending ? <LoadingState /> : null}
-        {portfolio.isError ? (
+        {portfolio.isPending && !hasPortfolioData ? <LoadingState /> : null}
+        {initialPortfolioLoadError ? (
           <div className={styles.errorState} role="alert">
             <div>
               <h2>Не удалось загрузить портфель</h2>
@@ -159,15 +162,15 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
             <Button type="button" variant="secondary" trailingIcon={<FiRefreshCw />} onClick={() => void portfolio.refetch()}>Повторить запрос</Button>
           </div>
         ) : null}
-        {portfolio.isSuccess && portfolio.data.length === 0 ? (
+        {hasPortfolioData && portfolioData.length === 0 ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyCoupon} aria-hidden="true"><span>₽</span></div>
             <h2>Портфель пока пуст</h2>
           </div>
         ) : null}
-        {portfolio.isSuccess && portfolio.data.length > 0 ? (
+        {hasPortfolioData && portfolioData.length > 0 ? (
           <div className={styles.cardList}>
-            {portfolio.data.map((bond) => (
+            {portfolioData.map((bond) => (
               <BondPortfolioCard
                 key={bond.id}
                 bond={bond}
@@ -245,9 +248,10 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
             </p>
             {deleteError ? <p className={styles.confirmationError} role="alert">{deleteError}</p> : null}
             <div className={styles.confirmationActions}>
-              <Button type="button" variant="secondary" disabled={modalBusy} onClick={closeModal}>Отмена</Button>
+              <Button type="button" disabled={modalBusy} onClick={closeModal}>Отмена</Button>
               <Button
                 type="button"
+                variant="danger"
                 disabled={modalBusy}
                 onClick={() => void handleBondDelete(modal.bond)}
               >
@@ -270,9 +274,10 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
             <p>Операция будет удалена, а показатели позиции пересчитаются.</p>
             {deleteError ? <p className={styles.confirmationError} role="alert">{deleteError}</p> : null}
             <div className={styles.confirmationActions}>
-              <Button type="button" variant="secondary" disabled={modalBusy} onClick={closeOperationDeleteConfirmation}>Отмена</Button>
+              <Button type="button" disabled={modalBusy} onClick={closeOperationDeleteConfirmation}>Отмена</Button>
               <Button
                 type="button"
+                variant="danger"
                 disabled={modalBusy}
                 onClick={() => void handleOperationDelete(
                   operationDeleteConfirmation.bond,

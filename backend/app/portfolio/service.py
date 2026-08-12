@@ -95,7 +95,9 @@ def _ordered_operations(bond: Bond, *, reverse: bool = False) -> list[BondOperat
     )
 
 
-def build_bond_card(bond: Bond, *, today: date) -> BondCard:
+def build_bond_card(
+    bond: Bond, *, today: date, market_value_without_aci: str | None = None
+) -> BondCard:
     ordered_operations = _ordered_operations(bond)
     operation_positions = tuple(_operation_position(item) for item in ordered_operations)
     metrics = calculate_bond_metrics(
@@ -133,6 +135,8 @@ def build_bond_card(bond: Bond, *, today: date) -> BondCard:
         realized_result=_fixed_decimal(metrics.realized_result, 2),
         position_status=metrics.position_status,
         paid_coupon_total=_fixed_decimal(metrics.paid_coupon_total, 2),
+        market_value_without_aci=market_value_without_aci,
+        calendar_year_coupon_income=_fixed_decimal(metrics.calendar_year_coupon_income, 2),
         calendar_year_coupon_yield_percent=_fixed_decimal(
             metrics.calendar_year_coupon_yield_percent, 4
         ),
@@ -175,13 +179,62 @@ async def is_name_available(db: AsyncSession, user_id: UUID, name: str) -> bool:
     return bond_id is None
 
 
-async def list_bonds(db: AsyncSession, user_id: UUID, *, today: date) -> list[BondCard]:
+async def list_bonds(
+    db: AsyncSession, user_id: UUID, *, today: date, gateway: TInvestGateway
+) -> list[BondCard]:
     bonds = list(
         await db.scalars(
             select(Bond).options(*_load_bond_relations()).where(Bond.user_id == user_id)
         )
     )
+    refresh_failed: set[UUID] = set()
+    refresh_succeeded = False
+    for bond in bonds:
+        if bond.nominal_checked_on == today:
+            continue
+        try:
+            current_bond = await gateway.lookup_bond(bond.instrument_uid)
+        except Exception:
+            refresh_failed.add(bond.id)
+            continue
+        if current_bond is None:
+            refresh_failed.add(bond.id)
+            continue
+        bond.nominal = current_bond.nominal
+        bond.nominal_checked_on = today
+        refresh_succeeded = True
+    if refresh_succeeded:
+        await db.commit()
+
     cards = [build_bond_card(bond, today=today) for bond in bonds]
+    eligible = [
+        (bond, card)
+        for bond, card in zip(bonds, cards, strict=True)
+        if card.status == "active" and card.position_status == "open" and bond.id not in refresh_failed
+    ]
+    prices: dict[str, Decimal] = {}
+    if eligible:
+        try:
+            prices = await gateway.get_last_prices(
+                tuple(bond.instrument_uid for bond, _card in eligible)
+            )
+        except Exception:
+            prices = {}
+    for index, (bond, card) in enumerate(zip(bonds, cards, strict=True)):
+        if card.position_status == "closed":
+            cards[index] = build_bond_card(bond, today=today, market_value_without_aci="0.00")
+            continue
+        if card.status != "active" or bond.id in refresh_failed:
+            continue
+        price = prices.get(bond.instrument_uid)
+        if price is not None:
+            cards[index] = build_bond_card(
+                bond,
+                today=today,
+                market_value_without_aci=_fixed_decimal(
+                    price / Decimal("100") * bond.nominal * card.total_quantity, 2
+                ),
+            )
     status_order = {"active": 0, "payment_pending": 1, "matured": 2}
     return sorted(
         cards,

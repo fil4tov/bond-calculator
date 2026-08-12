@@ -14,6 +14,15 @@ function inputDate(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function displayDate(date: Date) {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
+}
+
 test('records purchases and sales, restores operations, and removes the position', async ({ page }) => {
   const username = `portfolio_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
   const today = new Date();
@@ -109,7 +118,7 @@ test('records purchases and sales, restores operations, and removes the position
   expect(tickerColors.color).toBe(tickerColors.expectedColor);
   expect(tickerColors.backgroundColor).toBe(tickerColors.expectedBackgroundColor);
   await expect(page.getByLabel('Название', { exact: true })).toHaveCount(0);
-  await page.getByLabel('Сумма покупки').fill('9500,70');
+  await page.getByLabel('Сумма покупки (с учётом НКД и комиссий)').fill('9500,70');
   await page.getByLabel('Количество', { exact: true }).fill('10');
   await expect(page.getByLabel('Дата покупки')).toHaveValue(inputDate(today));
   await expect(page.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
@@ -117,21 +126,32 @@ test('records purchases and sales, restores operations, and removes the position
 
   const card = page.getByRole('article', { name: bondName });
   await expect(card).toContainText('10 шт.');
-  await expect(card).toContainText('9 500,70 ₽');
-  const cardYieldHelp = card.getByRole('button', {
-    name: `Как рассчитывается купонная доходность за ${today.getUTCFullYear()} год`,
+  const cardMarketHelp = card.getByRole('button', {
+    name: 'Как рассчитывается рыночная оценка без НКД',
   });
-  await cardYieldHelp.hover();
-  const cardYieldTooltip = card.getByRole('tooltip');
-  await expect(cardYieldTooltip).toBeVisible();
-  const [tooltipColor, investedAmountColor] = await Promise.all([
-    cardYieldTooltip.evaluate((element) => getComputedStyle(element).color),
-    card.getByText('9 500,70 ₽').evaluate((element) => getComputedStyle(element).color),
-  ]);
-  const cardTooltipFontSize = await cardYieldTooltip.evaluate(
+  await cardMarketHelp.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(cardMarketHelp).toBeFocused();
+  const cardMarketTooltip = card.getByRole('tooltip', {
+    name: 'Текущая рыночная стоимость без учета НКД.',
+  });
+  await expect(cardMarketTooltip).toBeVisible();
+  await cardMarketHelp.hover();
+  await expect(cardMarketTooltip).toBeVisible();
+  await expect(cardMarketTooltip).toHaveText('Текущая рыночная стоимость без учета НКД.');
+  const cardCouponHelp = card.getByRole('button', {
+    name: `Как рассчитывается сумма купонов за ${today.getUTCFullYear()} год`,
+  });
+  await cardCouponHelp.hover();
+  const cardCouponTooltip = card.getByRole('tooltip', { name: /Ожидаемый купонный доход за/ });
+  await expect(cardCouponTooltip).toBeVisible();
+  await expect(cardCouponTooltip).toContainText('без учета выплаченного НКД по операциям продажи');
+  const tooltipColor = await cardCouponTooltip.evaluate((element) => getComputedStyle(element).color);
+  const cardTooltipFontSize = await cardCouponTooltip.evaluate(
     (element) => getComputedStyle(element).fontSize,
   );
-  expect(tooltipColor).toBe(investedAmountColor);
+  expect(tooltipColor).toBe('rgb(23, 35, 30)');
   const progress = card.getByRole('progressbar', { name: `Купонный период ${bondName}` });
   await expect(progress).toHaveAttribute('aria-valuenow', /\d+/);
 
@@ -139,7 +159,7 @@ test('records purchases and sales, restores operations, and removes the position
   await detailsTrigger.click();
   const detailsDialog = page.getByRole('dialog', { name: bondName });
   await expectHeaderDivider(detailsDialog);
-  await expect(detailsDialog.getByText('Нереализованный остаток от вложенной суммы')).toBeVisible();
+  await expect(detailsDialog.getByText('Вложено в облигации')).toBeVisible();
   await expect(detailsDialog.getByText(`Купонная доходность за ${today.getUTCFullYear()} год`)).toBeVisible();
   const yieldHelp = detailsDialog.getByRole('button', {
     name: `Как рассчитывается купонная доходность за ${today.getUTCFullYear()} год`,
@@ -158,7 +178,7 @@ test('records purchases and sales, restores operations, and removes the position
     return hit !== null && element.contains(hit);
   });
   expect(tooltipTopIsInteractive).toBe(true);
-  await expect(detailsDialog.getByText('12')).toBeVisible();
+  await expect(detailsDialog.getByText('12', { exact: true })).toBeVisible();
   const realizedMetricLayout = await detailsDialog.getByText('Результат сделок', { exact: true }).evaluate((element) => {
     const cell = element.closest('div');
     if (!cell) throw new Error('Realized result metric cell is missing');
@@ -193,13 +213,12 @@ test('records purchases and sales, restores operations, and removes the position
   const purchaseSubtitle = purchaseDialog.getByText(bondName, { exact: true });
   await expect(purchaseSubtitle).toBeVisible();
   expect(await purchaseSubtitle.evaluate((element) => getComputedStyle(element).fontSize)).toBe('16px');
-  await purchaseDialog.getByLabel('Сумма покупки').fill('1000,05');
+  await purchaseDialog.getByLabel('Сумма покупки (с учётом НКД и комиссий)').fill('1000,05');
   await purchaseDialog.getByLabel('Количество', { exact: true }).fill('2');
   await purchaseDialog.getByRole('button', { name: 'Зафиксировать' }).click();
 
   await expect(purchaseDialog).toBeHidden();
   await expect(card).toContainText('12 шт.');
-  await expect(card).toContainText('10 500,75 ₽');
   await expect(progress).toBeVisible();
 
   await detailsTrigger.click();
@@ -220,7 +239,7 @@ test('records purchases and sales, restores operations, and removes the position
   await expect(saleSubtitle).toBeVisible();
   expect(await saleSubtitle.evaluate((element) => getComputedStyle(element).fontSize)).toBe('16px');
   await expect(saleDialog.getByText('Доступно на выбранную дату: 12 шт.')).toBeVisible();
-  await saleDialog.getByLabel('Сумма продажи').fill('12000');
+  await saleDialog.getByLabel('Сумма продажи (с учётом НКД и комиссий)').fill('12000');
   await saleDialog.getByLabel('Количество', { exact: true }).fill('12');
   await saleDialog.getByRole('button', { name: 'Зафиксировать' }).click();
 
@@ -236,14 +255,28 @@ test('records purchases and sales, restores operations, and removes the position
 
   await detailsTrigger.click();
   const closedDetails = page.getByRole('dialog', { name: bondName });
+  await expect(closedDetails.getByText('Вложено в оставшиеся облигации')).toBeVisible();
   const closedHistory = closedDetails.getByRole('region', { name: 'История операций' });
   await expect(closedHistory).toContainText('3 операции');
   const saleOperation = closedHistory.getByRole('listitem').first();
   await expect(saleOperation).toContainText(/12.000,00.₽.*−12 шт\..*\+1.499,25.₽/);
+  const saleQuantityTone = await saleOperation.getByText('−12 шт.').evaluate((element) => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--loss)';
+    document.body.append(probe);
+    const result = {
+      color: getComputedStyle(element).color,
+      expectedColor: getComputedStyle(probe).color,
+    };
+    probe.remove();
+    return result;
+  });
+  expect(saleQuantityTone.color).toBe(saleQuantityTone.expectedColor);
   await expect(saleOperation).not.toContainText('Продажа');
   await expect(saleOperation).not.toContainText('Результат:');
   const saleMetaText = await saleOperation.locator('time').evaluate((element) => element.parentElement?.textContent ?? '');
-  expect(saleMetaText).toMatch(/11 августа 2026 г\..*\+1.499,25.₽/);
+  expect(saleMetaText).toContain(displayDate(today));
+  expect(saleMetaText).toMatch(/\+1.499,25.₽/);
   expect(saleMetaText).not.toMatch(/12.000,00.₽/);
 
   const deleteSale = saleOperation.getByRole('button', { name: 'Удалить операцию продажи' });
@@ -262,7 +295,6 @@ test('records purchases and sales, restores operations, and removes the position
   await expect(restoredDetails.getByRole('region', { name: 'История операций' })).toContainText('2 операции');
   await expect(restoredDetails.getByRole('button', { name: 'Удалить операцию покупки' }).first()).toBeFocused();
   await expect(card).toContainText('12 шт.');
-  await expect(card).toContainText('10 500,75 ₽');
   await restoredDetails.getByRole('button', { name: 'Закрыть окно' }).click();
 
   await actions.click();

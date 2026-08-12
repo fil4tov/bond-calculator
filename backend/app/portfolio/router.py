@@ -114,9 +114,14 @@ async def t_invest_search(
 
 
 @router.get("/bonds", response_model=BondList)
-async def get_bonds(response: Response, db: Database, user: CurrentUser) -> BondList:
+async def get_bonds(
+    response: Response,
+    db: Database,
+    user: CurrentUser,
+    gateway: TInvestGateway = Depends(get_t_invest_gateway),
+) -> BondList:
     _disable_cache(response)
-    return BondList(items=await list_bonds(db, user.id, today=clock.utc_today()))
+    return BondList(items=await list_bonds(db, user.id, today=clock.utc_today(), gateway=gateway))
 
 
 @router.get("/bonds/name-availability", response_model=NameAvailability)
