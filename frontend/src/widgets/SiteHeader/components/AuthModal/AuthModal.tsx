@@ -108,7 +108,7 @@ export function AuthModal({ onClose }: AuthModalProps) {
   });
 
   return (
-    <Modal title="Вход и регистрация" eyebrow="ЛИЧНЫЙ КАБИНЕТ" busy={isSubmitting} onClose={close} width="narrow">
+    <Modal title="Авторизация" busy={isSubmitting} onClose={close} width="narrow">
       <div className={styles.tabs} role="tablist" aria-label="Способ авторизации">
           <button
             ref={loginTabRef}
@@ -139,17 +139,11 @@ export function AuthModal({ onClose }: AuthModalProps) {
         role="tabpanel"
         aria-labelledby={`auth-${mode}-tab`}
       >
-        <p className={styles.intro}>
-          {mode === 'login'
-            ? 'Продолжите работу со своим портфелем облигаций.'
-            : 'Создайте аккаунт по логину и паролю — без почты и лишних шагов.'}
-        </p>
-
         <form ref={formRef} className={styles.form} noValidate onSubmit={submit}>
           <TextField
             label="Логин"
             autoComplete="username"
-            placeholder="например, bond_owner"
+            placeholder="Логин"
             error={errors.username?.message}
             {...register('username', usernameRules)}
           />
@@ -162,9 +156,11 @@ export function AuthModal({ onClose }: AuthModalProps) {
             {...register('password', passwordRules)}
           />
           {requestError ? <p className={styles.requestError} role="alert">{requestError}</p> : null}
-          <Button type="submit" trailingIcon={<FiArrowRight />} disabled={isSubmitting}>
-            {isSubmitting ? 'Подождите…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}
-          </Button>
+          <div className={styles.actions}>
+            <Button type="submit" trailingIcon={<FiArrowRight />} disabled={isSubmitting}>
+              {isSubmitting ? 'Подождите…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}
+            </Button>
+          </div>
         </form>
       </div>
     </Modal>

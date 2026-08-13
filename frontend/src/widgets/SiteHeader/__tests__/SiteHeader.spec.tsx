@@ -33,7 +33,14 @@ describe('SiteHeader', () => {
     expect(screen.getByRole('button', { name: 'Расчёты' })).toBeInTheDocument();
     const authTrigger = screen.getByRole('button', { name: 'Войти или зарегистрироваться' });
     await user.click(authTrigger);
-    expect(screen.getByRole('dialog', { name: 'Вход и регистрация' })).toBeInTheDocument();
+    const authDialog = screen.getByRole('dialog', { name: 'Авторизация' });
+    expect(authDialog).not.toHaveTextContent('ЛИЧНЫЙ КАБИНЕТ');
+    expect(authDialog).not.toHaveTextContent('Продолжите работу со своим портфелем облигаций.');
+    expect(screen.getByPlaceholderText('Логин')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Не менее 8 символов')).toBeInTheDocument();
+
+    const loginButton = screen.getByRole('button', { name: 'Войти' });
+    expect(loginButton.parentElement?.className).toMatch(/actions/);
 
     await user.click(screen.getByRole('tab', { name: 'Регистрация' }));
     await user.click(screen.getByRole('button', { name: 'Создать аккаунт' }));
