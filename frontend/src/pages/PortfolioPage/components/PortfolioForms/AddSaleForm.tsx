@@ -102,9 +102,7 @@ export function AddSaleForm({ userId, bond, onSuccess, onBusyChange }: AddSaleFo
         <ControlledNumberField
           control={control}
           name="amountReceived"
-          label="Сумма продажи"
-          hint="(с учётом НКД и комиссий)"
-          aria-label="Сумма продажи (с учётом НКД и комиссий)"
+          label="Сумма сделки (с учётом НКД и комиссий)"
           unit="₽"
           inputMode="decimal"
           error={errors.amountReceived?.message}

@@ -262,7 +262,7 @@ test('records purchases and sales, restores operations, and removes the position
   expect(tickerColors.color).toBe(tickerColors.expectedColor);
   expect(tickerColors.backgroundColor).toBe(tickerColors.expectedBackgroundColor);
   await expect(page.getByLabel('Название', { exact: true })).toHaveCount(0);
-  await page.getByLabel('Сумма покупки (с учётом НКД и комиссий)').fill('9500,70');
+  await page.getByLabel('Сумма сделки (с учётом НКД и комиссий)').fill('9500,70');
   await page.getByLabel('Количество', { exact: true }).fill('10');
   await expect(page.getByLabel('Дата покупки')).toHaveValue(inputDate(today));
   await expect(page.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
@@ -409,7 +409,7 @@ test('records purchases and sales, restores operations, and removes the position
   const purchaseSubtitle = purchaseDialog.getByText(bondName, { exact: true });
   await expect(purchaseSubtitle).toBeVisible();
   expect(await purchaseSubtitle.evaluate((element) => getComputedStyle(element).fontSize)).toBe('16px');
-  await purchaseDialog.getByLabel('Сумма покупки (с учётом НКД и комиссий)').fill('1000,05');
+  await purchaseDialog.getByLabel('Сумма сделки (с учётом НКД и комиссий)').fill('1000,05');
   await purchaseDialog.getByLabel('Количество', { exact: true }).fill('2');
   await purchaseDialog.getByRole('button', { name: 'Зафиксировать' }).click();
 
@@ -438,7 +438,7 @@ test('records purchases and sales, restores operations, and removes the position
   await expect(saleSubtitle).toBeVisible();
   expect(await saleSubtitle.evaluate((element) => getComputedStyle(element).fontSize)).toBe('16px');
   await expect(saleDialog.getByText('Доступно на выбранную дату: 12 шт.')).toBeVisible();
-  await saleDialog.getByLabel('Сумма продажи (с учётом НКД и комиссий)').fill('12000');
+  await saleDialog.getByLabel('Сумма сделки (с учётом НКД и комиссий)').fill('12000');
   await saleDialog.getByLabel('Количество', { exact: true }).fill('12');
   await saleDialog.getByRole('button', { name: 'Зафиксировать' }).click();
 
