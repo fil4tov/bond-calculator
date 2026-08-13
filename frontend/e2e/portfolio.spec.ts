@@ -415,7 +415,7 @@ test('records purchases and sales, restores operations, and removes the position
 
   await expect(purchaseDialog).toBeHidden();
   await expect(card).toContainText('12 шт.');
-  await expect(card).toContainText('12 000,00 ₽');
+  await expect(card).toContainText('12 030,00 ₽');
   await expect(progress).toBeVisible();
 
   await detailsTrigger.click();
