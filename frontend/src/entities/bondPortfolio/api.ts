@@ -19,9 +19,11 @@ interface BondPortfolioItemDto {
   realized_result: string;
   position_status: BondPositionStatus;
   paid_coupon_total: string;
+  calendar_year_paid_coupon_income: string;
   calendar_year_coupon_yield_percent: string;
   annual_coupon_yield_percent: string | null;
   calendar_year_coupon_income: string;
+  calendar_month_coupon_income: string;
   coupon_yield_year: number;
   maturity_remaining: { years: number; months: number; days_until: number };
   next_coupon: {
@@ -64,9 +66,11 @@ const adaptBond = (dto: BondPortfolioItemDto): BondPortfolioItem => ({
   realizedResult: dto.realized_result,
   positionStatus: dto.position_status,
   paidCouponTotal: dto.paid_coupon_total,
+  calendarYearPaidCouponIncome: dto.calendar_year_paid_coupon_income,
   calendarYearCouponYieldPercent: dto.calendar_year_coupon_yield_percent,
   annualCouponYieldPercent: dto.annual_coupon_yield_percent,
   calendarYearCouponIncome: dto.calendar_year_coupon_income,
+  calendarMonthCouponIncome: dto.calendar_month_coupon_income,
   couponYieldYear: dto.coupon_yield_year,
   maturityRemaining: {
     years: dto.maturity_remaining.years,

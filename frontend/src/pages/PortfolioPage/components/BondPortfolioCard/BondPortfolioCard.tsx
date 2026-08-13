@@ -3,7 +3,7 @@ import { useId, useRef, useState } from 'react';
 import type { BondPortfolioItem } from '#entities/bondPortfolio';
 import { Dropdown, Tooltip } from '#shared/ui';
 
-import { calendarYearCouponIncomeDescription, formatDayCount, formatMoney, formatYearCount, marketValueWithoutAciDescription } from '../../utils';
+import { calendarYearCouponIncomeDescription, currentMarketValue, formatDayCount, formatMoney, formatYearCount } from '../../utils';
 import styles from './BondPortfolioCard.module.scss';
 
 interface BondPortfolioCardProps {
@@ -46,6 +46,7 @@ export function BondPortfolioCard({
     ? couponProgress(bond.nextCoupon.periodDays, bond.nextCoupon.elapsedPeriodDays)
     : 0;
   const daysUntilCoupon = bond.nextCoupon ? formatDayCount(bond.nextCoupon.daysUntil) : '';
+  const marketValue = currentMarketValue(bond);
   const emptyCouponLabel = matured
     ? 'Облигация погашена'
     : bond.status === 'payment_pending'
@@ -73,10 +74,10 @@ export function BondPortfolioCard({
           </span>
           <span className={styles.value}>
             <strong>
-              {bond.marketValueWithoutAci === null ? '—' : formatMoney(bond.marketValueWithoutAci)}
+              {marketValue === null ? '—' : formatMoney(marketValue)}
               <span className={styles.marketValueHelp}>
-                <Tooltip label="Как рассчитывается рыночная оценка без НКД" align="right">
-                  {marketValueWithoutAciDescription()}
+                <Tooltip label="Текущая рыночная стоимость + НКД" align="right">
+                  Текущая рыночная стоимость + НКД
                 </Tooltip>
               </span>
             </strong>

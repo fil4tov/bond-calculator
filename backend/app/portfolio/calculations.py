@@ -42,7 +42,9 @@ class BondMetrics:
     realized_result: Decimal
     position_status: Literal["open", "closed"]
     paid_coupon_total: Decimal
+    calendar_year_paid_coupon_income: Decimal
     calendar_year_coupon_income: Decimal
+    calendar_month_coupon_income: Decimal
     calendar_year_coupon_yield_percent: Decimal
     annual_coupon_yield_percent: Decimal | None
     coupon_yield_year: int
@@ -169,6 +171,20 @@ def calculate_bond_metrics(
         )
         calendar_year_start = date(today.year, 1, 1)
         calendar_year_end = date(today.year, 12, 31)
+        calendar_month_start = date(today.year, today.month, 1)
+        calendar_month_end = date(
+            today.year,
+            today.month,
+            calendar.monthrange(today.year, today.month)[1],
+        )
+        calendar_year_paid_coupon_income = sum(
+            (
+                _payment_amount(coupon, replay_operations)
+                for coupon in ordered_coupons
+                if calendar_year_start <= coupon.coupon_date <= today
+            ),
+            start=Decimal("0.00"),
+        )
         calendar_year_yield = sum(
             (
                 _coupon_event_yield_percent(coupon, replay_operations)
@@ -182,6 +198,14 @@ def calculate_bond_metrics(
                 _payment_amount(coupon, replay_operations)
                 for coupon in ordered_coupons
                 if calendar_year_start <= coupon.coupon_date <= calendar_year_end
+            ),
+            start=Decimal("0.00"),
+        )
+        calendar_month_coupon_income = sum(
+            (
+                _payment_amount(coupon, replay_operations)
+                for coupon in ordered_coupons
+                if calendar_month_start <= coupon.coupon_date <= calendar_month_end
             ),
             start=Decimal("0.00"),
         )
@@ -227,7 +251,9 @@ def calculate_bond_metrics(
             realized_result=realized_result,
             position_status="open" if total_quantity else "closed",
             paid_coupon_total=paid_total,
+            calendar_year_paid_coupon_income=calendar_year_paid_coupon_income,
             calendar_year_coupon_income=calendar_year_coupon_income,
+            calendar_month_coupon_income=calendar_month_coupon_income,
             calendar_year_coupon_yield_percent=calendar_year_yield,
             annual_coupon_yield_percent=annual_coupon_yield_percent,
             coupon_yield_year=today.year,
@@ -253,7 +279,9 @@ def calculate_bond_metrics(
         realized_result=realized_result,
         position_status="open" if total_quantity else "closed",
         paid_coupon_total=paid_total,
+        calendar_year_paid_coupon_income=calendar_year_paid_coupon_income,
         calendar_year_coupon_income=calendar_year_coupon_income,
+        calendar_month_coupon_income=calendar_month_coupon_income,
         calendar_year_coupon_yield_percent=calendar_year_yield,
         annual_coupon_yield_percent=annual_coupon_yield_percent,
         coupon_yield_year=today.year,

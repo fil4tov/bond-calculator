@@ -204,6 +204,52 @@ def test_calendar_year_coupon_income_includes_known_events_using_coupon_cutoff_p
     assert metrics.calendar_year_coupon_income == Decimal("86.00")
 
 
+def test_coupon_income_splits_current_year_paid_and_current_month_totals() -> None:
+    metrics = calculate_bond_metrics(
+        maturity_date=date(2027, 12, 31),
+        payments_per_year=4,
+        purchases=(PurchasePosition(Decimal("2000.00"), 2, date(2025, 1, 1)),),
+        coupons=(
+            coupon(
+                coupon_date=date(2025, 12, 31),
+                amount="100.00",
+                start=date(2025, 9, 1),
+                end=date(2025, 12, 30),
+            ),
+            coupon(
+                coupon_date=date(2026, 5, 31),
+                amount="10.00",
+                start=date(2026, 2, 1),
+                end=date(2026, 5, 30),
+            ),
+            coupon(
+                coupon_date=date(2026, 8, 5),
+                amount="20.00",
+                start=date(2026, 5, 31),
+                end=date(2026, 8, 4),
+            ),
+            coupon(
+                coupon_date=date(2026, 8, 28),
+                amount="30.00",
+                start=date(2026, 8, 5),
+                end=date(2026, 8, 27),
+            ),
+            coupon(
+                coupon_date=date(2026, 9, 1),
+                amount="40.00",
+                start=date(2026, 8, 28),
+                end=date(2026, 8, 31),
+            ),
+        ),
+        today=date(2026, 8, 13),
+    )
+
+    assert metrics.paid_coupon_total == Decimal("260.00")
+    assert metrics.calendar_year_paid_coupon_income == Decimal("60.00")
+    assert metrics.calendar_year_coupon_income == Decimal("200.00")
+    assert metrics.calendar_month_coupon_income == Decimal("100.00")
+
+
 def test_annual_coupon_yield_matches_calculator_for_the_next_coupon() -> None:
     metrics = calculate_bond_metrics(
         maturity_date=date(2028, 6, 22),

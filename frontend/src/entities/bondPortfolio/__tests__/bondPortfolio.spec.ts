@@ -26,9 +26,11 @@ const activeDto = {
   realized_result: '1250.30',
   position_status: 'open',
   paid_coupon_total: '1770.00',
+  calendar_year_paid_coupon_income: '1770.00',
   calendar_year_coupon_yield_percent: '7.0800',
   annual_coupon_yield_percent: '14.0070',
   calendar_year_coupon_income: '4248.00',
+  calendar_month_coupon_income: '0.00',
   coupon_yield_year: 2026,
   maturity_remaining: { years: 14, months: 9, days_until: 5392 },
   next_coupon: {
@@ -63,9 +65,11 @@ describe('bond portfolio API boundary', () => {
       realizedResult: '1250.30',
       positionStatus: 'open',
       paidCouponTotal: '1770.00',
+      calendarYearPaidCouponIncome: '1770.00',
       calendarYearCouponYieldPercent: '7.0800',
       annualCouponYieldPercent: '14.0070',
       calendarYearCouponIncome: '4248.00',
+      calendarMonthCouponIncome: '0.00',
       couponYieldYear: 2026,
       maturityRemaining: { years: 14, months: 9, daysUntil: 5392 },
       nextCoupon: {

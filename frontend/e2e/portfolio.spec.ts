@@ -41,9 +41,11 @@ function sortableBond(id: string, name: string, createdAt: string) {
     realized_result: '0.00',
     position_status: 'open',
     paid_coupon_total: '0.00',
+    calendar_year_paid_coupon_income: '0.00',
     market_value_without_aci: '10000.00',
     accrued_coupon_income: '25.00',
     calendar_year_coupon_income: '0.00',
+    calendar_month_coupon_income: '0.00',
     calendar_year_coupon_yield_percent: '0.0000',
     annual_coupon_yield_percent: '14.0070',
     coupon_yield_year: new Date().getUTCFullYear(),
@@ -75,6 +77,8 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
   const newer = sortableBond('newer', 'Облигация 2', '2026-08-02T10:00:00Z');
   older.calendar_year_coupon_income = '100.10';
   newer.calendar_year_coupon_income = '200.20';
+  older.calendar_year_paid_coupon_income = '40.04';
+  newer.calendar_year_paid_coupon_income = '80.08';
 
   await page.route('**/api/portfolio/bonds', async (route) => {
     if (route.request().method() === 'GET') return route.fulfill({ json: { items: [older, newer] } });
@@ -92,9 +96,11 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
 
   const cards = page.getByRole('article');
   await expect(cards).toHaveCount(2);
-  await expect(page.getByText(/\+300,30.₽/)).toBeVisible();
-  await expect(page.getByText('за год.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Что означает ожидаемый купонный доход за 2026 год' })).toBeVisible();
+  const summary = page.getByRole('region', { name: 'Сводка портфеля' });
+  await expect(summary).toBeVisible();
+  await expect(summary.getByText('Рыночная стоимость с НКД')).toBeVisible();
+  await expect(summary.getByText(/120,12.₽ \/ 300,30.₽/)).toBeVisible();
+  await expect(summary.getByRole('progressbar')).toHaveCSS('height', '34px');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     await page.evaluate(() => document.documentElement.clientWidth),
   );
@@ -264,20 +270,21 @@ test('records purchases and sales, restores operations, and removes the position
 
   const card = page.getByRole('article', { name: bondName });
   await expect(card).toContainText('10 шт.');
+  await expect(card).toContainText(/10\s*025,00\s*₽/);
   const cardMarketHelp = card.getByRole('button', {
-    name: 'Как рассчитывается рыночная оценка без НКД',
+    name: 'Текущая рыночная стоимость + НКД',
   });
   await cardMarketHelp.focus();
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   await expect(cardMarketHelp).toBeFocused();
   const cardMarketTooltip = card.getByRole('tooltip', {
-    name: 'Текущая рыночная стоимость без учета НКД.',
+    name: 'Текущая рыночная стоимость + НКД',
   });
   await expect(cardMarketTooltip).toBeVisible();
   await cardMarketHelp.hover();
   await expect(cardMarketTooltip).toBeVisible();
-  await expect(cardMarketTooltip).toHaveText('Текущая рыночная стоимость без учета НКД.');
+  await expect(cardMarketTooltip).toHaveText('Текущая рыночная стоимость + НКД');
   const cardCouponHelp = card.getByRole('button', {
     name: `Как рассчитывается сумма купонов за ${today.getUTCFullYear()} год`,
   });

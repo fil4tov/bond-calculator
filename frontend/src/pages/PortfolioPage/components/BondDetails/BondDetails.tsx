@@ -4,7 +4,7 @@ import { FiTrash2 } from 'react-icons/fi';
 import type { BondPortfolioItem } from '#entities/bondPortfolio';
 import { Tooltip } from '#shared/ui';
 
-import { annualCouponYieldDescription, calendarYearCouponIncomeDescription, couponYieldDescription, formatDate, formatDayCount, formatMoney, formatPercent, formatYearCount, marketValueAndAciDescription } from '../../utils';
+import { annualCouponYieldDescription, calendarYearCouponIncomeDescription, couponYieldDescription, currentMarketValue, formatDate, formatDayCount, formatMoney, formatPercent, formatYearCount, marketValueAndAciDescription } from '../../utils';
 import styles from './BondDetails.module.scss';
 
 function maturityValue(bond: BondPortfolioItem) {
@@ -29,18 +29,6 @@ function formatOperationResult(value: string) {
   return `${resultSign(value) === 'positive' ? '+' : ''}${formatMoney(value)}`;
 }
 
-function addMoneyValues(left: string, right: string) {
-  const toKopecks = (value: string) => {
-    const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(value);
-    if (!match) throw new Error('Expected a plain money value');
-    const amount = BigInt(match[2]!) * 100n + BigInt((match[3] ?? '').padEnd(2, '0'));
-    return match[1] ? -amount : amount;
-  };
-  const total = toKopecks(left) + toKopecks(right);
-  const absolute = total < 0n ? -total : total;
-  return `${total < 0n ? '-' : ''}${absolute / 100n}.${(absolute % 100n).toString().padStart(2, '0')}`;
-}
-
 export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled = false, focusOperationId = null }: {
   bond: BondPortfolioItem;
   onDeleteOperation?: (operationId: string, returnFocusTarget: HTMLElement) => void;
@@ -63,9 +51,7 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
       : 'Купонные выплаты не предусмотрены';
   const hasSale = bond.operations.some((operation) => operation.operationType === 'sale');
   const currentAci = bond.positionStatus === 'open' ? bond.accruedCouponIncome : null;
-  const totalMarketValue = bond.marketValueWithoutAci !== null && currentAci !== null
-    ? addMoneyValues(bond.marketValueWithoutAci, currentAci)
-    : bond.marketValueWithoutAci;
+  const totalMarketValue = currentMarketValue(bond);
   return (
     <div className={styles.details}>
       <span className={`${styles.status} ${bond.status === 'matured' ? styles.statusMatured : ''}`}>

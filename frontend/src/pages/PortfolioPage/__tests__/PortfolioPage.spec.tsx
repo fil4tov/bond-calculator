@@ -29,7 +29,7 @@ const activeBond = {
   placement_date: '2025-05-15', maturity_date: '2041-05-15', status: 'active',
   total_quantity: 75, total_spent: '75000.70',
   position_cost_basis: '75000.70', market_value_without_aci: '74250.00', accrued_coupon_income: '925.93', realized_result: '0.00', position_status: 'open',
-  paid_coupon_total: '1770.00', calendar_year_coupon_yield_percent: '7.0800', annual_coupon_yield_percent: '14.0070', calendar_year_coupon_income: '4248.00', coupon_yield_year: 2026,
+  paid_coupon_total: '1770.00', calendar_year_paid_coupon_income: '1770.00', calendar_year_coupon_yield_percent: '7.0800', annual_coupon_yield_percent: '14.0070', calendar_year_coupon_income: '4248.00', calendar_month_coupon_income: '0.00', coupon_yield_year: 2026,
   maturity_remaining: { years: 14, months: 9, days_until: 5392 },
   next_coupon: {
     period_start: '2026-05-15', period_end: '2026-11-15', pay_date: '2026-11-16',
@@ -272,6 +272,30 @@ describe('PortfolioPage', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('renders the portfolio and coupon summaries above sorting', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
+
+    renderPortfolio();
+
+    const summary = await screen.findByRole('region', { name: 'Сводка портфеля' });
+    expect(within(summary).getByText('Рыночная стоимость с НКД')).toBeInTheDocument();
+    expect(within(summary).getByText(/75.175,93.₽/)).toBeInTheDocument();
+    expect(within(summary).getByText('Открытых выпусков')).toBeInTheDocument();
+    expect(within(summary).getByText('Вложено')).toBeInTheDocument();
+    expect(within(summary).getByText('За всё время')).toBeInTheDocument();
+    expect(within(summary).getByText(/\+175,23.₽/)).toBeInTheDocument();
+    expect(within(summary).getByRole('button', {
+      name: 'Что означает результат за всё время',
+    })).toHaveAccessibleDescription('Разница текущей рыночной стоимости с НКД относительно вложенной суммы');
+    expect(within(summary).getByText('Получено купонами за 2026 год')).toBeInTheDocument();
+    expect(within(summary).getByText('Всего ожидается за 2026 год')).toBeInTheDocument();
+    expect(within(summary).getByText(/Выплаты в августе/i)).toBeInTheDocument();
+    expect(within(summary).getByText(/1.770,00.₽ \/ 4.248,00.₽/)).toBeInTheDocument();
+    expect(within(summary).getByRole('progressbar', { name: 'Купоны за 2026 год' }))
+      .toHaveAttribute('aria-valuenow', '41.67');
+    expect(screen.queryByText('за год.')).not.toBeInTheDocument();
+  });
+
   it('renders compact active and matured rows with real coupon progress', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond, maturedBond] })));
 
@@ -279,17 +303,15 @@ describe('PortfolioPage', () => {
 
     const activeCard = await screen.findByRole('article', { name: 'ОФЗ 26238' });
     const maturedCard = screen.getByRole('article', { name: 'ОФЗ 25000' });
-    expect(screen.getByText(/\+8.496,00.₽/)).toBeInTheDocument();
-    expect(screen.getByText('за год.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Что означает ожидаемый купонный доход за 2026 год' })).toBeInTheDocument();
-    expect(activeCard).toHaveTextContent(/74.250,00.₽/);
+    expect(activeCard).toHaveTextContent(/75.175,93.₽/);
+    expect(activeCard).not.toHaveTextContent(/74.250,00.₽ \+ 925,93.₽ НКД/);
     expect(within(activeCard).getByText('75 шт.')).toBeInTheDocument();
     expect(activeCard).toHaveTextContent(/\+4.248,00.₽/);
     expect(within(activeCard).getByRole('button', {
-      name: 'Как рассчитывается рыночная оценка без НКД',
+      name: 'Текущая рыночная стоимость + НКД',
     })).toBeInTheDocument();
     expect(within(activeCard).getByText(
-      'Текущая рыночная стоимость без учета НКД.',
+      'Текущая рыночная стоимость + НКД',
     )).toBeInTheDocument();
     expect(within(activeCard).getByRole('button', {
       name: 'Как рассчитывается сумма купонов за 2026 год',
@@ -1206,7 +1228,7 @@ describe('PortfolioPage', () => {
     expect(await screen.findByRole('article', { name: 'ОФЗ 26238' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await waitFor(() => expect(portfolioListRequests).toBe(2));
-    expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toHaveTextContent(/74.250,00.₽/);
+    expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toHaveTextContent(/75.175,93.₽/);
     expect(createBody).toEqual({
       instrument_uid: 'instrument-1',
       ticker: 'SU26238',

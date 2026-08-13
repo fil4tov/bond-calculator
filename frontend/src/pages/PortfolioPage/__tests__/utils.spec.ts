@@ -2,12 +2,47 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canonicalDecimal,
+  currentMarketValue,
   formatMoney,
   formatPercent,
   todayInputValue,
   availableQuantityOnDate,
   validateQuantity,
 } from '../utils';
+
+describe('currentMarketValue', () => {
+  it('adds accrued coupon income to an open position without losing kopecks', () => {
+    expect(currentMarketValue({
+      marketValueWithoutAci: '74250.00',
+      accruedCouponIncome: '925.93',
+      positionStatus: 'open',
+    })).toBe('75175.93');
+  });
+
+  it('falls back to market value when accrued coupon income is unavailable', () => {
+    expect(currentMarketValue({
+      marketValueWithoutAci: '74250.00',
+      accruedCouponIncome: null,
+      positionStatus: 'open',
+    })).toBe('74250.00');
+  });
+
+  it('does not add accrued coupon income to a closed position', () => {
+    expect(currentMarketValue({
+      marketValueWithoutAci: '74250.00',
+      accruedCouponIncome: '925.93',
+      positionStatus: 'closed',
+    })).toBe('74250.00');
+  });
+
+  it('returns no value when market data is unavailable', () => {
+    expect(currentMarketValue({
+      marketValueWithoutAci: null,
+      accruedCouponIncome: '925.93',
+      positionStatus: 'open',
+    })).toBeNull();
+  });
+});
 
 describe('portfolio decimal utilities', () => {
   it('formats the maximum NUMERIC(18,2) value without losing kopecks', () => {

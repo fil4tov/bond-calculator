@@ -1,3 +1,4 @@
+import type { BondPortfolioItem } from '#entities/bondPortfolio';
 import { parseFormattedNumber } from '#shared/lib/number';
 
 type QuantityOperation = { operationType: 'purchase' | 'sale'; quantity: number; operationDate: string };
@@ -114,16 +115,34 @@ export function formatMoney(value: string) {
   return formatExactDecimal(value, MONEY_FORMATTER);
 }
 
+function addMoneyValues(left: string, right: string) {
+  const toKopecks = (value: string) => {
+    const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(value);
+    if (!match) throw new Error('Expected a plain money value');
+    const amount = BigInt(match[2]!) * 100n + BigInt((match[3] ?? '').padEnd(2, '0'));
+    return match[1] ? -amount : amount;
+  };
+  const total = toKopecks(left) + toKopecks(right);
+  const absolute = total < 0n ? -total : total;
+  return `${total < 0n ? '-' : ''}${absolute / 100n}.${(absolute % 100n).toString().padStart(2, '0')}`;
+}
+
+export function currentMarketValue(
+  bond: Pick<BondPortfolioItem, 'marketValueWithoutAci' | 'accruedCouponIncome' | 'positionStatus'>,
+) {
+  if (bond.marketValueWithoutAci === null) return null;
+  if (bond.positionStatus !== 'open' || bond.accruedCouponIncome === null) {
+    return bond.marketValueWithoutAci;
+  }
+  return addMoneyValues(bond.marketValueWithoutAci, bond.accruedCouponIncome);
+}
+
 export function formatPercent(value: string) {
   return `${formatExactDecimal(value, PERCENT_FORMATTER)} %`;
 }
 
 export function couponYieldDescription(year: number) {
   return `Для каждого купона отдельно сравниваем выплату с суммой, вложенной на тот момент. Затем складываем полученные проценты за ${year} год.`;
-}
-
-export function marketValueWithoutAciDescription() {
-  return 'Текущая рыночная стоимость без учета НКД.';
 }
 
 export function marketValueAndAciDescription() {

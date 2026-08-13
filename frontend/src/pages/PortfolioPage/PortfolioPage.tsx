@@ -4,7 +4,7 @@ import { FiPlus, FiRefreshCw } from 'react-icons/fi';
 import { useDeletePortfolioBond, useDeletePortfolioOperation, usePortfolioBonds } from '#entities/bondPortfolio';
 import type { BondOperation, BondPortfolioItem } from '#entities/bondPortfolio';
 import { useUserStore } from '#entities/user';
-import { Button, Tooltip, Typography } from '#shared/ui';
+import { Button, Typography } from '#shared/ui';
 import { SiteHeader } from '#widgets/SiteHeader';
 
 import { BondDetails } from './components/BondDetails';
@@ -12,10 +12,10 @@ import { BondPortfolioCard } from './components/BondPortfolioCard';
 import { AddPurchaseForm, AddSaleForm, CreateBondForm } from './components/PortfolioForms';
 import { ModalShell } from './components/ModalShell';
 import { PortfolioSortControls } from './components/PortfolioSortControls';
+import { PortfolioSummary } from './components/PortfolioSummary';
 import styles from './PortfolioPage.module.scss';
 import { readPortfolioSortPreference, sortPortfolioBonds, writePortfolioSortPreference } from './sorting';
 import type { PortfolioSortField, PortfolioSortPreference } from './sorting';
-import { formatMoney } from './utils';
 
 interface PortfolioPageProps {
   theme: 'light' | 'dark';
@@ -35,14 +35,6 @@ interface OperationDeleteConfirmation {
   operation: BondOperation;
   detailsReturnFocusTarget: HTMLElement;
   returnFocusTarget: HTMLElement;
-}
-
-function sumMoneyValues(values: readonly string[]) {
-  const totalKopecks = values.reduce((total, value) => {
-    const [rubles = '0', kopecks = ''] = value.split('.');
-    return total + BigInt(rubles) * 100n + BigInt(kopecks.padEnd(2, '0').slice(0, 2));
-  }, 0n);
-  return `${totalKopecks / 100n}.${(totalKopecks % 100n).toString().padStart(2, '0')}`;
 }
 
 function LoadingState() {
@@ -78,11 +70,6 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
     () => sortPortfolioBonds(portfolio.data ?? [], sortPreference),
     [portfolio.data, sortPreference],
   );
-  const expectedCouponIncome = useMemo(
-    () => sumMoneyValues((portfolio.data ?? []).map((bond) => bond.calendarYearCouponIncome)),
-    [portfolio.data],
-  );
-  const couponIncomeYear = portfolioData?.[0]?.couponYieldYear ?? new Date().getUTCFullYear();
 
   const updateSortPreference = (next: PortfolioSortPreference) => {
     setSessionSortPreferences((current) => ({ ...current, [userId]: next }));
@@ -208,19 +195,13 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
         ) : null}
         {hasPortfolioData && (portfolioData?.length ?? 0) > 0 ? (
           <>
+            <PortfolioSummary bonds={portfolioData ?? []} />
             <div className={styles.portfolioToolbar}>
               <PortfolioSortControls
                 preference={sortPreference}
                 onFieldChange={handleSortFieldChange}
                 onDirectionToggle={handleSortDirectionToggle}
               />
-              <div className={styles.couponIncomeSummary}>
-                <strong>+{formatMoney(expectedCouponIncome)}</strong>
-                <span className={styles.couponIncomePeriod}>за год.</span>
-                <Tooltip label={`Что означает ожидаемый купонный доход за ${couponIncomeYear} год`} align="right">
-                  Ожидаемый купонный доход за {couponIncomeYear} год со всех облигаций в портфеле.
-                </Tooltip>
-              </div>
             </div>
             <div className={styles.cardList}>
               {sortedPortfolioData.map((bond) => (

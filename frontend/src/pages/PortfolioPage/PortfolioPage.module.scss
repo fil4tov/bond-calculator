@@ -15,27 +15,10 @@
 .portfolioToolbar {
   display: flex;
   align-items: stretch;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 16px;
   margin-bottom: 16px;
 }
-
-.couponIncomeSummary {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 9px 16px;
-  border: 1px solid var(--card-border);
-  border-radius: 14px;
-  background: var(--card);
-  box-shadow: var(--shadow);
-}
-.couponIncomeSummary strong { color: var(--positive-amount); font-size: 17px; font-weight: 850; white-space: nowrap; }
-.couponIncomePeriod { color: var(--ink); font-size: 17px; font-weight: 700; white-space: nowrap; }
-.couponIncomeSummary > span { color: var(--muted); }
-.couponIncomeSummary > .couponIncomePeriod { color: var(--ink); }
 
 .cardList, .skeletonList { display: flex; flex-direction: column; }
 .cardList { gap: 20px; }
@@ -71,7 +54,6 @@
   .intro { grid-template-columns: 1fr; gap: 28px; margin-top: 54px; }
   .addButton { width: min(100%, 320px); }
   .portfolioToolbar { flex-wrap: wrap; }
-  .couponIncomeSummary { margin-left: auto; }
 }
 
 @media (max-width: 580px) {
@@ -81,7 +63,6 @@
   .addButton { width: 100%; }
   .registry { margin-top: 36px; }
   .portfolioToolbar { display: grid; grid-template-columns: minmax(0, 1fr); }
-  .couponIncomeSummary { width: 100%; min-width: 0; margin-left: 0; justify-content: flex-start; }
   .emptyState, .errorState { grid-template-columns: 1fr; padding: 24px 20px; }
   .emptyCoupon { width: 62px; height: 74px; }
   .skeletonCard { grid-template-columns: 1fr; padding: 16px; }
