@@ -30,49 +30,111 @@
 - Delete: `backend/tests/test_bond_operations_migration.py`
 
 **Interfaces:**
-- Consumes: Alembic revision module attributes `revision`, `down_revision`, `upgrade()`, and `downgrade()`.
-- Produces: A unit-level contract requiring exactly the five current tables, current bond columns, no legacy data operations, and dependency-safe downgrade order.
+- Consumes: `TEST_DATABASE_URL`, Alembic's programmatic command API, and SQLAlchemy's PostgreSQL inspector.
+- Produces: An integration contract requiring revision `20260813_0001`, exactly the five current application tables, current columns/indexes/check constraints, and a working downgrade/re-upgrade cycle.
 
 - [ ] **Step 1: Add the failing baseline test**
 
 Create `backend/tests/test_initial_schema_migration.py`:
 
 ```python
-from importlib import import_module
-from unittest.mock import Mock
+import asyncio
+import os
+from typing import Any
 
+from alembic import command
+from alembic.config import Config
+import pytest
 import sqlalchemy as sa
-from pytest import MonkeyPatch
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import create_async_engine
 
 
-def test_initial_schema_revision_creates_only_the_current_schema(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    migration = import_module("migrations.versions.20260813_0001_initial_schema")
-    operations = Mock()
-    monkeypatch.setattr(migration, "op", operations)
+def _database_url() -> str:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if database_url is None:
+        pytest.skip("requires the PostgreSQL Compose test database")
+    return database_url
 
-    assert migration.revision == "20260813_0001"
-    assert migration.down_revision is None
 
-    migration.upgrade()
+def _alembic_config(database_url: str) -> Config:
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    return config
 
-    table_calls = operations.create_table.call_args_list
-    assert [call.args[0] for call in table_calls] == [
+
+def _inspect_schema(connection: Connection) -> dict[str, Any]:
+    inspector = sa.inspect(connection)
+    application_tables = {
         "users",
         "auth_sessions",
         "bonds",
         "bond_coupon_schedules",
         "bond_operations",
-    ]
-
-    columns_by_table = {
-        call.args[0]: {
-            item.name for item in call.args[1:] if isinstance(item, sa.Column)
-        }
-        for call in table_calls
     }
-    assert columns_by_table["bonds"] == {
+    return {
+        "tables": set(inspector.get_table_names()),
+        "version": connection.execute(
+            sa.text("SELECT version_num FROM alembic_version")
+        ).scalar_one(),
+        "columns": {
+            table: {column["name"] for column in inspector.get_columns(table)}
+            for table in application_tables
+        },
+        "indexes": {
+            table: {index["name"] for index in inspector.get_indexes(table)}
+            for table in application_tables
+        },
+        "checks": {
+            table: {
+                constraint["name"]
+                for constraint in inspector.get_check_constraints(table)
+            }
+            for table in application_tables
+        },
+    }
+
+
+async def _read_schema(database_url: str) -> dict[str, Any]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            return await connection.run_sync(_inspect_schema)
+    finally:
+        await engine.dispose()
+
+
+async def _read_table_names(database_url: str) -> set[str]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            return await connection.run_sync(
+                lambda sync_connection: set(
+                    sa.inspect(sync_connection).get_table_names()
+                )
+            )
+    finally:
+        await engine.dispose()
+
+
+def test_initial_revision_creates_the_current_schema() -> None:
+    database_url = _database_url()
+    config = _alembic_config(database_url)
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+
+    schema = asyncio.run(_read_schema(database_url))
+
+    assert schema["tables"] == {
+        "alembic_version",
+        "users",
+        "auth_sessions",
+        "bonds",
+        "bond_coupon_schedules",
+        "bond_operations",
+    }
+    assert schema["version"] == "20260813_0001"
+    assert schema["columns"]["bonds"] == {
         "id",
         "user_id",
         "instrument_uid",
@@ -86,31 +148,56 @@ def test_initial_schema_revision_creates_only_the_current_schema(
         "maturity_date",
         "created_at",
     }
-    assert "bond_purchases" not in columns_by_table
-    assert {"coupon_amount", "coupon_period_days", "nominal_checked_on"}.isdisjoint(
-        columns_by_table["bonds"]
-    )
-    assert not operations.execute.called
-    assert not operations.drop_table.called
+    assert schema["indexes"] == {
+        "users": {"uq_users_username_lower"},
+        "auth_sessions": {
+            "ix_auth_sessions_expires_at",
+            "ix_auth_sessions_token_hash",
+            "ix_auth_sessions_user_id",
+        },
+        "bonds": {"ix_bonds_user_id", "uq_bonds_user_name_normalized"},
+        "bond_coupon_schedules": {
+            "ix_bond_coupon_schedules_bond_id_coupon_date"
+        },
+        "bond_operations": {
+            "ix_bond_operations_bond_id",
+            "ix_bond_operations_user_id",
+            "ix_bond_operations_bond_id_operation_date",
+        },
+    }
+    assert schema["checks"] == {
+        "users": set(),
+        "auth_sessions": set(),
+        "bonds": {
+            "ck_bonds_nominal_positive",
+            "ck_bonds_payments_per_year_nonnegative",
+            "ck_bonds_placement_before_maturity",
+        },
+        "bond_coupon_schedules": {
+            "ck_bond_coupon_schedule_amount_nonnegative",
+            "ck_bond_coupon_schedule_dates_ordered",
+            "ck_bond_coupon_schedule_period_nonnegative",
+        },
+        "bond_operations": {
+            "ck_bond_operations_amount_positive",
+            "ck_bond_operations_quantity_positive",
+            "ck_bond_operations_type",
+        },
+    }
 
 
-def test_initial_schema_downgrade_drops_tables_in_dependency_order(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    migration = import_module("migrations.versions.20260813_0001_initial_schema")
-    operations = Mock()
-    monkeypatch.setattr(migration, "op", operations)
-
-    migration.downgrade()
-
-    assert [call.args[0] for call in operations.drop_table.call_args_list] == [
-        "bond_operations",
-        "bond_coupon_schedules",
-        "bonds",
-        "auth_sessions",
-        "users",
-    ]
+def test_initial_revision_can_downgrade_and_upgrade_again() -> None:
+    database_url = _database_url()
+    config = _alembic_config(database_url)
+    command.upgrade(config, "head")
+    command.downgrade(config, "base")
+    try:
+        assert asyncio.run(_read_table_names(database_url)) == {"alembic_version"}
+    finally:
+        command.upgrade(config, "head")
 ```
+
+The first test catches a wrong revision, missing/current table, column, index, or check constraint. The second catches unsafe dependency order in `downgrade()` and always restores `head` for the rest of the suite.
 
 - [ ] **Step 2: Remove the four obsolete migration tests**
 
@@ -118,13 +205,16 @@ Delete the four files listed above. Their assertions describe intermediate schem
 
 - [ ] **Step 3: Run the focused test and verify the expected failure**
 
-Run from `backend`:
+Build and run from the repository root:
 
 ```powershell
-uv run pytest tests/test_initial_schema_migration.py -q
+docker compose -f compose.test.yaml build backend-test
+docker compose -f compose.test.yaml up -d postgres-test
+docker compose -f compose.test.yaml run --rm backend-test `
+  python -m pytest tests/test_initial_schema_migration.py -q
 ```
 
-Expected: collection or test failure with `ModuleNotFoundError` for `migrations.versions.20260813_0001_initial_schema`.
+Expected: the schema assertion fails because the database records legacy head `20260812_0008` instead of baseline `20260813_0001`.
 
 ---
 
@@ -349,10 +439,12 @@ Remove only the eight listed files from `backend/migrations/versions`. Keep `env
 
 - [ ] **Step 3: Run the focused migration contract test**
 
-Run from `backend`:
+Rebuild and run from the repository root:
 
 ```powershell
-uv run pytest tests/test_initial_schema_migration.py -q
+docker compose -f compose.test.yaml build backend-test
+docker compose -f compose.test.yaml run --rm backend-test `
+  python -m pytest tests/test_initial_schema_migration.py -q
 ```
 
 Expected: `2 passed`.
