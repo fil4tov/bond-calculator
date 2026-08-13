@@ -82,7 +82,11 @@ def _inspect_schema(connection: Connection) -> dict[str, Any]:
             for table in application_tables
         },
         "indexes": {
-            table: {index["name"] for index in inspector.get_indexes(table)}
+            table: {
+                index["name"]
+                for index in inspector.get_indexes(table)
+                if "duplicates_constraint" not in index
+            }
             for table in application_tables
         },
         "checks": {
