@@ -31,7 +31,12 @@ class Bond(Base):
         CheckConstraint("payments_per_year >= 0", name="ck_bonds_payments_per_year_nonnegative"),
         CheckConstraint("placement_date < maturity_date", name="ck_bonds_placement_before_maturity"),
         UniqueConstraint("id", "user_id", name="uq_bonds_id_user_id"),
-        Index("uq_bonds_user_name_normalized", user_id, func.lower(func.trim(name)), unique=True),
+        Index(
+            "uq_bonds_user_name_normalized",
+            user_id,
+            func.lower(func.ltrim(func.rtrim(name))),
+            unique=True,
+        ),
     )
 
 

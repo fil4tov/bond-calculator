@@ -97,7 +97,7 @@ def upgrade() -> None:
     op.create_index(
         "uq_bonds_user_name_normalized",
         "bonds",
-        ["user_id", sa.text("lower(btrim(name))")],
+        ["user_id", sa.text("lower(ltrim(rtrim(name)))")],
         unique=True,
     )
 
