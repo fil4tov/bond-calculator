@@ -13,3 +13,4 @@ __pycache__/
 *.py[cod]
 .coverage
 .superpowers/
+.pnpm-store/
