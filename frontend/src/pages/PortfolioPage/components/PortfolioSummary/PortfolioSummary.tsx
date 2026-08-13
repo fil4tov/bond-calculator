@@ -9,11 +9,6 @@ interface PortfolioSummaryProps {
   bonds: BondPortfolioItem[];
 }
 
-const MONTHS_PREPOSITIONAL = [
-  'январе', 'феврале', 'марте', 'апреле', 'мае', 'июне',
-  'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре',
-] as const;
-
 function signedMoney(value: string) {
   if (value.startsWith('-') || /^0(?:\.0+)?$/.test(value)) return formatMoney(value);
   return `+${formatMoney(value)}`;
@@ -26,7 +21,6 @@ function resultClassName(value: string | null) {
 
 export function PortfolioSummary({ bonds }: PortfolioSummaryProps) {
   const summary = calculatePortfolioSummary(bonds);
-  const currentMonth = MONTHS_PREPOSITIONAL[new Date().getUTCMonth()];
   const marketUnavailable = summary.marketValue === null;
 
   return (
@@ -81,7 +75,7 @@ export function PortfolioSummary({ bonds }: PortfolioSummaryProps) {
             <dd><strong>{formatMoney(summary.couponExpected)}</strong></dd>
           </div>
           <div className={styles.couponMetric}>
-            <dt>Выплаты в {currentMonth}</dt>
+            <dt>Выплаты в этом месяце</dt>
             <dd><strong>{formatMoney(summary.couponMonth)}</strong></dd>
           </div>
         </dl>

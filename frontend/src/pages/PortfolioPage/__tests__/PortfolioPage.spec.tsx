@@ -289,7 +289,7 @@ describe('PortfolioPage', () => {
     })).toHaveAccessibleDescription('Разница текущей рыночной стоимости с НКД относительно вложенной суммы');
     expect(within(summary).getByText('Получено купонами за 2026 год')).toBeInTheDocument();
     expect(within(summary).getByText('Всего ожидается за 2026 год')).toBeInTheDocument();
-    expect(within(summary).getByText(/Выплаты в августе/i)).toBeInTheDocument();
+    expect(within(summary).getByText('Выплаты в этом месяце')).toBeInTheDocument();
     expect(within(summary).getByText(/1.770,00.₽ \/ 4.248,00.₽/)).toBeInTheDocument();
     expect(within(summary).getByRole('progressbar', { name: 'Купоны за 2026 год' }))
       .toHaveAttribute('aria-valuenow', '41.67');
