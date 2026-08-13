@@ -5,16 +5,12 @@ import { useAddPortfolioSale } from '#entities/bondPortfolio';
 import type { BondPortfolioItem } from '#entities/bondPortfolio';
 import { ApiError } from '#shared/api';
 import { parseFormattedNumber } from '#shared/lib/number';
-import { Button, ControlledNumberField, TextField } from '#shared/ui';
 
-import { availableQuantityOnDate, canonicalDecimal, todayInputValue, validateMoney, validateQuantity } from '../../utils';
+import { availableQuantityOnDate, canonicalDecimal, todayInputValue } from '../../utils';
 import styles from './PortfolioForms.module.scss';
-
-interface AddSaleFormValues {
-  amountReceived: string;
-  quantity: string;
-  saleDate: string;
-}
+import { SaleFields, SubmitRow } from './components';
+import type { SaleFormValues } from './types';
+import { localizedFieldError, localizedSubmitError, previousDate } from './utils';
 
 interface AddSaleFormProps {
   userId: string;
@@ -23,26 +19,9 @@ interface AddSaleFormProps {
   onBusyChange: (busy: boolean) => void;
 }
 
-const FIELD_MAP: Record<string, keyof AddSaleFormValues> = {
+const FIELD_MAP: Record<string, keyof SaleFormValues> = {
   amount_received: 'amountReceived', quantity: 'quantity', sale_date: 'saleDate',
 };
-
-const previousDate = (value: string) => {
-  const date = new Date(`${value}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() - 1);
-  return date.toISOString().slice(0, 10);
-};
-
-const localizedFieldError = (field: string) => {
-  if (field === 'quantity') return 'Количество превышает доступный остаток на выбранную дату';
-  if (field === 'sale_date') return 'Дата продажи должна быть не раньше размещения и раньше погашения';
-  if (field === 'amount_received') return 'Проверьте сумму продажи';
-  return null;
-};
-
-const localizedSubmitError = (code: string) => code === 'validation_error'
-  ? 'Не удалось проверить данные продажи. Проверьте поля и попробуйте снова.'
-  : 'Не удалось зафиксировать продажу. Проверьте подключение и попробуйте снова.';
 
 export function AddSaleForm({ userId, bond, onSuccess, onBusyChange }: AddSaleFormProps) {
   const today = todayInputValue();
@@ -52,7 +31,7 @@ export function AddSaleForm({ userId, bond, onSuccess, onBusyChange }: AddSaleFo
   const {
     control, register, handleSubmit, setError, watch, getValues, trigger,
     formState: { errors, isValid, isSubmitting },
-  } = useForm<AddSaleFormValues>({
+  } = useForm<SaleFormValues>({
     mode: 'onChange',
     defaultValues: { amountReceived: '', quantity: '', saleDate: saleDateMax },
   });
@@ -96,57 +75,26 @@ export function AddSaleForm({ userId, bond, onSuccess, onBusyChange }: AddSaleFo
   });
 
   return (
-    <form className={styles.form} noValidate onSubmit={submit}>
-      <p className={styles.availability} aria-live="polite">Доступно на выбранную дату: {availableQuantity.toLocaleString('ru-RU')} шт.</p>
-      <div className={styles.grid}>
-        <ControlledNumberField
-          control={control}
-          name="amountReceived"
-          label="Сумма сделки"
-          hint="(с учётом НКД и комиссий)"
-          aria-label="Сумма сделки (с учётом НКД и комиссий)"
-          unit="₽"
-          inputMode="decimal"
-          error={errors.amountReceived?.message}
-          rules={{ validate: (value) => validateMoney(value, { allowZero: false, label: 'Сумма продажи' }) }}
-        />
-        <ControlledNumberField
-          control={control}
-          name="quantity"
-          label="Количество"
-          inputMode="numeric"
-          integer
-          error={errors.quantity?.message}
-          rules={{ validate: (value) => {
-            const baseError = validateQuantity(value);
-            if (baseError !== true) return baseError;
-            return parseFormattedNumber(value) <= availableQuantity || `Доступно не более ${availableQuantity.toLocaleString('ru-RU')} шт.`;
-          } }}
-        />
-        <TextField
-          type="date"
-          label="Дата продажи"
-          min={bond.placementDate}
-          max={saleDateMax}
-          wide
-          error={errors.saleDate?.message}
-          {...register('saleDate', {
-            required: 'Укажите дату продажи',
-            validate: (value) => {
-              if (value > today) return 'Дата продажи не может быть в будущем';
-              if (value < bond.placementDate) return 'Дата продажи должна быть не раньше размещения';
-              return value < bond.maturityDate || 'Дата продажи должна быть раньше погашения';
-            },
-          })}
-        />
-      </div>
+    <form className={`${styles.form} ${styles.transactionForm}`} noValidate onSubmit={submit}>
+      <SaleFields
+        control={control}
+        register={register}
+        errors={errors}
+        availableQuantity={availableQuantity}
+        placementDate={bond.placementDate}
+        maturityDate={bond.maturityDate}
+        maximumDate={saleDateMax}
+        today={today}
+      />
       {submitError ? <p className={styles.formError} role="alert">{submitError} Повторите попытку.</p> : null}
-      <div className={styles.submitRow}>
+      <SubmitRow
+        disabled={!isValid || busy || availableQuantity <= 0}
+        busy={busy}
+        busyLabel="Фиксируем…"
+        idleLabel="Зафиксировать"
+      >
         <p>Итог сделки будет рассчитан по фактическим операциям в реестре.</p>
-        <Button className={styles.submitButton} type="submit" disabled={!isValid || busy || availableQuantity <= 0}>
-          {busy ? 'Фиксируем…' : 'Зафиксировать'}
-        </Button>
-      </div>
+      </SubmitRow>
     </form>
   );
 }

@@ -10,9 +10,21 @@ interface ModalShellProps {
   busy: boolean;
   onClose: () => void;
   returnFocusTarget?: HTMLElement | null;
+  mobileFillHeight?: boolean;
+  mobileContentFillsHeight?: boolean;
 }
 
-export function ModalShell({ title, subtitle, eyebrow = 'ПОРТФЕЛЬ', children, busy, onClose, returnFocusTarget }: ModalShellProps) {
+export function ModalShell({
+  title,
+  subtitle,
+  eyebrow = 'ПОРТФЕЛЬ',
+  children,
+  busy,
+  onClose,
+  returnFocusTarget,
+  mobileFillHeight = false,
+  mobileContentFillsHeight = false,
+}: ModalShellProps) {
   return (
     <Modal
       title={title}
@@ -22,6 +34,8 @@ export function ModalShell({ title, subtitle, eyebrow = 'ПОРТФЕЛЬ', chil
       onClose={onClose}
       returnFocusTarget={returnFocusTarget}
       width="wide"
+      mobileFillHeight={mobileFillHeight}
+      mobileContentFillsHeight={mobileContentFillsHeight}
     >
       {children}
     </Modal>

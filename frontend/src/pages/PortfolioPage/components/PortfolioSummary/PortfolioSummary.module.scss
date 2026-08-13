@@ -16,7 +16,7 @@
 .bondCard {
   display: grid;
   overflow: visible;
-  grid-template-columns: minmax(320px, 1.5fr) repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .couponCard { overflow: hidden; }
@@ -105,12 +105,12 @@
 .couponMetrics {
   display: grid;
   margin: 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .couponMetric {
-  align-items: center;
-  text-align: center;
+  align-items: flex-start;
+  text-align: left;
 }
 
 .couponMetric dd {
@@ -148,16 +148,21 @@
 }
 
 @media (max-width: 900px) {
-  .bondCard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .marketMetric { grid-column: 1 / -1; border-radius: 17px 17px 0 0; }
-  .metric:nth-child(2) { border-left: 0; }
+  .bondCard,
+  .couponMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .marketMetric { border-radius: 17px 0 0; }
+  .metric:nth-child(3),
+  .couponMetric:nth-child(3) { border-left: 0; }
+  .metric:nth-child(n + 3),
+  .couponMetric:nth-child(n + 3) { border-top: 1px solid var(--divider); }
 }
 
 @media (max-width: 580px) {
   .bondCard,
   .couponMetrics { grid-template-columns: minmax(0, 1fr); }
 
-  .marketMetric { grid-column: auto; }
+  .marketMetric { grid-column: auto; border-radius: 17px 17px 0 0; }
   .metric,
   .couponMetric {
     align-items: flex-start;

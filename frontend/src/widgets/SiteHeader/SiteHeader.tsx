@@ -57,6 +57,7 @@ export function SiteHeader({ theme, toggleTheme, additionalAction }: SiteHeaderP
             open={profileOpen}
             onOpenChange={(open) => { setProfileOpen(open); if (open) setLogoutError(null); }}
             contentClassName={styles.profileMenu}
+            mobileMode="anchored"
             trigger={(triggerProps) => (
               <button
                 {...triggerProps}

@@ -105,6 +105,8 @@
   .narrow .header h2 { font-size: 25px; }
   .wide { width: 100%; max-height: calc(100vh - 16px); border-radius: 24px 24px 0 0; }
   .wide .scrollViewport { padding: 24px 18px 28px; }
+  .mobileFillHeight { height: calc(100vh - 16px); }
+  .mobileContentFillsHeight { display: flex; flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {

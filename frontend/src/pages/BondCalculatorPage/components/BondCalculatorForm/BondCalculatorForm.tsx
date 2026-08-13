@@ -6,26 +6,24 @@ import { FaArrowRotateLeft } from 'react-icons/fa6';
 
 import {
   calculateBond,
-  calculateHoldingYearsFromDate,
   calculateInvestmentAmount,
   calculateInvestmentRemainder,
   calculatePurchasableQuantity,
-  combineHoldingPeriod,
-  readPurchaseMode,
   writePurchaseMode,
 } from '#entities/bondCalculation';
 import type {
-  BondCalculationInput,
   BondCalculationResult,
   HoldingMode,
   PurchaseMode,
   SavedBondCalculation,
 } from '#entities/bondCalculation';
-import { formatInputNumber, parseFormattedNumber } from '#shared/lib/number';
+import { parseFormattedNumber } from '#shared/lib/number';
 import { Button, ControlledNumberField, IconButton, SegmentedControl, TextField, Typography } from '#shared/ui';
 
 import styles from '../../BondCalculatorPage.module.scss';
 import type { BondCalculatorFormValues } from '../../types';
+import { formatted, getDefaultValues, getTomorrow, validateCalculation } from './utils';
+import type { ValidationErrors } from './utils';
 
 interface BondCalculatorFormProps {
   onResultChange: (result: BondCalculationResult | null) => void;
@@ -46,45 +44,6 @@ const currencyFormatter = new Intl.NumberFormat('ru-RU', {
   maximumFractionDigits: 2,
 });
 
-const toLocalDateInputValue = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getDefaultMaturityDate = () => {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setFullYear(date.getFullYear() + 5);
-  return toLocalDateInputValue(date);
-};
-
-const getTomorrow = () => {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() + 1);
-  return toLocalDateInputValue(date);
-};
-
-const formatted = (value: number, integer = false) => formatInputNumber(value, integer);
-
-function getDefaultValues(): BondCalculatorFormValues {
-  return {
-    bondName: '', nominal: formatted(1000), purchasePrice: formatted(950), coupon: formatted(45),
-    paymentsPerYear: formatted(2, true), purchaseMode: readPurchaseMode(), quantity: formatted(100, true),
-    investmentAmount: formatted(95000), holdToMaturity: 'yes', maturityDate: getDefaultMaturityDate(),
-    holdingYears: formatted(5, true), holdingMonths: formatted(0, true), salePrice: formatted(1000),
-  };
-}
-
-type ValidationErrors = Partial<Record<FieldPath<BondCalculatorFormValues>, string>>;
-
-interface CalculationValidation {
-  errors: ValidationErrors;
-  input: BondCalculationInput | null;
-}
-
 const calculationFields = [
   'nominal',
   'purchasePrice',
@@ -97,51 +56,6 @@ const calculationFields = [
   'holdingMonths',
   'salePrice',
 ] as const satisfies readonly FieldPath<BondCalculatorFormValues>[];
-
-function validateCalculation(values: BondCalculatorFormValues): CalculationValidation {
-  const nominal = parseFormattedNumber(values.nominal);
-  const purchasePrice = parseFormattedNumber(values.purchasePrice);
-  const coupon = parseFormattedNumber(values.coupon);
-  const paymentsPerYear = parseFormattedNumber(values.paymentsPerYear);
-  const quantity = parseFormattedNumber(values.quantity);
-  const investmentAmount = parseFormattedNumber(values.investmentAmount);
-  const holdingYearsValue = parseFormattedNumber(values.holdingYears);
-  const holdingMonths = parseFormattedNumber(values.holdingMonths);
-  const salePrice = parseFormattedNumber(values.salePrice);
-  const errors: ValidationErrors = {};
-
-  if (!Number.isFinite(nominal) || nominal <= 0) errors.nominal = 'Введите номинал больше нуля';
-  if (!Number.isFinite(purchasePrice) || purchasePrice <= 0) errors.purchasePrice = 'Введите цену облигации больше нуля';
-  if (!Number.isFinite(paymentsPerYear) || paymentsPerYear <= 0) errors.paymentsPerYear = 'Введите целое количество выплат в год';
-  if (values.purchaseMode === 'amount') {
-    if (!Number.isFinite(investmentAmount) || investmentAmount <= 0) {
-      errors.investmentAmount = 'Введите сумму вложения больше нуля';
-    } else if (!Number.isInteger(quantity) || quantity < 1) {
-      errors.investmentAmount = 'Этой суммы недостаточно для покупки хотя бы одной облигации';
-    }
-  } else if (!Number.isInteger(quantity) || quantity < 1) {
-    errors.quantity = 'Введите целое количество облигаций';
-  }
-  if (!Number.isFinite(coupon) || coupon < 0) errors.coupon = 'Купон не может быть отрицательным';
-
-  let holdingYears: number;
-  let exitPrice: number;
-  if (values.holdToMaturity === 'yes') {
-    holdingYears = calculateHoldingYearsFromDate(values.maturityDate);
-    exitPrice = nominal;
-    if (!Number.isFinite(holdingYears) || holdingYears <= 0) errors.maturityDate = 'Дата погашения должна быть позже сегодняшней';
-  } else {
-    if (!Number.isInteger(holdingYearsValue) || holdingYearsValue < 0) errors.holdingYears = 'Количество лет должно быть целым неотрицательным числом';
-    if (!Number.isInteger(holdingMonths) || holdingMonths < 0 || holdingMonths > 11) errors.holdingMonths = 'Количество месяцев должно быть целым числом от 0 до 11';
-    holdingYears = combineHoldingPeriod(holdingYearsValue, holdingMonths);
-    exitPrice = salePrice;
-    if (!errors.holdingYears && !errors.holdingMonths && (!Number.isFinite(holdingYears) || holdingYears <= 0)) errors.holdingYears = 'Введите срок владения больше нуля';
-    if (!Number.isFinite(exitPrice) || exitPrice <= 0) errors.salePrice = 'Введите ожидаемую цену продажи больше нуля';
-  }
-
-  if (Object.keys(errors).length > 0) return { errors, input: null };
-  return { errors, input: { nominal, purchasePrice, quantity, coupon, paymentsPerYear, holdingYears, exitPrice } };
-}
 
 export const BondCalculatorForm = forwardRef<BondCalculatorFormHandle, BondCalculatorFormProps>(function BondCalculatorForm(
   { onResultChange, onHoldingModeChange, onClear },

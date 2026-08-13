@@ -137,7 +137,7 @@
 }
 
 @media (max-width: 580px) {
-  .pageShell { width: min(100% - 24px, 1280px); padding: 34px 0 46px; }
+  .pageShell { width: min(100% - 24px, 1280px); padding: 17px 0; }
   .hero { margin-bottom: 28px; }
   .hero > :first-child { margin-bottom: 34px; }
   .hero h1 { font-size: clamp(38px, 12vw, 52px); }

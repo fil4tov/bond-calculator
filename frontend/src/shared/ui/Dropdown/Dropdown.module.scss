@@ -4,7 +4,9 @@
   overflow: hidden; border: 1px solid var(--card-border); border-radius: 18px; color: var(--ink); background: var(--card);
   box-shadow: 0 24px 60px rgba(23, 35, 30, 0.2);
 }
+.openAbove { top: auto; bottom: calc(100% + 12px); }
 @media (max-width: 580px) {
   .content { position: fixed; top: 88px; right: 12px; left: 12px; width: auto; max-height: calc(100vh - 108px); }
   .mobileAnchored { position: absolute; top: calc(100% + 8px); right: 0; left: auto; width: min(260px, calc(100vw - 40px)); max-height: none; }
+  .mobileAnchored.openAbove { top: auto; bottom: calc(100% + 8px); }
 }

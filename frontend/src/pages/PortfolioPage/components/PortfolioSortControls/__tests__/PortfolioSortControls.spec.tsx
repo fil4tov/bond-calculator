@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import type { PortfolioSortPreference } from '../../../sorting';
-import { PortfolioSortControls } from '../PortfolioSortControls';
+import { PortfolioSortControls } from '..';
+import type { PortfolioSortPreference } from '..';
 
 function SortControlsHarness({ initial }: { initial: PortfolioSortPreference }) {
   const [preference, setPreference] = useState(initial);
