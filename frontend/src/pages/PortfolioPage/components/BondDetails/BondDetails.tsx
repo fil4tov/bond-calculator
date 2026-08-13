@@ -95,12 +95,24 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
         <div><dt>Количество</dt><dd>{bond.totalQuantity.toLocaleString('ru-RU')} шт.</dd></div>
         <div>
           <dt className={styles.metricLabel}>
-            <span>Ожидаемый купонный доход за {bond.couponYieldYear} год</span>
-            <Tooltip label={`Как рассчитывается ожидаемый купонный доход за ${bond.couponYieldYear} год`} align="right">
-              {calendarYearCouponIncomeDescription(bond.couponYieldYear)}
+            <span>Результат сделок</span>
+            <Tooltip label="Как рассчитывается результат сделок" align="right">
+              Сумма результатов всех продаж: полученная сумма сделки минус списанная средняя стоимость проданных облигаций.
             </Tooltip>
           </dt>
-          <dd className={styles.positive}>+{formatMoney(bond.calendarYearCouponIncome)}</dd>
+          <dd className={styles[resultSign(bond.realizedResult)]} data-result-sign={resultSign(bond.realizedResult)}>{formatOperationResult(bond.realizedResult)}</dd>
+        </div>
+      </dl>
+
+      <dl className={styles.metricsGrid}>
+        <div>
+          <dt className={styles.metricLabel}>
+            <span>Годовая купонная доходность</span>
+            <Tooltip label="Как рассчитывается годовая купонная доходность" align="right">
+              {annualCouponYieldDescription()}
+            </Tooltip>
+          </dt>
+          <dd>{bond.annualCouponYieldPercent === null ? '—' : formatPercent(bond.annualCouponYieldPercent)}</dd>
         </div>
         <div>
           <dt className={styles.metricLabel}>
@@ -111,24 +123,15 @@ export function BondDetails({ bond, onDeleteOperation, operationDeleteDisabled =
           </dt>
           <dd>{formatPercent(bond.calendarYearCouponYieldPercent)}</dd>
         </div>
-        <div>
-          <dt className={styles.metricLabel}>
-            <span>Годовая купонная доходность</span>
-            <Tooltip label="Как рассчитывается годовая купонная доходность" align="right">
-              {annualCouponYieldDescription()}
-            </Tooltip>
-          </dt>
-          <dd>{bond.annualCouponYieldPercent === null ? '—' : formatPercent(bond.annualCouponYieldPercent)}</dd>
-        </div>
         <div><dt>Выплачено купонов</dt><dd>{formatMoney(bond.paidCouponTotal)}</dd></div>
         <div>
           <dt className={styles.metricLabel}>
-            <span>Результат сделок</span>
-            <Tooltip label="Как рассчитывается результат сделок" align="right">
-              Сумма результатов всех продаж: полученная сумма сделки минус списанная средняя стоимость проданных облигаций.
+            <span>Ожидаемый купонный доход за {bond.couponYieldYear} год</span>
+            <Tooltip label={`Как рассчитывается ожидаемый купонный доход за ${bond.couponYieldYear} год`} align="right">
+              {calendarYearCouponIncomeDescription(bond.couponYieldYear)}
             </Tooltip>
           </dt>
-          <dd className={styles[resultSign(bond.realizedResult)]} data-result-sign={resultSign(bond.realizedResult)}>{formatOperationResult(bond.realizedResult)}</dd>
+          <dd className={styles.positive}>+{formatMoney(bond.calendarYearCouponIncome)}</dd>
         </div>
       </dl>
 

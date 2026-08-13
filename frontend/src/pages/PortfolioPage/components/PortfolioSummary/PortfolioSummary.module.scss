@@ -16,7 +16,7 @@
 .bondCard {
   display: grid;
   overflow: visible;
-  grid-template-columns: minmax(320px, 1.55fr) repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(320px, 1.5fr) repeat(3, minmax(0, 1fr));
 }
 
 .couponCard { overflow: hidden; }

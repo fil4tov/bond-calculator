@@ -468,10 +468,6 @@ describe('PortfolioPage', () => {
       'Текущая рыночная стоимость',
       'Вложено в облигации',
       'Количество',
-      'Ожидаемый купонный доход за 2026 год',
-      'Доходность отдельных купонов за 2026 год',
-      'Годовая купонная доходность',
-      'Выплачено купонов',
       'Результат сделок',
     ]);
     const expectedCouponIncome = within(dialog).getByText('Ожидаемый купонный доход за 2026 год')
@@ -530,18 +526,18 @@ describe('PortfolioPage', () => {
     await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
     const dialog = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
 
-    expect(
-      Array.from(within(dialog).getByText('Вложено в облигации').closest('dl')!.querySelectorAll('dt'))
-        .map((label) => label.firstElementChild?.textContent ?? label.textContent),
-    ).toEqual([
-      'Текущая рыночная стоимость',
-      'Вложено в облигации',
-      'Количество',
-      'Ожидаемый купонный доход за 2026 год',
-      'Доходность отдельных купонов за 2026 год',
-      'Годовая купонная доходность',
-      'Выплачено купонов',
-      'Результат сделок',
+    expect(Array.from(dialog.querySelectorAll('dl')).map((block) => (
+      Array.from(block.querySelectorAll('dt'))
+        .map((label) => label.firstElementChild?.textContent ?? label.textContent)
+    ))).toEqual([
+      ['Номинал', 'Выплат в год', 'Дата размещения', 'Дата погашения', 'Срок до погашения'],
+      ['Текущая рыночная стоимость', 'Вложено в облигации', 'Количество', 'Результат сделок'],
+      [
+        'Годовая купонная доходность',
+        'Доходность отдельных купонов за 2026 год',
+        'Выплачено купонов',
+        'Ожидаемый купонный доход за 2026 год',
+      ],
     ]);
   });
 
