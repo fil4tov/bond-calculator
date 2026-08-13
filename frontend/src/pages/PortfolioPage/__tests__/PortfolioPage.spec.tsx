@@ -142,6 +142,15 @@ async function openSaleForm(user: ReturnType<typeof userEvent.setup>, card: HTML
   return screen.getByRole('dialog', { name: 'Зафиксировать продажу' });
 }
 
+function expectTransactionAmountHint(scope: HTMLElement) {
+  const amount = within(scope).getByRole('textbox', { name: 'Сумма сделки (с учётом НКД и комиссий)' });
+  const label = amount.closest('label');
+
+  expect(label).not.toBeNull();
+  expect(within(label as HTMLLabelElement).getByText('Сумма сделки', { exact: true })).toBeInTheDocument();
+  expect(within(label as HTMLLabelElement).getByText('(с учётом НКД и комиссий)')).toHaveProperty('tagName', 'SMALL');
+}
+
 describe('PortfolioPage', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -780,6 +789,7 @@ describe('PortfolioPage', () => {
     expect(within(dialog).queryByLabelText('Дата погашения')).not.toBeInTheDocument();
     expect(within(dialog).getByText('Первая покупка')).toBeInTheDocument();
     expect(within(dialog).getByRole('textbox', { name: 'Сумма сделки (с учётом НКД и комиссий)' })).toBeInTheDocument();
+    expectTransactionAmountHint(dialog);
     expect(within(dialog).getByRole('button', { name: 'Сохранить' })).toBeDisabled();
   });
 
@@ -1287,6 +1297,7 @@ describe('PortfolioPage', () => {
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
     const { dialog } = await openPurchaseForm(user, card);
+    expectTransactionAmountHint(dialog);
     await user.type(within(dialog).getByRole('textbox', { name: 'Сумма сделки (с учётом НКД и комиссий)' }), '1000,05');
     await user.type(within(dialog).getByLabelText('Количество'), '2');
     expect(within(dialog).getByLabelText('Дата покупки')).toHaveValue(todayInput());
@@ -1324,6 +1335,7 @@ describe('PortfolioPage', () => {
     const dialog = await openSaleForm(user, card);
     const quantity = within(dialog).getByLabelText('Количество');
 
+    expectTransactionAmountHint(dialog);
     expect(within(dialog).getByText('Доступно на выбранную дату: 75 шт.')).toBeInTheDocument();
     await user.type(within(dialog).getByRole('textbox', { name: 'Сумма сделки (с учётом НКД и комиссий)' }), '26000');
     await user.type(quantity, '76');
