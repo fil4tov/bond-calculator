@@ -1,0 +1,59 @@
+.details { display: grid; gap: 22px; }
+.status { display: inline-flex; width: fit-content; align-items: center; gap: 8px; color: var(--accent-text); font-size: 11px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
+.status::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 5px var(--green-soft); content: ''; }
+.statusMatured { color: var(--muted); }
+.statusMatured::before { box-shadow: none; }
+
+.issueGrid, .metricsGrid { display: grid; margin: 0; border: 1px solid var(--divider); border-radius: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; }
+.metricsGrid { overflow: visible; }
+.issueGrid > div, .metricsGrid > div { min-width: 0; padding: 16px 18px; }
+.issueGrid > div:nth-child(even), .metricsGrid > div:nth-child(even) { border-left: 1px solid var(--divider); }
+.issueGrid > div:nth-child(n + 3), .metricsGrid > div:nth-child(n + 3) { border-top: 1px solid var(--divider); }
+.issueGrid > div:last-child { grid-column: 1 / -1; }
+.issueGrid dt, .metricsGrid dt { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.metricsGrid .metricLabel { display: flex; align-items: center; gap: 7px; }
+.metricsGrid .metricLabel [role='tooltip'] { font-size: 13px; }
+.issueGrid dd, .metricsGrid dd { margin: 8px 0 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.marketValue { display: grid; min-width: 0; justify-items: start; gap: 4px; }
+.marketValueBreakdown { color: var(--ink); font-size: 13px; }
+
+.nextCoupon { padding: 18px 20px; border-radius: 16px; color: #154535; background: linear-gradient(120deg, #dfece5, var(--lime)); }
+.nextCouponLabel { display: block; font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+.couponAmounts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-top: 9px; font-variant-numeric: tabular-nums; }
+.couponAmounts strong { font-size: 26px; letter-spacing: -0.03em; }
+.amountSeparator { color: rgb(21 69 53 / 55%); font-size: 13px; }
+.couponAmounts b { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+.nextCoupon p { margin: 5px 0 0; font-size: 13px; font-weight: 650; }
+.redeemedCoupon { color: var(--muted); background: var(--disabled-bg); font-weight: 750; }
+
+.purchaseHistory { min-width: 0; }
+.purchaseHistoryHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.purchaseHistoryHeading h3 { margin: 0; color: var(--muted); font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+.purchaseHistoryHeading span { padding: 5px 9px; border-radius: 999px; color: var(--accent-text); background: var(--green-soft); font-size: 11px; font-weight: 850; white-space: nowrap; }
+.purchaseTimeline { position: relative; display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.purchaseTimeline::before { position: absolute; top: 9px; bottom: 21px; left: 6px; width: 1px; background: var(--divider); content: ''; }
+.purchaseItem { position: relative; display: grid; min-width: 0; grid-template-columns: 18px minmax(0, 1fr) auto auto; gap: 10px; padding-bottom: 18px; }
+.purchaseItem:last-child { padding-bottom: 0; }
+.timelineMarker { z-index: 1; width: 13px; height: 13px; margin-top: 4px; border: 3px solid var(--card); border-radius: 50%; background: var(--accent-text); box-shadow: 0 0 0 1px var(--divider); }
+.purchaseData { display: grid; min-width: 0; gap: 5px; }
+.purchaseData strong { overflow-wrap: anywhere; font-size: 17px; font-weight: 850; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.purchaseData span { width: fit-content; color: var(--positive-amount); font-size: 12px; font-weight: 800; }
+.purchaseData .saleQuantity { color: var(--loss); }
+.operationMeta { display: grid; min-width: 0; align-content: start; justify-items: end; gap: 5px; }
+.realizedResult { color: var(--positive-amount); font-size: 12px; font-weight: 800; }
+.positive { color: var(--positive-amount); }
+.negative { color: var(--loss); }
+.zero { color: var(--muted); }
+.operationMeta time { padding-top: 4px; color: var(--muted); font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; }
+.deleteOperation { display: grid; width: 28px; height: 28px; margin-top: -2px; place-items: center; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; }
+.deleteOperation:hover { color: var(--loss); background: var(--loss-soft); }
+.deleteOperation:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.deleteOperation:disabled { opacity: 0.45; cursor: wait; }
+
+@media (max-width: 580px) {
+  .issueGrid, .metricsGrid { grid-template-columns: 1fr; }
+  .issueGrid > div:nth-child(even), .metricsGrid > div:nth-child(even) { border-left: 0; }
+  .issueGrid > div:nth-child(n + 2), .metricsGrid > div:nth-child(n + 2) { border-top: 1px solid var(--divider); }
+  .purchaseItem { gap: 8px; }
+  .operationMeta time { font-size: 11px; }
+}
