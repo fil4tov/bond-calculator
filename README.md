@@ -1,14 +1,36 @@
 # Калькулятор доходности облигаций
 
 Репозиторий содержит Vite SPA в `frontend/` и FastAPI API в `backend/`.
-PostgreSQL и backend запускаются в Docker, frontend — локально через pnpm.
+PostgreSQL, backend и production-сборка frontend запускаются через Docker Compose.
 
-## Запуск
+## Запуск всего приложения в Docker
 
-Требования: Docker Compose v2, pnpm 10 и Node.js.
+Требования: Docker Compose v2.
 
 ```bash
+cp .env.example .env
 docker compose up --build -d
+```
+
+Frontend доступен на `http://127.0.0.1`, API — через frontend на
+`http://127.0.0.1/api`.
+Порт frontend можно изменить через `FRONTEND_PORT` в `.env`.
+
+Проверка состояния:
+
+```bash
+docker compose ps
+curl --fail http://127.0.0.1/health
+curl --fail http://127.0.0.1/api/health
+```
+
+## Локальная разработка frontend
+
+Для разработки с Vite запустите PostgreSQL и backend в Docker, а frontend —
+через pnpm:
+
+```bash
+docker compose up --build -d postgres backend
 pnpm --dir frontend install --frozen-lockfile
 pnpm --dir frontend dev
 ```
@@ -21,6 +43,15 @@ Vite проксирует запросы `/api` в backend, поэтому от�
 Настройки из `.env.example` можно скопировать в `.env` и изменить. Для HTTPS
 нужно установить `COOKIE_SECURE=true`. Значения по умолчанию предназначены
 только для локальной разработки.
+
+## Обновление на сервере
+
+```bash
+git pull --ff-only origin main
+docker compose up -d --build
+```
+
+Миграции Alembic выполняются автоматически перед запуском backend.
 
 ## Миграции
 
