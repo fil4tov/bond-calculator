@@ -79,7 +79,7 @@ jobs:
     name: Deploy to server
     needs: [frontend-tests, backend-tests]
     runs-on: ubuntu-latest
-    environment: production
+    environment: deploy
     permissions:
       contents: read
       packages: write
