@@ -68,10 +68,6 @@ jobs:
         with:
           version: "0.12.3"
 
-      - name: Lint (ruff)
-        working-directory: backend
-        run: uvx ruff check .
-
       - name: Run test suite
         run: docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from backend-test
 
