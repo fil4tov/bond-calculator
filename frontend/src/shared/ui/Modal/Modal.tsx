@@ -3,73 +3,8 @@ import type { MouseEvent, ReactNode } from 'react';
 import { FiX } from 'react-icons/fi';
 
 import styles from './Modal.module.scss';
-
-const FOCUSABLE = 'button, input, select, textarea, [href], [tabindex]';
-
-interface ModalStackEntry {
-  dialog: HTMLDivElement;
-  closeButton: HTMLButtonElement | null;
-  previousFocus: HTMLElement | null;
-  handleKeyDown: (event: KeyboardEvent) => void;
-}
-
-const modalStack: ModalStackEntry[] = [];
-let overflowBeforeModals: string | null = null;
-let stackReturnFocus: HTMLElement | null = null;
-
-const topmostModal = () => modalStack.at(-1);
-
-const handleDocumentKeyDown = (event: KeyboardEvent) => {
-  topmostModal()?.handleKeyDown(event);
-};
-
-const focusableElements = (dialog: HTMLDivElement) => Array.from(
-  dialog.querySelectorAll<HTMLElement>(FOCUSABLE),
-).filter((element) => {
-  if (element.matches(':disabled') || element.tabIndex < 0 || element.closest('[hidden]')) return false;
-  if (element instanceof HTMLInputElement && element.type === 'hidden') return false;
-  const style = window.getComputedStyle(element);
-  return style.display !== 'none' && style.visibility !== 'hidden';
-});
-
-const mountModal = (entry: ModalStackEntry) => {
-  if (modalStack.length === 0) {
-    overflowBeforeModals = document.body.style.overflow;
-    stackReturnFocus = entry.previousFocus;
-    document.addEventListener('keydown', handleDocumentKeyDown);
-  }
-  modalStack.push(entry);
-  document.body.style.overflow = 'hidden';
-};
-
-const unmountModal = (entry: ModalStackEntry) => {
-  const index = modalStack.indexOf(entry);
-  if (index < 0) return;
-  const wasTopmost = index === modalStack.length - 1;
-  modalStack.splice(index, 1);
-
-  if (modalStack.length === 0) {
-    document.removeEventListener('keydown', handleDocumentKeyDown);
-    document.body.style.overflow = overflowBeforeModals ?? '';
-    const focusTarget = entry.previousFocus?.isConnected ? entry.previousFocus : stackReturnFocus;
-    overflowBeforeModals = null;
-    stackReturnFocus = null;
-    focusTarget?.focus();
-    return;
-  }
-
-  document.body.style.overflow = 'hidden';
-  if (!wasTopmost) return;
-
-  const nextTopmost = topmostModal();
-  if (!nextTopmost) return;
-  const focusTarget = entry.previousFocus;
-  if (focusTarget?.isConnected && nextTopmost.dialog.contains(focusTarget)) {
-    focusTarget.focus();
-  } else {
-    nextTopmost.closeButton?.focus();
-  }
-};
+import { focusableElements, mountModal, topmostModal, unmountModal } from './utils';
+import type { ModalStackEntry } from './utils';
 
 export interface ModalProps {
   title: string;
@@ -80,6 +15,8 @@ export interface ModalProps {
   onClose: () => void;
   returnFocusTarget?: HTMLElement | null;
   width?: 'narrow' | 'wide';
+  mobileFillHeight?: boolean;
+  mobileContentFillsHeight?: boolean;
 }
 
 export function Modal({
@@ -91,6 +28,8 @@ export function Modal({
   onClose,
   returnFocusTarget,
   width = 'narrow',
+  mobileFillHeight = false,
+  mobileContentFillsHeight = false,
 }: ModalProps) {
   const titleId = useId();
   const subtitleId = useId();
@@ -165,13 +104,16 @@ export function Modal({
     <div className={styles.backdrop} onMouseDown={handleBackdrop}>
       <div
         ref={dialogRef}
-        className={`${styles.dialog} ${styles[width]}`}
+        className={`${styles.dialog} ${styles[width]} ${mobileFillHeight ? styles.mobileFillHeight : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
       >
-        <div className={styles.scrollViewport} data-modal-scroll-viewport>
+        <div
+          className={`${styles.scrollViewport} ${mobileContentFillsHeight ? styles.mobileContentFillsHeight : ''}`}
+          data-modal-scroll-viewport
+        >
           <div className={styles.header}>
             <div>
               {eyebrow ? <span className={styles.eyebrow}>{eyebrow}</span> : null}

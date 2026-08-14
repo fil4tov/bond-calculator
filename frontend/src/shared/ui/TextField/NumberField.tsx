@@ -5,14 +5,9 @@ import { containsDisallowedMinus, isValidNumericDraft } from '#shared/lib/number
 
 import { TextField } from './TextField';
 import type { TextFieldProps } from './TextField';
+import { getValueAfterInsertion } from './utils';
 
 export type NumberFieldProps = Omit<TextFieldProps, 'type'>;
-
-function getValueAfterInsertion(input: HTMLInputElement, insertedValue: string) {
-  const start = input.selectionStart ?? input.value.length;
-  const end = input.selectionEnd ?? start;
-  return `${input.value.slice(0, start)}${insertedValue}${input.value.slice(end)}`;
-}
 
 export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(function NumberField(props, ref) {
   const { onChange, onKeyDown, onBeforeInput, value, ...rest } = props;

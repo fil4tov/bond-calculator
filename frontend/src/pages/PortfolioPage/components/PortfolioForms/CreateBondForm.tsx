@@ -5,17 +5,12 @@ import { useBondNameAvailability, useCreatePortfolioBond, useTInvestBondLookup, 
 import type { TInvestBondSearchItem } from '#entities/bondPortfolio';
 import { ApiError } from '#shared/api';
 import { parseFormattedNumber } from '#shared/lib/number';
-import { Button, ControlledNumberField, TextField } from '#shared/ui';
 
-import { canonicalDecimal, todayInputValue, validateMoney, validateQuantity } from '../../utils';
+import { canonicalDecimal, todayInputValue } from '../../utils';
 import styles from './PortfolioForms.module.scss';
 import { SelectedBondPreview } from './SelectedBondPreview';
-
-interface CreateBondFormValues {
-  amountSpent: string;
-  quantity: string;
-  purchaseDate: string;
-}
+import { BondSearchField, PurchaseFields, SubmitRow } from './components';
+import type { PurchaseFormValues } from './types';
 
 interface CreateBondFormProps {
   userId: string;
@@ -23,28 +18,24 @@ interface CreateBondFormProps {
   onBusyChange: (busy: boolean) => void;
 }
 
-const FIELD_MAP: Record<string, keyof CreateBondFormValues> = {
+const FIELD_MAP: Record<string, keyof PurchaseFormValues> = {
   amount_spent: 'amountSpent', quantity: 'quantity', purchase_date: 'purchaseDate',
 };
-const MAX_VISIBLE_SEARCH_RESULTS = 5;
 
 export function CreateBondForm({ userId, onSuccess, onBusyChange }: CreateBondFormProps) {
   const today = todayInputValue();
   const formId = useId();
-  const listboxId = `${formId}-ticker-options`;
   const purchaseHeadingId = `${formId}-purchase-heading`;
   const [searchText, setSearchText] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedInstrumentUid, setSelectedInstrumentUid] = useState<string | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [activeOptionIndex, setActiveOptionIndex] = useState(-1);
   const [selectedBondError, setSelectedBondError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const mutation = useCreatePortfolioBond(userId);
   const {
     control, register, handleSubmit, reset, setError,
     formState: { errors, isValid, isSubmitting },
-  } = useForm<CreateBondFormValues>({
+  } = useForm<PurchaseFormValues>({
     mode: 'onChange',
     defaultValues: { amountSpent: '', quantity: '', purchaseDate: today },
   });
@@ -67,8 +58,6 @@ export function CreateBondForm({ userId, onSuccess, onBusyChange }: CreateBondFo
   );
   const searchError = searchMatchesQuery && search.isError;
   const searchItems = searchMatchesQuery ? search.data : undefined;
-  const visibleSearchItems = searchItems?.slice(0, MAX_VISIBLE_SEARCH_RESULTS);
-  const showLookup = dropdownOpen && normalizedQuery.length >= 2 && !selectedInstrumentUid;
 
   const lookup = useTInvestBondLookup(
     userId,
@@ -118,8 +107,6 @@ export function CreateBondForm({ userId, onSuccess, onBusyChange }: CreateBondFo
   const selectBond = (bond: TInvestBondSearchItem) => {
     setSelectedInstrumentUid(bond.instrumentUid);
     setSearchText(bond.ticker);
-    setDropdownOpen(false);
-    setActiveOptionIndex(-1);
     setSelectedBondError(null);
     setSubmitError(null);
     resetPurchase();
@@ -128,8 +115,6 @@ export function CreateBondForm({ userId, onSuccess, onBusyChange }: CreateBondFo
   const changeSearch = (value: string) => {
     const nextQuery = value.trim();
     setSearchText(value);
-    setDropdownOpen(nextQuery.length >= 2);
-    setActiveOptionIndex(-1);
     setSubmitError(null);
     if (nextQuery.length < 2) setDebouncedQuery('');
     if (selectedInstrumentUid) {
@@ -181,72 +166,16 @@ export function CreateBondForm({ userId, onSuccess, onBusyChange }: CreateBondFo
       noValidate
       onSubmit={submit}
     >
-      <div className={`${styles.tickerField} ${selectedInstrumentUid ? styles.tickerFieldSelected : ''}`}>
-        <TextField
-          name="bondSearch"
-          label="Название или тикер"
-          placeholder="Например, ОФЗ или SU26238"
-          autoComplete="off"
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={showLookup}
-          aria-controls={showLookup ? listboxId : undefined}
-          aria-activedescendant={showLookup && activeOptionIndex >= 0 ? `${listboxId}-option-${activeOptionIndex}` : undefined}
-          value={searchText}
-          onChange={(event) => changeSearch(event.target.value)}
-          onBlur={() => setDropdownOpen(false)}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowDown' && visibleSearchItems?.length) {
-              event.preventDefault();
-              setDropdownOpen(true);
-              setActiveOptionIndex((index) => (index + 1) % visibleSearchItems.length);
-            }
-            if (event.key === 'ArrowUp' && visibleSearchItems?.length) {
-              event.preventDefault();
-              setDropdownOpen(true);
-              setActiveOptionIndex((index) => (
-                index <= 0 ? visibleSearchItems.length - 1 : index - 1
-              ));
-            }
-            if (event.key === 'Enter' && activeOptionIndex >= 0 && visibleSearchItems?.[activeOptionIndex]) {
-              event.preventDefault();
-              selectBond(visibleSearchItems[activeOptionIndex]);
-            }
-            if (event.key === 'Escape') {
-              setDropdownOpen(false);
-              setActiveOptionIndex(-1);
-            }
-          }}
-        />
-        {showLookup ? (
-          <div id={listboxId} className={styles.lookupMenu} role="listbox" aria-label="Результаты поиска облигаций">
-            {searchPending ? <p aria-live="polite">Ищем облигации…</p> : null}
-            {!searchPending ? visibleSearchItems?.map((item, index) => (
-              <button
-                id={`${listboxId}-option-${index}`}
-                key={item.instrumentUid}
-                type="button"
-                role="option"
-                tabIndex={-1}
-                aria-selected={activeOptionIndex === index}
-                className={styles.lookupOption}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseEnter={() => setActiveOptionIndex(index)}
-                onClick={() => selectBond(item)}
-              >
-                <strong>{item.ticker}</strong><span>{item.name}</span>
-              </button>
-            )) : null}
-            {!searchPending && searchItems?.length === 0 ? <p>Облигации не найдены</p> : null}
-            {searchError ? (
-              <p className={styles.inlineError} role="alert">
-                Не удалось найти облигации.{' '}
-                <button type="button" onClick={() => void search.refetch()}>Повторить поиск</button>
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      <BondSearchField
+        value={searchText}
+        selected={Boolean(selectedInstrumentUid)}
+        items={searchItems}
+        pending={searchPending}
+        error={searchError}
+        onChange={changeSearch}
+        onSelect={selectBond}
+        onRetry={() => void search.refetch()}
+      />
 
       {lookupPending ? <p className={styles.lookupStatus} aria-live="polite">Загружаем данные облигации…</p> : null}
       {lookupErrorMessage ? (
@@ -269,55 +198,23 @@ export function CreateBondForm({ userId, onSuccess, onBusyChange }: CreateBondFo
               <span aria-hidden="true" />
               <h3 id={purchaseHeadingId}>Первая покупка</h3>
             </div>
-            <div className={styles.grid}>
-              <ControlledNumberField
-                control={control}
-                name="amountSpent"
-                label="Сумма сделки"
-                hint="(с учётом НКД и комиссий)"
-                aria-label="Сумма сделки (с учётом НКД и комиссий)"
-                unit="₽"
-                inputMode="decimal"
-                error={errors.amountSpent?.message}
-                rules={{ validate: (value) => validateMoney(value, { allowZero: false, label: 'Сумма покупки' }) }}
-              />
-              <ControlledNumberField
-                control={control}
-                name="quantity"
-                label="Количество"
-                inputMode="numeric"
-                integer
-                error={errors.quantity?.message}
-                rules={{ validate: validateQuantity }}
-              />
-              <TextField
-                type="date"
-                label="Дата покупки"
-                min={selectedBond.placementDate}
-                max={today}
-                wide
-                error={errors.purchaseDate?.message}
-                {...register('purchaseDate', {
-                  required: 'Укажите дату покупки',
-                  validate: (value) => {
-                    if (value > today) return 'Дата покупки не может быть в будущем';
-                    if (value < selectedBond.placementDate) return 'Дата покупки должна быть не раньше размещения';
-                    return value < selectedBond.maturityDate || 'Дата покупки должна быть раньше погашения';
-                  },
-                })}
-              />
-            </div>
+            <PurchaseFields
+              control={control}
+              register={register}
+              errors={errors}
+              minimumDate={selectedBond.placementDate}
+              maximumDate={today}
+              maturityDate={selectedBond.maturityDate}
+              minimumDateError="Дата покупки должна быть не раньше размещения"
+            />
           </section>
           {submitError ? <p className={styles.formError} role="alert">{submitError}</p> : null}
-          <div className={styles.submitRow}>
-            <Button
-              className={styles.submitButton}
-              type="submit"
-              disabled={!isValid || !selectionIsCurrent || !nameAvailable || busy}
-            >
-              {busy ? 'Сохраняем…' : 'Сохранить'}
-            </Button>
-          </div>
+          <SubmitRow
+            disabled={!isValid || !selectionIsCurrent || !nameAvailable || busy}
+            busy={busy}
+            busyLabel="Сохраняем…"
+            idleLabel="Сохранить"
+          />
         </>
       ) : null}
     </form>

@@ -46,6 +46,7 @@
 .submitRow .submitButton { justify-content: center; padding-inline: 18px; text-align: center; }
 
 @media (max-width: 580px) {
+  .transactionForm { flex: 1; }
   .grid { grid-template-columns: 1fr; }
   .previewHeader { padding: 17px 17px 15px 19px; }
   .previewFacts { grid-template-columns: 1fr; gap: 13px; padding: 16px 17px 17px 19px; }
@@ -53,4 +54,5 @@
   .submitRow { align-items: stretch; flex-direction: column; gap: 14px; }
   .submitRow p { margin: 0; }
   .submitRow > button { width: 100%; }
+  .transactionForm .submitRow { margin-top: auto; }
 }

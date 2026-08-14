@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { FiSave } from 'react-icons/fi';
 
 import {
-  createPresetId,
   normalizePresetName,
   readPresets,
   sortPresets,
@@ -10,7 +9,6 @@ import {
   writePresets,
 } from '#entities/bondCalculation';
 import type { BondCalculationResult, HoldingMode, SavedBondCalculation } from '#entities/bondCalculation';
-import { parseFormattedNumber } from '#shared/lib/number';
 import { Button, Typography } from '#shared/ui';
 import { SiteHeader } from '#widgets/SiteHeader';
 
@@ -19,33 +17,9 @@ import type { BondCalculatorFormHandle } from './components/BondCalculatorForm';
 import { PresetsMenu } from './components/PresetsMenu';
 import { ResultsPanel } from './components/ResultsPanel';
 import styles from './BondCalculatorPage.module.scss';
-import type { BondCalculatorFormValues } from './types';
+import { collectPreset } from './utils';
 
 interface BondCalculatorPageProps { theme: 'light' | 'dark'; toggleTheme: () => void }
-
-function collectPreset(formValues: BondCalculatorFormValues): SavedBondCalculation {
-  const name = formValues.bondName.trim();
-  return {
-    id: createPresetId(),
-    name,
-    normalizedName: normalizePresetName(name),
-    updatedAt: new Date().toISOString(),
-    fields: {
-      nominal: parseFormattedNumber(formValues.nominal),
-      purchasePrice: parseFormattedNumber(formValues.purchasePrice),
-      coupon: parseFormattedNumber(formValues.coupon),
-      paymentsPerYear: parseFormattedNumber(formValues.paymentsPerYear),
-      purchaseMode: formValues.purchaseMode,
-      quantity: parseFormattedNumber(formValues.quantity),
-      investmentAmount: parseFormattedNumber(formValues.investmentAmount),
-      holdToMaturity: formValues.holdToMaturity,
-      maturityDate: formValues.maturityDate,
-      holdingYears: parseFormattedNumber(formValues.holdingYears),
-      holdingMonths: parseFormattedNumber(formValues.holdingMonths),
-      salePrice: parseFormattedNumber(formValues.salePrice),
-    },
-  };
-}
 
 export function BondCalculatorPage({ theme, toggleTheme }: BondCalculatorPageProps) {
   const formRef = useRef<BondCalculatorFormHandle>(null);

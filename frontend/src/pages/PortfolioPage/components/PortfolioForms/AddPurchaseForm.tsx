@@ -5,16 +5,10 @@ import { useAddPortfolioPurchase } from '#entities/bondPortfolio';
 import type { BondPortfolioItem } from '#entities/bondPortfolio';
 import { ApiError } from '#shared/api';
 import { parseFormattedNumber } from '#shared/lib/number';
-import { Button, ControlledNumberField, TextField } from '#shared/ui';
-
-import { canonicalDecimal, todayInputValue, validateMoney, validateQuantity } from '../../utils';
+import { canonicalDecimal, todayInputValue } from '../../utils';
 import styles from './PortfolioForms.module.scss';
-
-interface AddPurchaseFormValues {
-  amountSpent: string;
-  quantity: string;
-  purchaseDate: string;
-}
+import { PurchaseFields, SubmitRow } from './components';
+import type { PurchaseFormValues } from './types';
 
 interface AddPurchaseFormProps {
   userId: string;
@@ -23,7 +17,7 @@ interface AddPurchaseFormProps {
   onBusyChange: (busy: boolean) => void;
 }
 
-const FIELD_MAP: Record<string, keyof AddPurchaseFormValues> = {
+const FIELD_MAP: Record<string, keyof PurchaseFormValues> = {
   amount_spent: 'amountSpent', quantity: 'quantity', purchase_date: 'purchaseDate',
 };
 
@@ -38,7 +32,7 @@ export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPu
   const {
     control, register, handleSubmit, setError,
     formState: { errors, isValid, isSubmitting },
-  } = useForm<AddPurchaseFormValues>({
+  } = useForm<PurchaseFormValues>({
     mode: 'onChange',
     defaultValues: { amountSpent: '', quantity: '', purchaseDate: today },
   });
@@ -72,54 +66,22 @@ export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPu
   });
 
   return (
-    <form className={styles.form} noValidate onSubmit={submit}>
-      <div className={styles.grid}>
-        <ControlledNumberField
-          control={control}
-          name="amountSpent"
-          label="Сумма сделки"
-          hint="(с учётом НКД и комиссий)"
-          aria-label="Сумма сделки (с учётом НКД и комиссий)"
-          unit="₽"
-          inputMode="decimal"
-          error={errors.amountSpent?.message}
-          rules={{ validate: (value) => validateMoney(value, { allowZero: false, label: 'Сумма покупки' }) }}
-        />
-        <ControlledNumberField
-          control={control}
-          name="quantity"
-          label="Количество"
-          inputMode="numeric"
-          integer
-          error={errors.quantity?.message}
-          rules={{ validate: validateQuantity }}
-        />
-        <TextField
-          type="date"
-          label="Дата покупки"
-          min={earliestPurchaseDate}
-          max={today}
-          wide
-          error={errors.purchaseDate?.message}
-          {...register('purchaseDate', {
-            required: 'Укажите дату покупки',
-            validate: (value) => {
-              if (value > today) return 'Дата покупки не может быть в будущем';
-              if (value < earliestPurchaseDate) return 'Дата покупки должна быть не раньше первой покупки';
-              return value < bond.maturityDate || 'Дата покупки должна быть раньше погашения';
-            },
-          })}
-        />
-      </div>
+    <form className={`${styles.form} ${styles.transactionForm}`} noValidate onSubmit={submit}>
+      <PurchaseFields
+        control={control}
+        register={register}
+        errors={errors}
+        minimumDate={earliestPurchaseDate}
+        maximumDate={today}
+        maturityDate={bond.maturityDate}
+        minimumDateError="Дата покупки должна быть не раньше первой покупки"
+      />
       {submitError ? <p className={styles.formError} role="alert">{submitError} Повторите попытку.</p> : null}
-      <div className={styles.submitRow}>
+      <SubmitRow disabled={!isValid || busy} busy={busy} busyLabel="Фиксируем…" idleLabel="Зафиксировать">
         <p>
           После добавления покупки пересчитается купонная доходность за {bond.couponYieldYear} год
         </p>
-        <Button className={styles.submitButton} type="submit" disabled={!isValid || busy}>
-          {busy ? 'Фиксируем…' : 'Зафиксировать'}
-        </Button>
-      </div>
+      </SubmitRow>
     </form>
   );
 }
