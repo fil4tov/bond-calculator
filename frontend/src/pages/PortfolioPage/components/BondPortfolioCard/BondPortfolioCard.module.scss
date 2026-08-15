@@ -110,15 +110,20 @@
 
 .actions { display: flex; align-items: stretch; border-left: 1px solid var(--divider); }
 .actionsTrigger {
+  display: grid;
   width: 100%;
+  padding: 0;
+  place-items: center;
   border: 0;
   border-radius: 0 17px 17px 0;
+  appearance: none;
   color: var(--muted);
   background: transparent;
+  line-height: 0;
   cursor: pointer;
   transition: color 160ms ease, background-color 160ms ease;
 }
-.actionsTrigger span { display: block; transform: translateY(-3px); font-size: 18px; font-weight: 900; letter-spacing: 1px; }
+.actionsTrigger svg { display: block; width: 20px; height: 20px; }
 .actionsTrigger:hover, .actionsTrigger[aria-expanded='true'] { color: var(--ink); background: var(--green-soft); }
 .actionsTrigger:focus-visible { position: relative; z-index: 2; outline: 3px solid var(--focus-ring); outline-offset: -3px; }
 .actionsMenu { width: 260px; border-radius: 14px; }

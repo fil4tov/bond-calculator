@@ -24,8 +24,8 @@ export function ConfirmationContent({
       <p>{children}</p>
       {error ? <p className={styles.confirmationError} role="alert">{error}</p> : null}
       <div className={styles.confirmationActions}>
-        <Button type="button" disabled={busy} onClick={onCancel}>Отмена</Button>
-        <Button type="button" variant="danger" disabled={busy} onClick={onConfirm}>
+        <Button className={styles.confirmationAction} type="button" disabled={busy} onClick={onCancel}>Отмена</Button>
+        <Button className={styles.confirmationAction} type="button" variant="danger" disabled={busy} onClick={onConfirm}>
           {busy ? 'Удаляем…' : 'Удалить'}
         </Button>
       </div>

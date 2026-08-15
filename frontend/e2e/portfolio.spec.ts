@@ -153,6 +153,33 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
     return key ? localStorage.getItem(key) : null;
   })).toContain('"field":"name"');
 
+  const actionsTrigger = page.getByRole('article', { name: 'Облигация 10' })
+    .getByRole('button', { name: 'Действия с облигацией Облигация 10' });
+  const [actionsTriggerBox, actionsIconBox] = await Promise.all([
+    actionsTrigger.boundingBox(),
+    actionsTrigger.locator('svg').boundingBox(),
+  ]);
+  if (!actionsTriggerBox || !actionsIconBox) throw new Error('Не удалось измерить кнопку действий');
+  expect(Math.abs((actionsIconBox.x + actionsIconBox.width / 2) - (actionsTriggerBox.x + actionsTriggerBox.width / 2))).toBeLessThanOrEqual(1);
+  expect(Math.abs((actionsIconBox.y + actionsIconBox.height / 2) - (actionsTriggerBox.y + actionsTriggerBox.height / 2))).toBeLessThanOrEqual(1);
+
+  await actionsTrigger.click();
+  await page.getByRole('button', { name: 'Удалить из портфеля' }).click();
+  const confirmationDialog = page.getByRole('dialog', { name: 'Удалить облигацию' });
+  const closeButton = confirmationDialog.getByRole('button', { name: 'Закрыть окно' });
+  const [closeButtonBox, closeIconBox] = await Promise.all([
+    closeButton.boundingBox(),
+    closeButton.locator('svg').boundingBox(),
+  ]);
+  if (!closeButtonBox || !closeIconBox) throw new Error('Не удалось измерить кнопку закрытия');
+  expect(Math.abs((closeIconBox.x + closeIconBox.width / 2) - (closeButtonBox.x + closeButtonBox.width / 2))).toBeLessThanOrEqual(1);
+  expect(Math.abs((closeIconBox.y + closeIconBox.height / 2) - (closeButtonBox.y + closeButtonBox.height / 2))).toBeLessThanOrEqual(1);
+  await expect(confirmationDialog.getByRole('button', { name: 'Отмена' })).toHaveCSS('justify-content', 'center');
+  await expect(confirmationDialog.getByRole('button', { name: 'Отмена' })).toHaveCSS('text-align', 'center');
+  await expect(confirmationDialog.getByRole('button', { name: 'Удалить' })).toHaveCSS('justify-content', 'center');
+  await expect(confirmationDialog.getByRole('button', { name: 'Удалить' })).toHaveCSS('text-align', 'center');
+  await confirmationDialog.getByRole('button', { name: 'Отмена' }).click();
+
   const detailsDialog = page.getByRole('dialog', { name: 'Облигация 10' });
   await page.getByRole('article', { name: 'Облигация 10' })
     .getByRole('button', { name: 'Открыть сведения об облигации Облигация 10' })

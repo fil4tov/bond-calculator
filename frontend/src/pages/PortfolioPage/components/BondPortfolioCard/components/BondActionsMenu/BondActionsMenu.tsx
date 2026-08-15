@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { FiMoreHorizontal } from 'react-icons/fi';
 
 import { Dropdown } from '#shared/ui';
 
@@ -50,7 +51,7 @@ export function BondActionsMenu({
           aria-controls={triggerProps['aria-controls']}
           onClick={triggerProps.onClick}
         >
-          <span aria-hidden="true">•••</span>
+          <FiMoreHorizontal aria-hidden="true" />
         </button>
       )}
     >
