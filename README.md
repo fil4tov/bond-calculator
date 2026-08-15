@@ -1,111 +1,100 @@
-# Калькулятор доходности облигаций
+# Bonds
 
-Репозиторий содержит Vite SPA в `frontend/` и FastAPI API в `backend/`.
-PostgreSQL, backend и production-сборка frontend запускаются через Docker Compose.
+Веб-приложение для расчёта доходности облигаций и ведения личного облигационного портфеля. В приложении можно рассчитывать параметры выпуска, сохранять облигации и операции покупки/продажи, отслеживать купоны и основные показатели портфеля.
 
-## Запуск всего приложения в Docker
+Проект состоит из трёх частей:
 
-Требования: Docker Compose v2.
+- `frontend` — одностраничное React-приложение;
+- `backend` — REST API, авторизация и бизнес-логика;
+- `postgres` — база данных пользователей, облигаций и операций.
+
+## Стек
+
+**Frontend:** React 19, TypeScript, Vite, React Router, TanStack Query, React Hook Form, SCSS Modules, pnpm.
+
+**Backend:** Python 3.13, FastAPI, SQLAlchemy, asyncpg, Pydantic, Alembic, uv.
+
+**Инфраструктура:** PostgreSQL 17, Docker Compose, Nginx.
+
+**Тестирование:** Vitest, Testing Library, Playwright, pytest.
+
+## Запуск через Docker
+
+Понадобится Docker с поддержкой Compose v2.
+
+Создайте файл с настройками окружения и запустите весь стек:
 
 ```bash
 cp .env.example .env
 docker compose up --build -d
 ```
 
-Frontend доступен на `http://127.0.0.1`, API — через frontend на
-`http://127.0.0.1/api`.
-Порт frontend можно изменить через `FRONTEND_PORT` в `.env`.
+После запуска доступны:
 
-Проверка состояния:
+- приложение — `http://127.0.0.1`;
+- API — `http://127.0.0.1/api`;
+- Swagger UI — `http://127.0.0.1:8000/docs`.
+
+Проверить состояние контейнеров:
 
 ```bash
 docker compose ps
-curl --fail http://127.0.0.1/health
-curl --fail http://127.0.0.1/api/health
 ```
 
-## Локальная разработка frontend
-
-Для разработки с Vite запустите PostgreSQL и backend в Docker, а frontend —
-через pnpm:
+Остановить приложение:
 
 ```bash
-docker compose up --build -d postgres backend
-pnpm --dir frontend install --frozen-lockfile
-pnpm --dir frontend dev
+docker compose down
 ```
 
-Frontend доступен на `http://127.0.0.1:5173`, API — на
-`http://127.0.0.1:8000`, Swagger UI — на `http://127.0.0.1:8000/docs`.
-Vite проксирует запросы `/api` в backend, поэтому отдельная CORS-конфигурация
-для локальной разработки не требуется.
+## Локальный запуск для разработки
 
-Настройки из `.env.example` можно скопировать в `.env` и изменить. Для HTTPS
-нужно установить `COOKIE_SECURE=true`. Значения по умолчанию предназначены
-только для локальной разработки.
+Понадобятся Node.js 24+, pnpm 10+, Python 3.13+, uv и Docker. PostgreSQL запускается в Docker, а frontend и backend — локально с автоматической перезагрузкой при изменении кода.
 
-## Обновление на сервере
+Сначала запустите базу данных:
 
 ```bash
-git pull --ff-only origin main
-docker compose up -d --build
+docker compose up -d postgres
 ```
 
-Миграции Alembic выполняются автоматически перед запуском backend.
-
-## Миграции
-
-При старте backend автоматически выполняет `alembic upgrade head`.
-
-Миграция `20260810_0003` добавляет обязательную дату размещения. Поскольку её
-невозможно достоверно восстановить для старых записей, миграция намеренно и
-необратимо очищает существующие облигации и связанные покупки перед изменением
-схемы.
+В отдельном терминале запустите backend:
 
 ```bash
-docker compose exec backend alembic current
-docker compose exec backend alembic upgrade head
+cd backend
+uv sync --frozen
 ```
 
-## Фиксированные купонные периоды
+Для PowerShell:
 
-Частота выплат выбирает для облигации длительность купонного периода по умолчанию:
-`1 → 365`, `2 → 182`, `3 → 122`, `4 → 91`, `6 → 61`, `12 → 30` дней. Регулярные
-границы периодов выстраиваются назад от даты погашения, поэтому первый период от
-даты размещения может быть нерегулярным. Для конкретного выпуска значение по
-умолчанию можно переопределить через `coupon_period_days` (`1…366`).
+```powershell
+$env:DATABASE_URL = "postgresql+asyncpg://bonds:bonds_dev_password@127.0.0.1:5432/bonds"
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
+```
 
-Миграция `20260810_0004` добавляет и заполняет это значение для существующих
-облигаций; она не удаляет данные портфеля. Модель не импортирует полный биржевой
-график: для выпусков с нерегулярными периодами за пределами первого периода нужно
-указывать подходящую фиксированную длительность вручную.
-
-Фактические даты купонных выплат переносятся по российскому производственному
-календарю. Известные дополнительные выходные и рабочие субботы находятся в
-`backend/app/portfolio/business_calendar.py`; после публикации календаря на
-следующий год этот список нужно обновлять. Для ещё не опубликованных лет
-применяются базовые правила выходных и федеральных праздников.
-
-## Проверка
-
-Backend с изолированным временным PostgreSQL:
+Для Bash:
 
 ```bash
-docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from backend-test
+export DATABASE_URL="postgresql+asyncpg://bonds:bonds_dev_password@127.0.0.1:5432/bonds"
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
 ```
 
-Frontend:
+Ещё в одном терминале запустите frontend:
 
 ```bash
-pnpm --dir frontend lint
-pnpm --dir frontend typecheck
-pnpm --dir frontend test
-pnpm --dir frontend test:e2e
-pnpm --dir frontend build
+cd frontend
+corepack enable
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-E2E-тесты самостоятельно запускают `compose.e2e.yaml`: отдельные backend и
-PostgreSQL в `tmpfs` с Compose project name `bonds-e2e`. Vite направляет API
-запросы тестов на порт `8001`. После любого результата Playwright временный
-стек останавливается вместе с томами, поэтому тестовые пользователи не попадают
-в dev-базу. Основной `compose.yaml` для E2E запускать не требуется.
+В dev-режиме доступны:
+
+- приложение — `https://localhost:5173`;
+- API — `http://127.0.0.1:8000/api`;
+- Swagger UI — `http://127.0.0.1:8000/docs`.
+
+Vite проксирует запросы `/api` на локальный backend. При первом запуске браузер может попросить подтвердить локальный HTTPS-сертификат.
+
+Дополнительные параметры, включая порты и токен T-Invest API, перечислены в `.env.example`.

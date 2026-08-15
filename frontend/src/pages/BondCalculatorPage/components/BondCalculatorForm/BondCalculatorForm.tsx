@@ -22,6 +22,7 @@ import { Button, ControlledNumberField, IconButton, SegmentedControl, TextField,
 
 import styles from '../../BondCalculatorPage.module.scss';
 import type { BondCalculatorFormValues } from '../../types';
+import { useFirstRowLabelAlignment } from './hooks';
 import { formatted, getDefaultValues, getTomorrow, validateCalculation } from './utils';
 import type { ValidationErrors } from './utils';
 
@@ -65,6 +66,7 @@ export const BondCalculatorForm = forwardRef<BondCalculatorFormHandle, BondCalcu
   const { control, register, handleSubmit, reset, getValues, setValue, setError, clearErrors, watch, formState: { errors } } = useForm<BondCalculatorFormValues>({ defaultValues: defaults });
   const values = useWatch({ control }) as BondCalculatorFormValues;
   const [hasSuccessfulCalculation, setHasSuccessfulCalculation] = useState(false);
+  const formGridRef = useFirstRowLabelAlignment();
   const bondNameRegistration = register('bondName');
 
   const applyValidationErrors = useCallback((validationErrors: ValidationErrors, focus = false) => {
@@ -190,7 +192,7 @@ export const BondCalculatorForm = forwardRef<BondCalculatorFormHandle, BondCalcu
           autoComplete="off" maxLength={80} wide error={errors.bondName?.message} {...bondNameRegistration}
         />
       </div>
-      <div className={styles.formGrid}>
+      <div ref={formGridRef} className={styles.formGrid}>
         <ControlledNumberField control={control} name="nominal" label="Номинал облигации" unit="₽" inputMode="decimal" error={errors.nominal?.message} />
         <ControlledNumberField control={control} name="purchasePrice" label="Цена облигации" hint="(с учётом НКД и комиссий)" unit="₽" inputMode="decimal" error={errors.purchasePrice?.message} />
         <ControlledNumberField control={control} name="coupon" label="Величина купона" unit="₽" inputMode="decimal" error={errors.coupon?.message} />

@@ -47,7 +47,6 @@
 .bondNameSection { padding: 28px 0 0; }
 .formGrid, .purchaseGrid, .conditionalGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 18px; }
 .formGrid { align-items: start; padding-top: 24px; }
-.formGrid > :nth-child(-n + 2) { container: first-row-field / inline-size; }
 .purchaseSection { margin-top: 28px; padding: 26px 0; border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }
 .choiceRow { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .choiceRow > strong { color: var(--field-label); font-size: 14px; font-weight: 800; }
@@ -124,9 +123,7 @@
 .visuallyHidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
 
 @media (min-width: 581px) {
-  @container first-row-field (max-width: 280px) {
-    .formGrid > :nth-child(-n + 2) > span:first-child { min-height: 2.7em; }
-  }
+  .formGrid > :first-child > span:first-child { min-height: var(--first-row-label-height); }
 }
 
 @media (max-width: 900px) {
