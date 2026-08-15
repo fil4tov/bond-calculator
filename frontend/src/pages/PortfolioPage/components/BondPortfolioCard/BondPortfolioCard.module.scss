@@ -67,10 +67,10 @@
 .value .yieldLine { position: relative; z-index: 3; display: inline-flex; align-items: center; justify-content: flex-end; gap: 7px; pointer-events: none; }
 .yieldHelp { display: inline-flex; pointer-events: auto; }
 .value .yieldHelp > span { color: var(--muted); }
-.value .yieldHelp [role='tooltip'] { color: var(--ink); font-size: 13px; pointer-events: none; }
+.value .yieldHelp [role='tooltip'] { color: var(--ink); pointer-events: none; }
 .marketValueHelp { position: relative; z-index: 3; display: inline-flex; pointer-events: auto; }
 .value .marketValueHelp > span { color: var(--muted); }
-.value .marketValueHelp [role='tooltip'] { color: var(--ink); font-size: 13px; pointer-events: none; }
+.value .marketValueHelp [role='tooltip'] { color: var(--ink); pointer-events: none; }
 
 .couponTrack {
   position: relative;
