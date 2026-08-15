@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 
-import { useTheme } from '../useTheme';
+import { useTheme } from './useTheme';
 
 export type ThemeInjectedProps = ReturnType<typeof useTheme>;
 
