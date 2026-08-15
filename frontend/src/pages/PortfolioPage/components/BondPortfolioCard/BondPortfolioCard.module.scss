@@ -123,7 +123,7 @@
   cursor: pointer;
   transition: color 160ms ease, background-color 160ms ease;
 }
-.actionsTrigger svg { display: block; width: 20px; height: 20px; }
+.actionsTrigger svg { display: block; width: 28px; height: 28px; }
 .actionsTrigger:hover, .actionsTrigger[aria-expanded='true'] { color: var(--ink); background: var(--green-soft); }
 .actionsTrigger:focus-visible { position: relative; z-index: 2; outline: 3px solid var(--focus-ring); outline-offset: -3px; }
 .actionsMenu { width: 260px; border-radius: 14px; }
