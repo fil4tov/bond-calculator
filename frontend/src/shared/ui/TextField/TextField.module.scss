@@ -2,12 +2,12 @@
 .wide { grid-column: 1 / -1; }
 .label { color: var(--field-label); font-size: 14px; font-weight: 750; line-height: 1.35; }
 .label small { margin-left: 5px; color: var(--hint); font-size: 12px; font-weight: 500; }
-.wrap { position: relative; display: block; }
+.wrap { position: relative; display: block; width: 100%; min-width: 0; }
 .wrap input {
   width: 100%; height: 50px; padding: 0 46px 0 15px; border: 1px solid var(--line); border-radius: 12px;
   outline: none; color: var(--ink); background: var(--input-bg); transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
-.wrap input[type='date'] { padding-right: 15px; }
+.wrap input[type='date'] { display: block; min-width: 100%; max-width: 100%; padding-right: 15px; }
 .wrap input:hover { border-color: var(--input-hover); }
 .wrap input:focus { border-color: var(--green); box-shadow: 0 0 0 4px var(--focus-ring); }
 .wrap input[aria-invalid='true'] { border-color: var(--loss); background: var(--invalid-bg); }

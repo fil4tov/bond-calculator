@@ -71,19 +71,22 @@
   display: grid;
   flex: 0 0 auto;
   place-items: center;
+  padding: 0;
   border: 1px solid var(--card-border);
   border-radius: 999px;
+  appearance: none;
   color: var(--ink);
   background: var(--toggle-bg);
   box-shadow: 0 8px 24px rgba(23, 35, 30, 0.08);
+  line-height: 0;
   cursor: pointer;
   backdrop-filter: blur(12px);
   transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
 
   &:hover { transform: translateY(-1px); border-color: var(--line); }
   &:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
-  > span { display: grid; place-items: center; }
-  svg { width: 20px; height: 20px; }
+  > span { display: grid; place-items: center; line-height: 0; }
+  svg { display: block; width: 20px; height: 20px; }
 }
 
 .medium { width: 46px; height: 46px; }
