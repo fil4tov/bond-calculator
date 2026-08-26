@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
-import { addBondPurchase, addBondSale, createBond, deletePortfolioBond, deletePortfolioOperation, getPortfolioBonds, lookupTInvestBond, searchTInvestBonds } from '../api';
+import { addBondPurchase, addBondSale, createBond, deletePortfolioBond, deletePortfolioOperation, getPortfolioBonds, lookupTInvestBond, refreshCouponSchedule, searchTInvestBonds } from '../api';
 import { portfolioQueryKey, replacePortfolioBond, tInvestLookupQueryKey, tInvestSearchQueryKey } from '../query';
 
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -12,6 +12,7 @@ const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringif
 const activeDto = {
   id: 'bond-1',
   created_at: '2026-08-08T10:15:30+00:00',
+  coupon_schedule_updated_at: '2026-08-08T10:16:30+00:00',
   name: 'ОФЗ 26238',
   nominal: '1000.00',
   payments_per_year: 2,
@@ -26,6 +27,31 @@ const activeDto = {
   realized_result: '1250.30',
   position_status: 'open',
   paid_coupon_total: '1770.00',
+  coupon_payments: [
+    {
+      coupon_number: 34,
+      pay_date: '2026-08-15',
+      amount_per_bond: '35.40',
+      quantity: 50,
+      amount: '1770.00',
+    },
+  ],
+  coupon_schedule: [
+    {
+      coupon_number: 35,
+      pay_date: '2026-11-16',
+      amount_per_bond: '0.00',
+      quantity: 50,
+      amount: '0.00',
+    },
+    {
+      coupon_number: 1,
+      pay_date: '2025-05-16',
+      amount_per_bond: '35.40',
+      quantity: 0,
+      amount: '0.00',
+    },
+  ],
   holding_period_coupon_income: '28500.00',
   calendar_year_paid_coupon_income: '1770.00',
   calendar_year_coupon_yield_percent: '7.0800',
@@ -52,6 +78,7 @@ describe('bond portfolio API boundary', () => {
     await expect(getPortfolioBonds()).resolves.toEqual([{
       id: 'bond-1',
       createdAt: '2026-08-08T10:15:30+00:00',
+      couponScheduleUpdatedAt: '2026-08-08T10:16:30+00:00',
       name: 'ОФЗ 26238',
       nominal: '1000.00',
       paymentsPerYear: 2,
@@ -66,6 +93,31 @@ describe('bond portfolio API boundary', () => {
       realizedResult: '1250.30',
       positionStatus: 'open',
       paidCouponTotal: '1770.00',
+      couponPayments: [
+        {
+          couponNumber: 34,
+          payDate: '2026-08-15',
+          amountPerBond: '35.40',
+          quantity: 50,
+          amount: '1770.00',
+        },
+      ],
+      couponSchedule: [
+        {
+          couponNumber: 35,
+          payDate: '2026-11-16',
+          amountPerBond: '0.00',
+          quantity: 50,
+          amount: '0.00',
+        },
+        {
+          couponNumber: 1,
+          payDate: '2025-05-16',
+          amountPerBond: '35.40',
+          quantity: 0,
+          amount: '0.00',
+        },
+      ],
       holdingPeriodCouponIncome: '28500.00',
       calendarYearPaidCouponIncome: '1770.00',
       calendarYearCouponYieldPercent: '7.0800',
@@ -169,6 +221,22 @@ describe('bond portfolio API boundary', () => {
     await deletePortfolioBond('bond-1');
     expect(request?.method).toBe('DELETE');
     expect(new URL(request?.url ?? '').pathname).toBe('/api/portfolio/bonds/bond-1');
+  });
+
+  it('refreshes the full coupon schedule through the bond endpoint', async () => {
+    let request: Request | undefined;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      request = input as Request;
+      return jsonResponse({ ...activeDto, coupon_schedule_updated_at: '2026-08-09T10:00:00Z' });
+    }));
+
+    await expect(refreshCouponSchedule('bond-1')).resolves.toMatchObject({
+      couponScheduleUpdatedAt: '2026-08-09T10:00:00Z',
+      couponSchedule: [{ couponNumber: 35 }, { couponNumber: 1 }],
+    });
+    expect(request?.method).toBe('POST');
+    expect(new URL(request?.url ?? '').pathname)
+      .toBe('/api/portfolio/bonds/bond-1/coupon-schedule/refresh');
   });
 
   it('serializes a sale with complete proceeds and adapts the updated position', async () => {

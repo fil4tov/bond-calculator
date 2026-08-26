@@ -34,6 +34,24 @@ class CouponPosition:
 
 
 @dataclass(frozen=True)
+class CouponPayment:
+    coupon_number: int
+    pay_date: date
+    amount_per_bond: Decimal
+    quantity: int
+    amount: Decimal
+
+
+@dataclass(frozen=True)
+class CouponScheduleEvent:
+    coupon_number: int
+    pay_date: date
+    amount_per_bond: Decimal
+    quantity: int
+    amount: Decimal
+
+
+@dataclass(frozen=True)
 class BondMetrics:
     status: Literal["active", "payment_pending", "matured"]
     total_quantity: int
@@ -42,6 +60,7 @@ class BondMetrics:
     realized_result: Decimal
     position_status: Literal["open", "closed"]
     paid_coupon_total: Decimal
+    coupon_payments: tuple[CouponPayment, ...]
     holding_period_coupon_income: Decimal
     calendar_year_paid_coupon_income: Decimal
     calendar_year_coupon_income: Decimal
@@ -130,6 +149,30 @@ def _payment_amount(coupon: CouponPosition, operations: tuple[OperationPosition,
     return coupon.pay_one_bond_amount * quantity
 
 
+def calculate_coupon_schedule_events(
+    coupons: tuple[CouponPosition, ...],
+    operations: tuple[OperationPosition, ...],
+) -> tuple[CouponScheduleEvent, ...]:
+    ordered_coupons = sorted(
+        coupons,
+        key=lambda item: (item.coupon_date, item.coupon_number),
+        reverse=True,
+    )
+    with localcontext() as context:
+        context.prec = 48
+        return tuple(
+            CouponScheduleEvent(
+                coupon_number=coupon.coupon_number,
+                pay_date=coupon.coupon_date,
+                amount_per_bond=coupon.pay_one_bond_amount,
+                quantity=quantity,
+                amount=coupon.pay_one_bond_amount * quantity,
+            )
+            for coupon in ordered_coupons
+            for quantity in (_position_at_coupon_cutoff(coupon, operations)[0],)
+        )
+
+
 def _coupon_event_yield_percent(
     coupon: CouponPosition, operations: tuple[OperationPosition, ...]
 ) -> Decimal:
@@ -162,16 +205,25 @@ def calculate_bond_metrics(
     ordered_coupons = tuple(sorted(coupons, key=lambda item: (item.coupon_date, item.coupon_number)))
     with localcontext() as context:
         context.prec = 48
+        coupon_payments = tuple(
+            CouponPayment(
+                coupon_number=coupon.coupon_number,
+                pay_date=coupon.coupon_date,
+                amount_per_bond=coupon.pay_one_bond_amount,
+                quantity=quantity,
+                amount=coupon.pay_one_bond_amount * quantity,
+            )
+            for coupon in reversed(ordered_coupons)
+            if coupon.coupon_date <= today
+            and (quantity := _position_at_coupon_cutoff(coupon, replay_operations)[0]) > 0
+            and coupon.pay_one_bond_amount > 0
+        )
         holding_period_coupon_income = sum(
             (_payment_amount(coupon, replay_operations) for coupon in ordered_coupons),
             start=Decimal("0.00"),
         )
         paid_total = sum(
-            (
-                _payment_amount(coupon, replay_operations)
-                for coupon in ordered_coupons
-                if coupon.coupon_date <= today
-            ),
+            (payment.amount for payment in coupon_payments),
             start=Decimal("0.00"),
         )
         calendar_year_start = date(today.year, 1, 1)
@@ -184,9 +236,9 @@ def calculate_bond_metrics(
         )
         calendar_year_paid_coupon_income = sum(
             (
-                _payment_amount(coupon, replay_operations)
-                for coupon in ordered_coupons
-                if calendar_year_start <= coupon.coupon_date <= today
+                payment.amount
+                for payment in coupon_payments
+                if calendar_year_start <= payment.pay_date <= today
             ),
             start=Decimal("0.00"),
         )
@@ -256,6 +308,7 @@ def calculate_bond_metrics(
             realized_result=realized_result,
             position_status="open" if total_quantity else "closed",
             paid_coupon_total=paid_total,
+            coupon_payments=coupon_payments,
             holding_period_coupon_income=holding_period_coupon_income,
             calendar_year_paid_coupon_income=calendar_year_paid_coupon_income,
             calendar_year_coupon_income=calendar_year_coupon_income,
@@ -285,6 +338,7 @@ def calculate_bond_metrics(
         realized_result=realized_result,
         position_status="open" if total_quantity else "closed",
         paid_coupon_total=paid_total,
+        coupon_payments=coupon_payments,
         holding_period_coupon_income=holding_period_coupon_income,
         calendar_year_paid_coupon_income=calendar_year_paid_coupon_income,
         calendar_year_coupon_income=calendar_year_coupon_income,

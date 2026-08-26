@@ -17,6 +17,22 @@ export interface BondNextCoupon {
   elapsedPeriodDays: number;
 }
 
+export interface BondCouponPayment {
+  couponNumber: number;
+  payDate: string;
+  amountPerBond: string;
+  quantity: number;
+  amount: string;
+}
+
+export interface BondCouponScheduleItem {
+  couponNumber: number;
+  payDate: string;
+  amountPerBond: string;
+  quantity: number;
+  amount: string;
+}
+
 export type BondOperationType = 'purchase' | 'sale';
 export type BondPositionStatus = 'open' | 'closed';
 
@@ -32,6 +48,7 @@ export interface BondOperation {
 export interface BondPortfolioItem {
   id: string;
   createdAt: string;
+  couponScheduleUpdatedAt: string;
   name: string;
   nominal: string;
   paymentsPerYear: number;
@@ -46,6 +63,8 @@ export interface BondPortfolioItem {
   realizedResult: string;
   positionStatus: BondPositionStatus;
   paidCouponTotal: string;
+  couponPayments: BondCouponPayment[];
+  couponSchedule: BondCouponScheduleItem[];
   holdingPeriodCouponIncome: string;
   calendarYearPaidCouponIncome: string;
   calendarYearCouponYieldPercent: string;

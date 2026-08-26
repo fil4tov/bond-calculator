@@ -31,7 +31,6 @@ export function CouponMetrics({ bond }: { bond: BondPortfolioItem }) {
         </dt>
         <dd>{formatPercent(bond.calendarYearCouponYieldPercent)}</dd>
       </div>
-      <div><dt>Выплачено купонов</dt><dd>{formatMoney(bond.paidCouponTotal)}</dd></div>
       <div>
         <dt className={styles.metricLabel}>
           <span>Ожидаемый купонный доход за {bond.couponYieldYear} год</span>
@@ -41,7 +40,7 @@ export function CouponMetrics({ bond }: { bond: BondPortfolioItem }) {
         </dt>
         <dd className={styles.positive}>+{formatMoney(bond.calendarYearCouponIncome)}</dd>
       </div>
-      <div className={styles.holdingPeriodMetric}>
+      <div>
         <dt className={styles.metricLabel}>
           <span>Ожидаемый купонный доход за весь период владения</span>
           <Tooltip
@@ -52,6 +51,10 @@ export function CouponMetrics({ bond }: { bond: BondPortfolioItem }) {
           </Tooltip>
         </dt>
         <dd className={styles.positive}>+{formatMoney(bond.holdingPeriodCouponIncome)}</dd>
+      </div>
+      <div className={styles.paidCouponMetric}>
+        <dt>Выплачено купонов</dt>
+        <dd>{formatMoney(bond.paidCouponTotal)}</dd>
       </div>
     </dl>
   );

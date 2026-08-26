@@ -1,4 +1,41 @@
-.details { display: grid; gap: 22px; }
+.layout {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: min(700px, calc(100vh - 56px));
+  height: min(700px, calc(100dvh - 56px));
+  min-height: 560px;
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+
+.accessibleTitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.content { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.contentHeader { display: grid; flex: 0 0 auto; gap: 4px; padding: 20px 76px 19px 24px; border-bottom: 1px solid var(--divider); }
+.contentHeader strong { font-size: 14px; }
+.contentHeader span { color: var(--muted); font-size: 11px; }
+.contentViewport {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 24px;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--modal-scrollbar-thumb) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+.section { display: grid; gap: 22px; }
+.section[hidden] { display: none; }
 .status { display: inline-flex; width: fit-content; align-items: center; gap: 8px; color: var(--accent-text); font-size: 11px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
 .status::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 5px var(--green-soft); content: ''; }
 .statusMatured { color: var(--muted); }
@@ -12,7 +49,7 @@
 .issueGrid > div:last-child { grid-column: 1 / -1; }
 .issueGrid dt, .metricsGrid dt { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
 .metricsGrid .metricLabel { display: flex; align-items: center; gap: 7px; }
-.metricsGrid > .holdingPeriodMetric { grid-column: 1 / -1; }
+.metricsGrid > .paidCouponMetric, .metricsGrid > .resultMetric { grid-column: 1 / -1; }
 .issueGrid dd, .metricsGrid dd { margin: 8px 0 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .marketValue { display: grid; min-width: 0; justify-items: start; gap: 4px; }
 .marketValueBreakdown { color: var(--ink); font-size: 13px; }
@@ -56,4 +93,18 @@
   .issueGrid > div:nth-child(n + 2), .metricsGrid > div:nth-child(n + 2) { border-top: 1px solid var(--divider); }
   .purchaseItem { gap: 8px; }
   .operationMeta time { font-size: 11px; }
+}
+
+@media (max-width: 720px) {
+  .layout {
+    display: flex;
+    height: calc(100vh - 16px);
+    height: calc(100dvh - 16px);
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .content { flex: 1; }
+  .contentHeader { display: none; }
+  .contentViewport { padding: 20px 18px max(28px, env(safe-area-inset-bottom)); scrollbar-gutter: auto; }
 }

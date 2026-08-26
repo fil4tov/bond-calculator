@@ -5,6 +5,7 @@ import type { AddBondPurchaseInput, AddBondSaleInput, BondOperationType, BondPor
 interface BondPortfolioItemDto {
   id: string;
   created_at: string;
+  coupon_schedule_updated_at: string;
   name: string;
   nominal: string;
   payments_per_year: number;
@@ -19,6 +20,20 @@ interface BondPortfolioItemDto {
   realized_result: string;
   position_status: BondPositionStatus;
   paid_coupon_total: string;
+  coupon_payments?: Array<{
+    coupon_number: number;
+    pay_date: string;
+    amount_per_bond: string;
+    quantity: number;
+    amount: string;
+  }>;
+  coupon_schedule?: Array<{
+    coupon_number: number;
+    pay_date: string;
+    amount_per_bond: string;
+    quantity: number;
+    amount: string;
+  }>;
   holding_period_coupon_income: string;
   calendar_year_paid_coupon_income: string;
   calendar_year_coupon_yield_percent: string;
@@ -53,6 +68,7 @@ interface NameAvailabilityDto { available: boolean }
 const adaptBond = (dto: BondPortfolioItemDto): BondPortfolioItem => ({
   id: dto.id,
   createdAt: dto.created_at,
+  couponScheduleUpdatedAt: dto.coupon_schedule_updated_at,
   name: dto.name,
   nominal: dto.nominal,
   paymentsPerYear: dto.payments_per_year,
@@ -67,6 +83,20 @@ const adaptBond = (dto: BondPortfolioItemDto): BondPortfolioItem => ({
   realizedResult: dto.realized_result,
   positionStatus: dto.position_status,
   paidCouponTotal: dto.paid_coupon_total,
+  couponPayments: (dto.coupon_payments ?? []).map((payment) => ({
+    couponNumber: payment.coupon_number,
+    payDate: payment.pay_date,
+    amountPerBond: payment.amount_per_bond,
+    quantity: payment.quantity,
+    amount: payment.amount,
+  })),
+  couponSchedule: (dto.coupon_schedule ?? []).map((event) => ({
+    couponNumber: event.coupon_number,
+    payDate: event.pay_date,
+    amountPerBond: event.amount_per_bond,
+    quantity: event.quantity,
+    amount: event.amount,
+  })),
   holdingPeriodCouponIncome: dto.holding_period_coupon_income,
   calendarYearPaidCouponIncome: dto.calendar_year_paid_coupon_income,
   calendarYearCouponYieldPercent: dto.calendar_year_coupon_yield_percent,
@@ -204,4 +234,12 @@ export async function deletePortfolioOperation(bondId: string, operationId: stri
 
 export async function deletePortfolioBond(bondId: string) {
   await apiRequest<void>(`portfolio/bonds/${bondId}`, { method: 'delete' });
+}
+
+export async function refreshCouponSchedule(bondId: string) {
+  const response = await apiRequest<BondPortfolioItemDto>(
+    `portfolio/bonds/${bondId}/coupon-schedule/refresh`,
+    { method: 'post' },
+  );
+  return adaptBond(response);
 }

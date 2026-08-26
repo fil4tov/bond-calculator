@@ -10,13 +10,21 @@ export interface ModalProps {
   title: string;
   subtitle?: ReactNode;
   eyebrow?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
+  renderContent?: (props: ModalContentRenderProps) => ReactNode;
   busy?: boolean;
   onClose: () => void;
   returnFocusTarget?: HTMLElement | null;
-  width?: 'narrow' | 'wide';
+  width?: 'narrow' | 'wide' | 'extraWide';
+  contentLayout?: 'default' | 'fullBleed';
   mobileFillHeight?: boolean;
   mobileContentFillsHeight?: boolean;
+}
+
+interface ModalContentRenderProps {
+  titleId: string;
+  subtitleId: string;
+  closeButton: ReactNode;
 }
 
 export function Modal({
@@ -24,10 +32,12 @@ export function Modal({
   subtitle,
   eyebrow,
   children,
+  renderContent,
   busy = false,
   onClose,
   returnFocusTarget,
   width = 'narrow',
+  contentLayout = 'default',
   mobileFillHeight = false,
   mobileContentFillsHeight = false,
 }: ModalProps) {
@@ -100,6 +110,19 @@ export function Modal({
     if (event.target === event.currentTarget) requestClose();
   };
 
+  const closeButton = (
+    <button
+      ref={closeRef}
+      type="button"
+      className={styles.close}
+      aria-label="Закрыть окно"
+      disabled={busy}
+      onClick={requestClose}
+    >
+      <FiX aria-hidden="true" />
+    </button>
+  );
+
   return (
     <div className={styles.backdrop} onMouseDown={handleBackdrop}>
       <div
@@ -111,27 +134,22 @@ export function Modal({
         aria-describedby={subtitle ? subtitleId : undefined}
       >
         <div
-          className={`${styles.scrollViewport} ${mobileContentFillsHeight ? styles.mobileContentFillsHeight : ''}`}
+          className={`${styles.scrollViewport} ${contentLayout === 'fullBleed' ? styles.fullBleed : ''} ${mobileContentFillsHeight ? styles.mobileContentFillsHeight : ''}`}
           data-modal-scroll-viewport
         >
-          <div className={styles.header}>
-            <div>
-              {eyebrow ? <span className={styles.eyebrow}>{eyebrow}</span> : null}
-              <h2 id={titleId}>{title}</h2>
-              {subtitle ? <p id={subtitleId} className={styles.subtitle}>{subtitle}</p> : null}
-            </div>
-            <button
-              ref={closeRef}
-              type="button"
-              className={styles.close}
-              aria-label="Закрыть окно"
-              disabled={busy}
-              onClick={requestClose}
-            >
-              <FiX aria-hidden="true" />
-            </button>
-          </div>
-          {children}
+          {renderContent ? renderContent({ titleId, subtitleId, closeButton }) : (
+            <>
+              <div className={styles.header}>
+                <div>
+                  {eyebrow ? <span className={styles.eyebrow}>{eyebrow}</span> : null}
+                  <h2 id={titleId}>{title}</h2>
+                  {subtitle ? <p id={subtitleId} className={styles.subtitle}>{subtitle}</p> : null}
+                </div>
+                {closeButton}
+              </div>
+              {children}
+            </>
+          )}
         </div>
       </div>
     </div>

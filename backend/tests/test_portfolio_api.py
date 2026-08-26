@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.main import app
 from app.errors import ApiError
 from app.portfolio import clock
-from app.portfolio.models import Bond, BondCouponSchedule, BondOperation
+from app.portfolio.models import (
+    Bond,
+    BondCouponSchedule,
+    BondCouponScheduleSync,
+    BondOperation,
+)
 from app.portfolio.router import get_t_invest_gateway
 from app.portfolio.t_invest_gateway import TInvestBond, TInvestCoupon, TInvestGateway
 
@@ -124,6 +129,16 @@ async def test_create_list_and_add_purchase_return_stored_schedule_card(client: 
     assert card["next_coupon"]["amount_per_bond"] == "35.40"
     assert card["annual_coupon_yield_percent"] == "7.0800"
     assert card["holding_period_coupon_income"] == "1770.00"
+    assert card["coupon_payments"] == []
+    assert card["coupon_schedule"] == [
+        {
+            "coupon_number": 1,
+            "pay_date": payload["maturity_date"],
+            "amount_per_bond": "35.40",
+            "quantity": 50,
+            "amount": "1770.00",
+        }
+    ]
     added = await client.post(f"/api/portfolio/bonds/{card['id']}/purchases", json={"amount_spent": "25000.35", "quantity": 25, "purchase_date": (clock.utc_today() - timedelta(days=1)).isoformat()})
     assert added.status_code == 201
     assert added.json()["created_at"] == card["created_at"]
@@ -328,7 +343,8 @@ async def test_delete_cascades_operations_and_schedule(client: AsyncClient, sess
     async with session_factory() as session:
         assert await session.scalar(select(Bond.id).where(Bond.id == bond_id)) is None
         assert await session.scalar(select(BondOperation.id).where(BondOperation.bond_id == bond_id)) is None
-        assert await session.scalar(select(BondCouponSchedule.id).where(BondCouponSchedule.bond_id == bond_id)) is None
+        assert await session.scalar(select(BondCouponSchedule.id)) is None
+        assert await session.scalar(select(BondCouponScheduleSync.instrument_uid)) is None
 
 
 @pytest.mark.asyncio

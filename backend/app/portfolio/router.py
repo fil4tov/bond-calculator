@@ -31,6 +31,7 @@ from .service import (
     delete_operation,
     is_name_available,
     list_bonds,
+    refresh_coupon_schedule,
 )
 from .t_invest_gateway import TInvestGateway
 
@@ -175,6 +176,22 @@ async def post_sale(
     user: CurrentUser,
 ) -> BondCard:
     card = await add_sale(db, user.id, bond_id, data)
+    _disable_cache(response)
+    return card
+
+
+@router.post(
+    "/bonds/{bond_id}/coupon-schedule/refresh",
+    response_model=BondCard,
+)
+async def post_coupon_schedule_refresh(
+    bond_id: UUID,
+    response: Response,
+    db: Database,
+    user: CurrentUser,
+    gateway: TInvestGateway = Depends(get_t_invest_gateway),
+) -> BondCard:
+    card = await refresh_coupon_schedule(db, user.id, bond_id, gateway)
     _disable_cache(response)
     return card
 

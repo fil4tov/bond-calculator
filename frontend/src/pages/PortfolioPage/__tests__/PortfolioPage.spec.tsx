@@ -25,11 +25,24 @@ const searchResponse = (item = lookupItem) => ({
 
 const activeBond = {
   created_at: '2026-08-08T10:00:00Z',
+  coupon_schedule_updated_at: '2026-08-08T10:01:00Z',
   id: 'bond-1', name: 'ОФЗ 26238', nominal: '1000.00', payments_per_year: 2,
   placement_date: '2025-05-15', maturity_date: '2041-05-15', status: 'active',
   total_quantity: 75, total_spent: '75000.70',
   position_cost_basis: '75000.70', market_value_without_aci: '74250.00', accrued_coupon_income: '925.93', realized_result: '0.00', position_status: 'open',
-  paid_coupon_total: '1770.00', holding_period_coupon_income: '28500.00', calendar_year_paid_coupon_income: '1770.00', calendar_year_coupon_yield_percent: '7.0800', annual_coupon_yield_percent: '14.0070', calendar_year_coupon_income: '4248.00', calendar_month_coupon_income: '0.00', coupon_yield_year: 2026,
+  paid_coupon_total: '1770.00',
+  coupon_payments: [
+    { coupon_number: 34, pay_date: '2026-08-15', amount_per_bond: '35.40', quantity: 25, amount: '885.00' },
+    { coupon_number: 33, pay_date: '2026-05-16', amount_per_bond: '35.40', quantity: 15, amount: '531.00' },
+    { coupon_number: 31, pay_date: '2025-11-15', amount_per_bond: '35.40', quantity: 10, amount: '354.00' },
+  ],
+  coupon_schedule: [
+    { coupon_number: 36, pay_date: '2027-02-15', amount_per_bond: '0.00', quantity: 75, amount: '0.00' },
+    { coupon_number: 35, pay_date: '2026-11-16', amount_per_bond: '35.40', quantity: 75, amount: '2655.00' },
+    { coupon_number: 33, pay_date: '2026-05-16', amount_per_bond: '35.40', quantity: 15, amount: '531.00' },
+    { coupon_number: 31, pay_date: '2025-11-15', amount_per_bond: '35.40', quantity: 0, amount: '0.00' },
+  ],
+  holding_period_coupon_income: '28500.00', calendar_year_paid_coupon_income: '1770.00', calendar_year_coupon_yield_percent: '7.0800', annual_coupon_yield_percent: '14.0070', calendar_year_coupon_income: '4248.00', calendar_month_coupon_income: '0.00', coupon_yield_year: 2026,
   maturity_remaining: { years: 14, months: 9, days_until: 5392 },
   next_coupon: {
     period_start: '2026-05-15', period_end: '2026-11-15', pay_date: '2026-11-16',
@@ -140,6 +153,15 @@ async function openSaleForm(user: ReturnType<typeof userEvent.setup>, card: HTML
   await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
   await user.click(screen.getByRole('button', { name: 'Зафиксировать продажу' }));
   return screen.getByRole('dialog', { name: 'Зафиксировать продажу' });
+}
+
+async function selectBondDetailsSection(
+  user: ReturnType<typeof userEvent.setup>,
+  dialog: HTMLElement,
+  name: 'Об облигации' | 'Моя позиция' | 'Купоны' | 'Операции',
+) {
+  await user.click(within(dialog).getByRole('tab', { name }));
+  return within(dialog).getByRole('tabpanel', { name });
 }
 
 function expectTransactionAmountHint(scope: HTMLElement) {
@@ -458,7 +480,9 @@ describe('PortfolioPage', () => {
     );
 
     await user.click(within(card).getByRole('button', { name: `Открыть сведения об облигации ${bond.name}` }));
-    expect(within(screen.getByRole('dialog', { name: bond.name })).getByRole('region', { name: 'Ближайший купон' }))
+    const dialog = screen.getByRole('dialog', { name: bond.name });
+    await selectBondDetailsSection(user, dialog, 'Купоны');
+    expect(within(dialog).getByRole('region', { name: 'Ближайший купон' }))
       .toHaveTextContent(`через ${expected}`);
   });
 
@@ -492,6 +516,15 @@ describe('PortfolioPage', () => {
 
     await user.click(detailsTrigger);
     const dialog = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+    expect(within(dialog).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Моя позиция',
+      'Купоны',
+      'Об облигации',
+      'Операции2',
+    ]);
+    expect(within(dialog).getByRole('tab', { name: 'Моя позиция' }))
+      .toHaveAttribute('aria-selected', 'true');
+    await selectBondDetailsSection(user, dialog, 'Об облигации');
     expect(within(dialog).queryByText('ПОРТФЕЛЬ')).not.toBeInTheDocument();
     expect(within(dialog).getByText('Активна')).toBeInTheDocument();
     expect(within(dialog).getByText('Номинал').parentElement).toHaveTextContent(/1.000,00.₽/);
@@ -501,6 +534,7 @@ describe('PortfolioPage', () => {
     ).toEqual(['Номинал', 'Выплат в год', 'Дата размещения', 'Дата погашения', 'Срок до погашения']);
     expect(within(dialog).queryByText('Купон')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Купонный период')).not.toBeInTheDocument();
+    await selectBondDetailsSection(user, dialog, 'Моя позиция');
     const marketValue = within(dialog).getByText('Текущая рыночная стоимость')
       .closest('div')!.querySelector('dd')!;
     expect(marketValue).toHaveTextContent(/75.175,93.₽.*74.250,00.₽ \+ 925,93.₽ НКД/);
@@ -517,9 +551,23 @@ describe('PortfolioPage', () => {
     ).toEqual([
       'Текущая рыночная стоимость',
       'Вложено в облигации',
+      'За всё время',
       'Количество',
       'Результат сделок',
     ]);
+    expect(within(dialog).getByRole('button', {
+      name: 'Как рассчитывается сумма, вложенная в оставшиеся облигации',
+    })).toBeInTheDocument();
+    const allTimeResult = within(dialog).getByText('За всё время').closest('div')!;
+    expect(allTimeResult).toHaveTextContent(/\+175,23\s*₽/);
+    expect(allTimeResult.querySelector('dd')).toHaveAttribute('data-result-sign', 'positive');
+    expect(within(dialog).getByRole('button', {
+      name: 'Что означает результат за всё время',
+    })).toHaveAccessibleDescription(
+      'Разница текущей рыночной стоимости с НКД относительно вложенной суммы',
+    );
+
+    await selectBondDetailsSection(user, dialog, 'Купоны');
     const expectedCouponIncome = within(dialog).getByText('Ожидаемый купонный доход за 2026 год')
       .closest('div')!.querySelector('dd')!;
     expect(expectedCouponIncome).toHaveTextContent(/\+4.248,00.₽/);
@@ -527,11 +575,53 @@ describe('PortfolioPage', () => {
     const annualCouponYield = within(dialog).getByText('Годовая купонная доходность').closest('div')!;
     expect(annualCouponYield).toHaveTextContent('14,01 %');
     const nextCoupon = within(dialog).getByRole('region', { name: 'Ближайший купон' });
+    const couponMetrics = annualCouponYield.closest('dl')!;
+    expect(nextCoupon.compareDocumentPosition(couponMetrics) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
     expect(nextCoupon).not.toHaveTextContent('Сумма ближайшей выплаты');
     expect(nextCoupon).not.toHaveTextContent('Цена одного купона');
     expect(nextCoupon).not.toHaveTextContent('Купонный период');
     expect(nextCoupon).toHaveTextContent(/2.655,00.₽.*•.*35,40.₽ шт\./);
     expect(nextCoupon).toHaveTextContent('16 ноября 2026 г.');
+    expect(within(dialog).getByText('Выплачено купонов').parentElement).toHaveTextContent(/1.770,00.₽/);
+    const couponHistory = within(dialog).getByRole('region', { name: 'История купонных выплат' });
+    const couponHistoryToggle = within(couponHistory).getByRole('button', { name: /История выплат/ });
+    const couponHistoryPanel = document.getElementById(couponHistoryToggle.getAttribute('aria-controls')!)!;
+    expect(couponHistoryToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(couponHistoryPanel).toHaveAttribute('aria-hidden', 'true');
+    expect(couponHistoryPanel).toHaveAttribute('inert');
+    expect(couponHistoryToggle).toHaveTextContent(/2 года.*3 выплаты.*1.770,00.₽/);
+    await user.click(couponHistoryToggle);
+    expect(couponHistoryToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(couponHistoryPanel).toHaveAttribute('aria-hidden', 'false');
+    expect(couponHistoryPanel).not.toHaveAttribute('inert');
+    const currentYearPayments = within(couponHistory).getByRole('button', { name: /2026.*2 выплаты/ });
+    const previousYearPayments = within(couponHistory).getByRole('button', { name: /2025.*1 выплата/ });
+    const previousYearPanel = document.getElementById(previousYearPayments.getAttribute('aria-controls')!)!;
+    expect(currentYearPayments).toHaveAttribute('aria-expanded', 'true');
+    expect(previousYearPayments).toHaveAttribute('aria-expanded', 'false');
+    expect(previousYearPanel).toHaveAttribute('aria-hidden', 'true');
+    expect(previousYearPanel).toHaveAttribute('inert');
+    expect(couponHistory).toHaveTextContent(/15 августа 2026 г\..*Купон № 34.*35,40.₽ × 25 шт\..*\+885,00.₽/);
+    await user.click(previousYearPayments);
+    expect(previousYearPayments).toHaveAttribute('aria-expanded', 'true');
+    expect(previousYearPanel).toHaveAttribute('aria-hidden', 'false');
+    expect(previousYearPanel).not.toHaveAttribute('inert');
+    expect(couponHistory).toHaveTextContent(/15 ноября 2025 г\..*Купон № 31.*35,40.₽ × 10 шт\..*\+354,00.₽/);
+    expect(within(dialog).getByRole('button', {
+      name: 'Как рассчитывается доходность отдельных купонов за 2026 год',
+    })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', {
+      name: 'Как рассчитывается годовая купонная доходность',
+    })).toBeInTheDocument();
+    expect(within(dialog).getByText(
+      'Для каждого купона отдельно сравниваем выплату с суммой, вложенной на тот момент. Затем складываем полученные проценты за 2026 год.',
+    )).toBeInTheDocument();
+    expect(within(dialog).getByText(
+      'Показывает, какую купонную доходность принесла бы облигация за полный год, если размер ближайшего купона не изменится',
+    )).toBeInTheDocument();
+
+    await selectBondDetailsSection(user, dialog, 'Операции');
     const operationHistory = within(dialog).getByRole('region', { name: 'История операций' });
     expect(operationHistory).toHaveTextContent('2 операции');
     const operations = within(operationHistory).getAllByRole('listitem');
@@ -540,22 +630,6 @@ describe('PortfolioPage', () => {
     expect(operations[1]).toHaveTextContent(/50.000,35.₽.*\+50 шт\..*8 августа 2026 г\./);
     expect(operationHistory).not.toHaveTextContent('Покупка');
     expect(operationHistory).not.toHaveTextContent('Продажа');
-    expect(within(dialog).getByText('Выплачено купонов').parentElement).toHaveTextContent(/1.770,00.₽/);
-    expect(within(dialog).getByRole('button', {
-      name: 'Как рассчитывается доходность отдельных купонов за 2026 год',
-    })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', {
-      name: 'Как рассчитывается годовая купонная доходность',
-    })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', {
-      name: 'Как рассчитывается сумма, вложенная в оставшиеся облигации',
-    })).toBeInTheDocument();
-    expect(within(dialog).getByText(
-      'Для каждого купона отдельно сравниваем выплату с суммой, вложенной на тот момент. Затем складываем полученные проценты за 2026 год.',
-    )).toBeInTheDocument();
-    expect(within(dialog).getByText(
-      'Показывает, какую купонную доходность принесла бы облигация за полный год, если размер ближайшего купона не изменится',
-    )).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(dialog).not.toBeInTheDocument();
     expect(detailsTrigger).toHaveFocus();
@@ -565,6 +639,181 @@ describe('PortfolioPage', () => {
     await user.keyboard('{Escape}');
     await user.keyboard(' ');
     expect(screen.getByRole('dialog', { name: 'ОФЗ 26238' })).toBeInTheDocument();
+  });
+
+  it('shows the complete coupon schedule separately from payment history', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
+    const dialog = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+    await selectBondDetailsSection(user, dialog, 'Купоны');
+
+    const history = within(dialog).getByRole('region', { name: 'История купонных выплат' });
+    const schedule = within(dialog).getByRole('region', { name: 'Расписание купонных выплат' });
+    expect(history.compareDocumentPosition(schedule) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(within(history).getByRole('button', { name: /История выплат/ }))
+      .toHaveAttribute('aria-expanded', 'false');
+
+    const scheduleToggle = within(schedule).getByRole('button', { name: /Расписание выплат/ });
+    const schedulePanel = document.getElementById(scheduleToggle.getAttribute('aria-controls')!)!;
+    expect(scheduleToggle).toHaveTextContent(/3 года.*4 выплаты/);
+    expect(scheduleToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(schedulePanel).toHaveAttribute('inert');
+    await user.click(scheduleToggle);
+
+    expect(schedulePanel).not.toHaveAttribute('inert');
+    expect(schedule).toHaveTextContent(/Обновлено.*8 августа 2026/);
+    expect(within(schedule).getByRole('button', { name: 'Обновить расписание' }))
+      .toBeEnabled();
+    const latestYear = within(schedule).getByRole('button', { name: /2027.*1 выплата/ });
+    const currentYear = within(schedule).getByRole('button', { name: /2026.*2 выплаты/ });
+    const firstYear = within(schedule).getByRole('button', { name: /2025.*1 выплата/ });
+    const latestYearPanel = document.getElementById(latestYear.getAttribute('aria-controls')!)!;
+    expect(latestYear).toHaveAttribute('aria-expanded', 'false');
+    expect(latestYearPanel).toHaveAttribute('inert');
+    expect(currentYear).toHaveAttribute('aria-expanded', 'false');
+    expect(latestYear.compareDocumentPosition(currentYear) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    await user.click(latestYear);
+    expect(latestYear).toHaveAttribute('aria-expanded', 'true');
+    expect(latestYearPanel).not.toHaveAttribute('inert');
+    expect(schedule).toHaveTextContent(/15 февраля 2027 г\..*Купон № 36.*Размер не объявлен · 75 шт\..*0,00.₽/);
+
+    await user.click(currentYear);
+    expect(schedule).toHaveTextContent(/16 ноября 2026 г\..*Купон № 35.*35,40.₽ × 75 шт\..*\+2.655,00.₽/);
+    await user.click(firstYear);
+    expect(schedule).toHaveTextContent(/15 ноября 2025 г\..*Купон № 31.*35,40.₽ × 0 шт\..*0,00.₽/);
+  });
+
+  it('scrolls the tab strip until the selected tab is fully visible', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
+    const dialog = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+    const tabList = within(dialog).getByRole('tablist', { name: 'Разделы сведений об облигации' });
+    const operationsTab = within(tabList).getByRole('tab', { name: 'Операции' });
+    const scrollTo = vi.fn();
+    Object.defineProperty(tabList, 'scrollTo', { configurable: true, value: scrollTo });
+    Object.defineProperty(tabList, 'scrollLeft', { configurable: true, value: 0, writable: true });
+    vi.spyOn(tabList, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      right: 240,
+    } as DOMRect);
+    vi.spyOn(operationsTab, 'getBoundingClientRect').mockReturnValue({
+      left: 210,
+      right: 310,
+    } as DOMRect);
+
+    await user.click(operationsTab);
+
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({
+      left: 74,
+      behavior: 'smooth',
+    }));
+    expect(operationsTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('refreshes the coupon schedule in place and exposes the pending state', async () => {
+    const user = userEvent.setup();
+    let refreshRequest: Request | undefined;
+    let resolveRefresh!: (response: Response) => void;
+    const pendingRefresh = new Promise<Response>((resolve) => { resolveRefresh = resolve; });
+    const updatedBond = {
+      ...activeBond,
+      coupon_schedule_updated_at: '2026-08-09T12:05:00Z',
+      market_value_without_aci: null,
+      accrued_coupon_income: null,
+      coupon_schedule: activeBond.coupon_schedule.map((event) => (
+        event.coupon_number === 36
+          ? { ...event, amount_per_bond: '44.44', amount: '3333.00' }
+          : event
+      )),
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { method } = requestDetails(input, init);
+      if (method === 'POST') {
+        refreshRequest = input as Request;
+        return pendingRefresh;
+      }
+      return jsonResponse({ items: [activeBond] });
+    }));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
+    const dialog = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+    await selectBondDetailsSection(user, dialog, 'Купоны');
+    const schedule = within(dialog).getByRole('region', { name: 'Расписание купонных выплат' });
+    await user.click(within(schedule).getByRole('button', { name: /Расписание выплат/ }));
+    const refreshButton = within(schedule).getByRole('button', { name: 'Обновить расписание' });
+
+    await user.click(refreshButton);
+    expect(within(schedule).getByRole('button', { name: 'Обновляем…' })).toBeDisabled();
+    expect(within(schedule).getByRole('button', { name: 'Обновляем…' }))
+      .toHaveAttribute('aria-busy', 'true');
+    await act(async () => resolveRefresh(jsonResponse(updatedBond)));
+
+    await waitFor(() => expect(within(schedule).getByText(/Обновлено.*9 августа 2026/))
+      .toBeInTheDocument());
+    expect(schedule).toHaveTextContent(/Купон № 36.*44,44.₽ × 75 шт\..*\+3.333,00.₽/);
+    expect(within(schedule).getByRole('status')).toHaveTextContent('Расписание выплат обновлено');
+    expect(refreshRequest?.method).toBe('POST');
+    expect(new URL(refreshRequest?.url ?? '').pathname)
+      .toBe('/api/portfolio/bonds/bond-1/coupon-schedule/refresh');
+
+    await selectBondDetailsSection(user, dialog, 'Моя позиция');
+    expect(within(dialog).getByText('Текущая рыночная стоимость').closest('div'))
+      .toHaveTextContent(/75.175,93.₽/);
+    expect(within(dialog).getByText('За всё время').closest('div'))
+      .toHaveTextContent(/\+175,23.₽/);
+  });
+
+  it('keeps the previous schedule when refresh returns an incomplete response', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { method } = requestDetails(input, init);
+      return method === 'POST'
+        ? jsonResponse({
+          code: 'coupon_schedule_incomplete',
+          message: 'T-Invest returned an incomplete coupon schedule',
+        }, 502)
+        : jsonResponse({ items: [activeBond] });
+    }));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
+    const dialog = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+    await selectBondDetailsSection(user, dialog, 'Купоны');
+    const schedule = within(dialog).getByRole('region', { name: 'Расписание купонных выплат' });
+    await user.click(within(schedule).getByRole('button', { name: /Расписание выплат/ }));
+    await user.click(within(schedule).getByRole('button', { name: 'Обновить расписание' }));
+
+    expect(await within(schedule).findByRole('alert')).toHaveTextContent(
+      'T‑Invest вернул неполное расписание. Сохранённые данные не изменились.',
+    );
+    expect(schedule).toHaveTextContent(/Обновлено.*8 августа 2026/);
+    expect(schedule).toHaveTextContent(/Купон № 36.*Размер не объявлен/);
+  });
+
+  it('keeps schedule refresh available for a zero-coupon bond', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      items: [{ ...zeroCouponBond, coupon_schedule: [] }],
+    })));
+    renderPortfolio();
+    const card = await screen.findByRole('article', { name: 'Бескупонная облигация' });
+    await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации Бескупонная облигация' }));
+    const dialog = screen.getByRole('dialog', { name: 'Бескупонная облигация' });
+    await selectBondDetailsSection(user, dialog, 'Купоны');
+    const schedule = within(dialog).getByRole('region', { name: 'Расписание купонных выплат' });
+    await user.click(within(schedule).getByRole('button', { name: /Расписание выплат/ }));
+
+    expect(schedule).toHaveTextContent('Купонные выплаты не предусмотрены');
+    expect(within(schedule).getByRole('button', { name: 'Обновить расписание' })).toBeEnabled();
   });
 
   it('orders portfolio metrics by investment, quantity, yield, coupons and maturity', async () => {
@@ -581,15 +830,16 @@ describe('PortfolioPage', () => {
         .map((label) => label.firstElementChild?.textContent ?? label.textContent)
     ))).toEqual([
       ['Номинал', 'Выплат в год', 'Дата размещения', 'Дата погашения', 'Срок до погашения'],
-      ['Текущая рыночная стоимость', 'Вложено в облигации', 'Количество', 'Результат сделок'],
+      ['Текущая рыночная стоимость', 'Вложено в облигации', 'За всё время', 'Количество', 'Результат сделок'],
       [
         'Годовая купонная доходность',
         'Доходность отдельных купонов за 2026 год',
-        'Выплачено купонов',
         'Ожидаемый купонный доход за 2026 год',
         'Ожидаемый купонный доход за весь период владения',
+        'Выплачено купонов',
       ],
     ]);
+    await selectBondDetailsSection(user, dialog, 'Купоны');
     const holdingPeriodIncome = within(dialog)
       .getByText('Ожидаемый купонный доход за весь период владения')
       .closest('div')!;
@@ -1516,9 +1766,11 @@ describe('PortfolioPage', () => {
     await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
     const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
 
+    await selectBondDetailsSection(user, details, 'Моя позиция');
     expect(within(details).getByText('Результат сделок').closest('div')).toHaveTextContent(/−100,00.₽/);
     expect(within(details).getByText('Вложено в оставшиеся облигации')).toBeInTheDocument();
     expect(within(details).getByText('Сколько из потраченных на покупки денег приходится на облигации, которые ещё остаются в портфеле. После продажи сумма уменьшается на среднюю стоимость проданных облигаций. Это не текущая рыночная цена.')).toBeInTheDocument();
+    await selectBondDetailsSection(user, details, 'Операции');
     expect(within(details).getAllByText('−1 шт.')).toHaveLength(3);
     expect(within(details).getByText('+2 шт.')).toBeInTheDocument();
     expect(within(details).queryByText('Покупка')).not.toBeInTheDocument();
@@ -1563,11 +1815,13 @@ describe('PortfolioPage', () => {
     await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
     const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
 
-    expect(within(details).getByText('История операций')).toBeInTheDocument();
-    expect(within(details).getByText('−75 шт.')).toBeInTheDocument();
+    await selectBondDetailsSection(user, details, 'Моя позиция');
     expect(within(details).getByText('Результат сделок')).toBeInTheDocument();
     expect(within(details).getByText('Результат сделок').closest('div')).toHaveTextContent(/\+999,65.₽/);
     expect(within(details).getByRole('button', { name: 'Как рассчитывается результат сделок' })).toBeInTheDocument();
+    await selectBondDetailsSection(user, details, 'Операции');
+    expect(within(details).getByText('История операций')).toBeInTheDocument();
+    expect(within(details).getByText('−75 шт.')).toBeInTheDocument();
     await user.click(within(details).getByRole('button', { name: 'Удалить операцию продажи' }));
 
     const confirmation = screen.getByRole('dialog', { name: 'Удалить операцию' });
@@ -1587,6 +1841,7 @@ describe('PortfolioPage', () => {
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
     await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
     const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+    await selectBondDetailsSection(user, details, 'Операции');
     const deleteSale = within(details).getAllByRole('button', { name: 'Удалить операцию покупки' })[0];
     if (!deleteSale) throw new Error('Delete operation button is missing');
     await user.click(deleteSale);
@@ -1620,6 +1875,7 @@ describe('PortfolioPage', () => {
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
     await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
     const details = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
+    await selectBondDetailsSection(user, details, 'Операции');
     const deleteButtons = within(details).getAllByRole('button', { name: 'Удалить операцию покупки' });
     const firstDelete = deleteButtons[0];
     if (!firstDelete) throw new Error('Delete operation button is missing');

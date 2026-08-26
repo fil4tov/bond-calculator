@@ -6,6 +6,7 @@ from app.portfolio.calculations import (
     OperationPosition,
     PurchasePosition,
     calculate_bond_metrics,
+    calculate_coupon_schedule_events,
 )
 
 
@@ -55,6 +56,11 @@ def test_metrics_use_stored_coupon_dates_and_fix_date_inclusive_entitlement() ->
     )
 
     assert metrics.paid_coupon_total == Decimal("20.00")
+    assert len(metrics.coupon_payments) == 1
+    assert metrics.coupon_payments[0].pay_date == date(2026, 7, 1)
+    assert metrics.coupon_payments[0].amount_per_bond == Decimal("10.00")
+    assert metrics.coupon_payments[0].quantity == 2
+    assert metrics.coupon_payments[0].amount == Decimal("20.00")
     assert metrics.next_coupon_amount == Decimal("62.50")
     assert metrics.next_coupon_amount_per_bond == Decimal("12.50")
     assert metrics.next_coupon_pay_date == date(2027, 1, 1)
@@ -97,6 +103,7 @@ def test_empty_stored_schedule_has_zero_metrics_and_no_next_coupon() -> None:
     assert metrics.annual_coupon_yield_percent is None
     assert metrics.coupon_yield_year == 2026
     assert metrics.next_coupon_pay_date is None
+    assert metrics.coupon_payments == ()
 
 
 def test_holding_period_coupon_income_replays_entitlement_for_all_known_coupons() -> None:
@@ -142,6 +149,56 @@ def test_holding_period_coupon_income_replays_entitlement_for_all_known_coupons(
 
     assert metrics.paid_coupon_total == Decimal("80.00")
     assert metrics.holding_period_coupon_income == Decimal("80.00")
+    assert [payment.pay_date for payment in metrics.coupon_payments] == [
+        date(2026, 2, 10),
+        date(2026, 1, 10),
+    ]
+    assert [payment.quantity for payment in metrics.coupon_payments] == [5, 2]
+    assert [payment.amount for payment in metrics.coupon_payments] == [
+        Decimal("60.00"),
+        Decimal("20.00"),
+    ]
+
+
+def test_full_coupon_schedule_replays_position_for_every_event() -> None:
+    coupons = (
+        coupon(
+            coupon_date=date(2025, 12, 31),
+            amount="10.00",
+            start=date(2025, 7, 1),
+            end=date(2025, 12, 30),
+        ),
+        coupon(
+            coupon_date=date(2026, 6, 30),
+            amount="12.00",
+            start=date(2026, 1, 1),
+            end=date(2026, 6, 29),
+        ),
+        coupon(
+            coupon_date=date(2026, 12, 31),
+            amount="0.00",
+            start=date(2026, 7, 1),
+            end=date(2026, 12, 30),
+        ),
+    )
+    operations = (
+        OperationPosition("purchase", Decimal("2000.00"), 2, date(2026, 1, 15)),
+        OperationPosition("sale", Decimal("2100.00"), 2, date(2026, 7, 15)),
+    )
+
+    schedule = calculate_coupon_schedule_events(coupons, operations)
+
+    assert [event.pay_date for event in schedule] == [
+        date(2026, 12, 31),
+        date(2026, 6, 30),
+        date(2025, 12, 31),
+    ]
+    assert [event.quantity for event in schedule] == [0, 2, 0]
+    assert [event.amount for event in schedule] == [
+        Decimal("0.00"),
+        Decimal("24.00"),
+        Decimal("0.00"),
+    ]
 
 
 def test_only_positive_future_eligible_event_is_next_and_maturity_without_it_is_matured() -> None:

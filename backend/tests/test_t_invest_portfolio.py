@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -9,12 +9,21 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.main import app
 from app.errors import ApiError
 from app.portfolio import clock
-from app.portfolio.models import Bond, BondCouponSchedule, BondOperation
+from app.portfolio.models import (
+    Bond,
+    BondCouponSchedule,
+    BondCouponScheduleSync,
+    BondOperation,
+)
 from app.portfolio.router import get_t_invest_gateway
 from app.portfolio.t_invest_gateway import TInvestBond, TInvestBondSearchItem, TInvestCoupon
 
 
 class Gateway:
+    def __init__(self) -> None:
+        self.schedule_calls: list[tuple[str, date, date]] = []
+        self.schedule_override: tuple[TInvestCoupon, ...] | None = None
+
     async def search_bonds(self, query: str) -> tuple[TInvestBondSearchItem, ...]:
         if query == "none":
             return ()
@@ -37,6 +46,9 @@ class Gateway:
 
     async def get_coupon_schedule(self, uid: str, from_date: date, to_date: date) -> tuple[TInvestCoupon, ...]:
         if uid == "fail": raise ApiError(status_code=503, code="t_invest_unavailable", message="offline")
+        self.schedule_calls.append((uid, from_date, to_date))
+        if self.schedule_override is not None:
+            return self.schedule_override
         return (TInvestCoupon(figi="FIGI", coupon_date=to_date, coupon_number=1, fix_date=None, pay_one_bond_amount=Decimal("10.000000000"), pay_one_bond_currency="RUB", coupon_type=1, coupon_start_date=from_date, coupon_end_date=to_date, coupon_period=(to_date-from_date).days),)
 
 
@@ -96,7 +108,8 @@ async def test_search_validates_trimmed_length_and_lookup_rejects_ineligible_bon
 
 @pytest.mark.asyncio
 async def test_create_persists_external_schedule_atomically_and_cascades(client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]) -> None:
-    app.dependency_overrides[get_t_invest_gateway] = lambda: Gateway()
+    gateway = Gateway()
+    app.dependency_overrides[get_t_invest_gateway] = lambda: gateway
     await register(client)
     response = await client.post("/api/portfolio/bonds", json=payload())
     assert response.status_code == 201
@@ -105,6 +118,14 @@ async def test_create_persists_external_schedule_atomically_and_cascades(client:
     assert response.json()["calendar_year_coupon_yield_percent"] == "0.0000"
     assert response.json()["coupon_yield_year"] == clock.utc_today().year
     assert response.json()["next_coupon"]["amount_per_bond"] == "10.00"
+    assert response.json()["coupon_schedule_updated_at"] is not None
+    assert gateway.schedule_calls == [
+        (
+            "uid",
+            clock.utc_today() - timedelta(days=365),
+            clock.utc_today() + timedelta(days=365),
+        )
+    ]
     async with session_factory() as session:
         bond = (await session.scalars(select(Bond))).one()
         assert (await session.scalars(select(BondCouponSchedule))).one().figi == "FIGI"
@@ -113,6 +134,7 @@ async def test_create_persists_external_schedule_atomically_and_cascades(client:
     async with session_factory() as session:
         assert list(await session.scalars(select(BondOperation))) == []
         assert list(await session.scalars(select(BondCouponSchedule))) == []
+        assert list(await session.scalars(select(BondCouponScheduleSync))) == []
 
 
 @pytest.mark.asyncio
@@ -135,3 +157,186 @@ async def test_add_purchase_rejects_a_date_before_the_stored_coupon_schedule(cli
     assert response.status_code == 422
     assert response.json()["code"] == "validation_error"
     assert "purchase_date" in response.json()["field_errors"]
+
+
+@pytest.mark.asyncio
+async def test_schedule_is_shared_between_users_and_removed_after_last_bond(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    gateway = Gateway()
+    app.dependency_overrides[get_t_invest_gateway] = lambda: gateway
+
+    await register(client)
+    first = await client.post("/api/portfolio/bonds", json=payload("First OFZ"))
+    await client.post("/api/auth/logout")
+    assert (
+        await client.post(
+            "/api/auth/register",
+            json={"username": "SecondOwner", "password": "password123"},
+        )
+    ).status_code == 201
+    second = await client.post("/api/portfolio/bonds", json=payload("Second OFZ"))
+
+    assert first.status_code == second.status_code == 201
+    assert len(gateway.schedule_calls) == 1
+    assert (
+        first.json()["coupon_schedule_updated_at"]
+        == second.json()["coupon_schedule_updated_at"]
+    )
+
+    assert (
+        await client.delete(f"/api/portfolio/bonds/{second.json()['id']}")
+    ).status_code == 204
+    async with session_factory() as session:
+        assert len(list(await session.scalars(select(BondCouponScheduleSync)))) == 1
+
+    await client.post("/api/auth/logout")
+    assert (
+        await client.post(
+            "/api/auth/login",
+            json={"username": "Owner", "password": "password123"},
+        )
+    ).status_code == 200
+    assert (
+        await client.delete(f"/api/portfolio/bonds/{first.json()['id']}")
+    ).status_code == 204
+    async with session_factory() as session:
+        assert list(await session.scalars(select(BondCouponScheduleSync))) == []
+
+
+@pytest.mark.asyncio
+async def test_refresh_replaces_schedule_and_rejects_an_empty_response(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    gateway = Gateway()
+    app.dependency_overrides[get_t_invest_gateway] = lambda: gateway
+    await register(client)
+    created = await client.post("/api/portfolio/bonds", json=payload())
+    bond_id = created.json()["id"]
+    previous_updated_at = created.json()["coupon_schedule_updated_at"]
+    today = clock.utc_today()
+    gateway.schedule_override = (
+        TInvestCoupon(
+            figi="FIGI",
+            coupon_date=today + timedelta(days=365),
+            coupon_number=1,
+            fix_date=None,
+            pay_one_bond_amount=Decimal("20.000000000"),
+            pay_one_bond_currency="RUB",
+            coupon_type=1,
+            coupon_start_date=today - timedelta(days=365),
+            coupon_end_date=today + timedelta(days=365),
+            coupon_period=730,
+        ),
+    )
+
+    refreshed = await client.post(
+        f"/api/portfolio/bonds/{bond_id}/coupon-schedule/refresh"
+    )
+    assert refreshed.status_code == 200
+    assert refreshed.json()["next_coupon"]["amount_per_bond"] == "20.00"
+    assert refreshed.json()["coupon_schedule"] == [
+        {
+            "coupon_number": 1,
+            "pay_date": (today + timedelta(days=365)).isoformat(),
+            "amount_per_bond": "20.00",
+            "quantity": 2,
+            "amount": "40.00",
+        }
+    ]
+    assert refreshed.json()["coupon_schedule_updated_at"] != previous_updated_at
+    successful_updated_at = refreshed.json()["coupon_schedule_updated_at"]
+
+    gateway.schedule_override = ()
+    incomplete = await client.post(
+        f"/api/portfolio/bonds/{bond_id}/coupon-schedule/refresh"
+    )
+    assert incomplete.status_code == 502
+    assert incomplete.json()["code"] == "coupon_schedule_incomplete"
+    async with session_factory() as session:
+        schedule_sync = (await session.scalars(select(BondCouponScheduleSync))).one()
+        coupon = (await session.scalars(select(BondCouponSchedule))).one()
+        stored_updated_at = schedule_sync.updated_at
+        if stored_updated_at.tzinfo is None:
+            stored_updated_at = stored_updated_at.replace(tzinfo=UTC)
+        assert stored_updated_at == datetime.fromisoformat(
+            successful_updated_at.replace("Z", "+00:00")
+        )
+        assert coupon.pay_one_bond_amount == Decimal("20.000000000")
+
+
+@pytest.mark.asyncio
+async def test_refresh_requires_authentication_and_bond_ownership(
+    client: AsyncClient,
+) -> None:
+    gateway = Gateway()
+    app.dependency_overrides[get_t_invest_gateway] = lambda: gateway
+    await register(client)
+    created = await client.post("/api/portfolio/bonds", json=payload())
+    bond_id = created.json()["id"]
+    await client.post("/api/auth/logout")
+
+    unauthenticated = await client.post(
+        f"/api/portfolio/bonds/{bond_id}/coupon-schedule/refresh"
+    )
+    assert unauthenticated.status_code == 401
+    assert (
+        await client.post(
+            "/api/auth/register",
+            json={"username": "RefreshIntruder", "password": "password123"},
+        )
+    ).status_code == 201
+    forbidden = await client.post(
+        f"/api/portfolio/bonds/{bond_id}/coupon-schedule/refresh"
+    )
+    assert forbidden.status_code == 404
+    assert forbidden.json()["code"] == "bond_not_found"
+
+
+@pytest.mark.asyncio
+async def test_refresh_preserves_schedule_when_a_historical_coupon_disappears(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    gateway = Gateway()
+    today = clock.utc_today()
+    historical = TInvestCoupon(
+        figi="FIGI",
+        coupon_date=today - timedelta(days=1),
+        coupon_number=1,
+        fix_date=None,
+        pay_one_bond_amount=Decimal("10"),
+        pay_one_bond_currency="RUB",
+        coupon_type=1,
+        coupon_start_date=today - timedelta(days=181),
+        coupon_end_date=today - timedelta(days=1),
+        coupon_period=180,
+    )
+    future = TInvestCoupon(
+        figi="FIGI",
+        coupon_date=today + timedelta(days=180),
+        coupon_number=2,
+        fix_date=None,
+        pay_one_bond_amount=Decimal("0"),
+        pay_one_bond_currency="RUB",
+        coupon_type=1,
+        coupon_start_date=today,
+        coupon_end_date=today + timedelta(days=180),
+        coupon_period=180,
+    )
+    gateway.schedule_override = (historical, future)
+    app.dependency_overrides[get_t_invest_gateway] = lambda: gateway
+    await register(client)
+    created = await client.post("/api/portfolio/bonds", json=payload())
+
+    gateway.schedule_override = (future,)
+    response = await client.post(
+        f"/api/portfolio/bonds/{created.json()['id']}/coupon-schedule/refresh"
+    )
+
+    assert response.status_code == 502
+    assert response.json()["code"] == "coupon_schedule_incomplete"
+    async with session_factory() as session:
+        assert len(list(await session.scalars(select(BondCouponSchedule)))) == 2

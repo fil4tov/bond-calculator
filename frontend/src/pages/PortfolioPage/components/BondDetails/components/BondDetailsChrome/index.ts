@@ -1,0 +1,2 @@
+export { BondDetailsChrome } from './BondDetailsChrome';
+

@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -14,20 +14,23 @@ from .calculations import (
     CouponPosition,
     OperationPosition,
     calculate_bond_metrics,
+    calculate_coupon_schedule_events,
     calculate_operation_realized_results,
 )
-from .models import Bond, BondCouponSchedule, BondOperation
+from .models import Bond, BondCouponSchedule, BondCouponScheduleSync, BondOperation
 from .schemas import (
     BondCard,
     BondCreate,
     BondOperationItem,
+    CouponPaymentItem,
+    CouponScheduleItem,
     MaturityRemaining,
     NextCoupon,
     OperationDeleteResponse,
     PurchaseCreate,
     SaleCreate,
 )
-from .t_invest_gateway import TInvestGateway
+from .t_invest_gateway import TInvestCoupon, TInvestGateway
 
 _NAME_UNIQUE_CONSTRAINT = "uq_bonds_user_name_normalized"
 
@@ -96,16 +99,27 @@ def _ordered_operations(bond: Bond, *, reverse: bool = False) -> list[BondOperat
 
 
 def build_bond_card(
-    bond: Bond, *, today: date, market_value_without_aci: str | None = None
+    bond: Bond,
+    schedule_sync: BondCouponScheduleSync,
+    *,
+    today: date,
+    market_value_without_aci: str | None = None,
 ) -> BondCard:
     ordered_operations = _ordered_operations(bond)
     operation_positions = tuple(_operation_position(item) for item in ordered_operations)
+    coupon_positions = tuple(
+        _coupon_position(coupon) for coupon in schedule_sync.coupon_schedules
+    )
     metrics = calculate_bond_metrics(
         maturity_date=bond.maturity_date,
         payments_per_year=bond.payments_per_year,
         operations=operation_positions,
-        coupons=tuple(_coupon_position(coupon) for coupon in bond.coupon_schedules),
+        coupons=coupon_positions,
         today=today,
+    )
+    coupon_schedule = calculate_coupon_schedule_events(
+        coupon_positions,
+        operation_positions,
     )
     operation_realized_results = calculate_operation_realized_results(operation_positions)
     if metrics.total_quantity == 0:
@@ -137,6 +151,11 @@ def build_bond_card(
             else bond.created_at
         ),
         instrument_uid=bond.instrument_uid,
+        coupon_schedule_updated_at=(
+            schedule_sync.updated_at.replace(tzinfo=UTC)
+            if schedule_sync.updated_at.tzinfo is None
+            else schedule_sync.updated_at
+        ),
         ticker=bond.ticker,
         name=bond.name,
         nominal=_fixed_decimal(bond.nominal, 2),
@@ -150,6 +169,26 @@ def build_bond_card(
         realized_result=_fixed_decimal(metrics.realized_result, 2),
         position_status=metrics.position_status,
         paid_coupon_total=_fixed_decimal(metrics.paid_coupon_total, 2),
+        coupon_payments=[
+            CouponPaymentItem(
+                coupon_number=payment.coupon_number,
+                pay_date=payment.pay_date,
+                amount_per_bond=_fixed_decimal(payment.amount_per_bond, 2),
+                quantity=payment.quantity,
+                amount=_fixed_decimal(payment.amount, 2),
+            )
+            for payment in metrics.coupon_payments
+        ],
+        coupon_schedule=[
+            CouponScheduleItem(
+                coupon_number=event.coupon_number,
+                pay_date=event.pay_date,
+                amount_per_bond=_fixed_decimal(event.amount_per_bond, 2),
+                quantity=event.quantity,
+                amount=_fixed_decimal(event.amount, 2),
+            )
+            for event in coupon_schedule
+        ],
         holding_period_coupon_income=_fixed_decimal(
             metrics.holding_period_coupon_income,
             2,
@@ -195,8 +234,94 @@ def build_bond_card(
     )
 
 
-def _load_bond_relations() -> tuple[object, object]:
-    return selectinload(Bond.operations), selectinload(Bond.coupon_schedules)
+def _load_bond_relations() -> tuple[object]:
+    return (selectinload(Bond.operations),)
+
+
+def _load_schedule_relations() -> object:
+    return selectinload(BondCouponScheduleSync.coupon_schedules)
+
+
+async def _get_schedule_sync(
+    db: AsyncSession,
+    instrument_uid: str,
+    *,
+    for_update: bool = False,
+) -> BondCouponScheduleSync | None:
+    statement = (
+        select(BondCouponScheduleSync)
+        .options(_load_schedule_relations())
+        .where(BondCouponScheduleSync.instrument_uid == instrument_uid)
+    )
+    if for_update:
+        statement = statement.with_for_update()
+    return await db.scalar(statement)
+
+
+async def _lock_coupon_schedule(db: AsyncSession, instrument_uid: str) -> None:
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:instrument_uid, 0))"),
+        {"instrument_uid": instrument_uid},
+    )
+
+
+def _incomplete_schedule() -> ApiError:
+    return ApiError(
+        status_code=502,
+        code="coupon_schedule_incomplete",
+        message="T-Invest returned an incomplete coupon schedule",
+    )
+
+
+def _validate_coupon_schedule(
+    schedule: tuple[TInvestCoupon, ...],
+    *,
+    payments_per_year: int,
+    previous: tuple[BondCouponSchedule, ...] = (),
+    today: date,
+) -> None:
+    if payments_per_year > 0 and not schedule:
+        raise _incomplete_schedule()
+
+    identities: set[tuple[int, date]] = set()
+    for coupon in schedule:
+        identity = (coupon.coupon_number, coupon.coupon_date)
+        if (
+            identity in identities
+            or coupon.pay_one_bond_amount < 0
+            or coupon.coupon_period < 0
+            or coupon.coupon_start_date > coupon.coupon_end_date
+        ):
+            raise _incomplete_schedule()
+        identities.add(identity)
+
+    historical_identities = {
+        (coupon.coupon_number, coupon.coupon_date)
+        for coupon in previous
+        if coupon.coupon_date <= today
+    }
+    if not historical_identities.issubset(identities):
+        raise _incomplete_schedule()
+
+
+def _schedule_rows(schedule: tuple[TInvestCoupon, ...]) -> list[BondCouponSchedule]:
+    return [
+        BondCouponSchedule(
+            figi=coupon.figi,
+            coupon_date=coupon.coupon_date,
+            coupon_number=coupon.coupon_number,
+            fix_date=coupon.fix_date,
+            pay_one_bond_amount=coupon.pay_one_bond_amount,
+            pay_one_bond_currency=coupon.pay_one_bond_currency,
+            coupon_type=coupon.coupon_type,
+            coupon_start_date=coupon.coupon_start_date,
+            coupon_end_date=coupon.coupon_end_date,
+            coupon_period=coupon.coupon_period,
+        )
+        for coupon in schedule
+    ]
 
 
 async def is_name_available(db: AsyncSession, user_id: UUID, name: str) -> bool:
@@ -217,6 +342,18 @@ async def list_bonds(
             select(Bond).options(*_load_bond_relations()).where(Bond.user_id == user_id)
         )
     )
+    schedule_syncs = {
+        sync.instrument_uid: sync
+        for sync in await db.scalars(
+            select(BondCouponScheduleSync)
+            .options(_load_schedule_relations())
+            .where(
+                BondCouponScheduleSync.instrument_uid.in_(
+                    {bond.instrument_uid for bond in bonds}
+                )
+            )
+        )
+    }
     refresh_failed: set[UUID] = set()
     refresh_succeeded = False
     for bond in bonds:
@@ -237,7 +374,10 @@ async def list_bonds(
     if refresh_succeeded:
         await db.commit()
 
-    cards = [build_bond_card(bond, today=today) for bond in bonds]
+    cards = [
+        build_bond_card(bond, schedule_syncs[bond.instrument_uid], today=today)
+        for bond in bonds
+    ]
     eligible = [
         (bond, card)
         for bond, card in zip(bonds, cards, strict=True)
@@ -253,7 +393,12 @@ async def list_bonds(
             prices = {}
     for index, (bond, card) in enumerate(zip(bonds, cards, strict=True)):
         if card.position_status == "closed":
-            cards[index] = build_bond_card(bond, today=today, market_value_without_aci="0.00")
+            cards[index] = build_bond_card(
+                bond,
+                schedule_syncs[bond.instrument_uid],
+                today=today,
+                market_value_without_aci="0.00",
+            )
             continue
         if card.status != "active" or bond.id in refresh_failed:
             continue
@@ -261,6 +406,7 @@ async def list_bonds(
         if price is not None:
             cards[index] = build_bond_card(
                 bond,
+                schedule_syncs[bond.instrument_uid],
                 today=today,
                 market_value_without_aci=_fixed_decimal(
                     price / Decimal("100") * bond.nominal * card.total_quantity, 2
@@ -281,9 +427,25 @@ async def create_bond(
 ) -> BondCard:
     if not await is_name_available(db, user_id, data.name):
         raise _name_taken()
-    schedule = await gateway.get_coupon_schedule(
-        data.instrument_uid, data.purchase_date, data.maturity_date
+    await _lock_coupon_schedule(db, data.instrument_uid)
+    schedule_sync = await _get_schedule_sync(
+        db, data.instrument_uid, for_update=True
     )
+    if schedule_sync is None:
+        schedule = await gateway.get_coupon_schedule(
+            data.instrument_uid, data.placement_date, data.maturity_date
+        )
+        _validate_coupon_schedule(
+            schedule,
+            payments_per_year=data.payments_per_year,
+            today=clock.utc_today(),
+        )
+        schedule_sync = BondCouponScheduleSync(
+            instrument_uid=data.instrument_uid,
+            updated_at=datetime.now(UTC),
+            coupon_schedules=_schedule_rows(schedule),
+        )
+        db.add(schedule_sync)
     bond = Bond(
         user_id=user_id,
         instrument_uid=data.instrument_uid,
@@ -303,20 +465,10 @@ async def create_bond(
             operation_date=data.purchase_date,
         )
     )
-    bond.coupon_schedules = [
-        BondCouponSchedule(
-            figi=coupon.figi, coupon_date=coupon.coupon_date, coupon_number=coupon.coupon_number,
-            fix_date=coupon.fix_date, pay_one_bond_amount=coupon.pay_one_bond_amount,
-            pay_one_bond_currency=coupon.pay_one_bond_currency, coupon_type=coupon.coupon_type,
-            coupon_start_date=coupon.coupon_start_date, coupon_end_date=coupon.coupon_end_date,
-            coupon_period=coupon.coupon_period,
-        )
-        for coupon in schedule
-    ]
     db.add(bond)
     try:
         await db.flush()
-        card = build_bond_card(bond, today=clock.utc_today())
+        card = build_bond_card(bond, schedule_sync, today=clock.utc_today())
         await db.commit()
         return card
     except IntegrityError as error:
@@ -338,6 +490,9 @@ async def add_purchase(db: AsyncSession, user_id: UUID, bond_id: UUID, data: Pur
     )
     if bond is None:
         raise _bond_not_found()
+    schedule_sync = await _get_schedule_sync(db, bond.instrument_uid)
+    if schedule_sync is None:
+        raise RuntimeError("Coupon schedule sync is missing")
     earliest_purchase_date = min(
         (
             operation.operation_date
@@ -361,7 +516,7 @@ async def add_purchase(db: AsyncSession, user_id: UUID, bond_id: UUID, data: Pur
     )
     try:
         await db.flush()
-        card = build_bond_card(bond, today=clock.utc_today())
+        card = build_bond_card(bond, schedule_sync, today=clock.utc_today())
         await db.commit()
         return card
     except Exception:
@@ -395,6 +550,9 @@ async def add_sale(db: AsyncSession, user_id: UUID, bond_id: UUID, data: SaleCre
     )
     if bond is None:
         raise _bond_not_found()
+    schedule_sync = await _get_schedule_sync(db, bond.instrument_uid)
+    if schedule_sync is None:
+        raise RuntimeError("Coupon schedule sync is missing")
     _validate_operation_date(bond, data.sale_date, field="sale_date")
     prospective_operations = tuple(
         [
@@ -436,7 +594,83 @@ async def add_sale(db: AsyncSession, user_id: UUID, bond_id: UUID, data: SaleCre
     )
     try:
         await db.flush()
-        card = build_bond_card(bond, today=clock.utc_today())
+        card = build_bond_card(bond, schedule_sync, today=clock.utc_today())
+        await db.commit()
+        return card
+    except Exception:
+        await db.rollback()
+        raise
+
+
+async def _delete_bond_and_orphaned_schedule(
+    db: AsyncSession, bond: Bond
+) -> None:
+    instrument_uid = bond.instrument_uid
+    await _lock_coupon_schedule(db, instrument_uid)
+    await db.delete(bond)
+    await db.flush()
+    remaining_bond_id = await db.scalar(
+        select(Bond.id).where(Bond.instrument_uid == instrument_uid).limit(1)
+    )
+    if remaining_bond_id is not None:
+        return
+    schedule_sync = await _get_schedule_sync(db, instrument_uid, for_update=True)
+    if schedule_sync is not None:
+        await db.delete(schedule_sync)
+
+
+async def refresh_coupon_schedule(
+    db: AsyncSession,
+    user_id: UUID,
+    bond_id: UUID,
+    gateway: TInvestGateway,
+) -> BondCard:
+    bond = await db.scalar(
+        select(Bond)
+        .options(*_load_bond_relations())
+        .where(Bond.id == bond_id, Bond.user_id == user_id)
+        .with_for_update()
+    )
+    if bond is None:
+        raise _bond_not_found()
+
+    await _lock_coupon_schedule(db, bond.instrument_uid)
+    schedule_sync = await _get_schedule_sync(
+        db, bond.instrument_uid, for_update=True
+    )
+    if schedule_sync is None:
+        raise RuntimeError("Coupon schedule sync is missing")
+
+    bounds = (
+        await db.execute(
+            select(
+                func.min(Bond.placement_date),
+                func.max(Bond.maturity_date),
+                func.max(Bond.payments_per_year),
+            ).where(Bond.instrument_uid == bond.instrument_uid)
+        )
+    ).one()
+    placement_date, maturity_date, payments_per_year = bounds
+    if placement_date is None or maturity_date is None or payments_per_year is None:
+        raise RuntimeError("Coupon schedule bounds are missing")
+
+    schedule = await gateway.get_coupon_schedule(
+        bond.instrument_uid, placement_date, maturity_date
+    )
+    _validate_coupon_schedule(
+        schedule,
+        payments_per_year=payments_per_year,
+        previous=tuple(schedule_sync.coupon_schedules),
+        today=clock.utc_today(),
+    )
+
+    try:
+        schedule_sync.coupon_schedules.clear()
+        await db.flush()
+        schedule_sync.coupon_schedules = _schedule_rows(schedule)
+        schedule_sync.updated_at = datetime.now(UTC)
+        await db.flush()
+        card = build_bond_card(bond, schedule_sync, today=clock.utc_today())
         await db.commit()
         return card
     except Exception:
@@ -455,6 +689,9 @@ async def delete_operation(
     )
     if bond is None:
         raise _bond_not_found()
+    schedule_sync = await _get_schedule_sync(db, bond.instrument_uid)
+    if schedule_sync is None:
+        raise RuntimeError("Coupon schedule sync is missing")
     operation = next((item for item in bond.operations if item.id == operation_id), None)
     if operation is None:
         raise ApiError(status_code=404, code="operation_not_found", message="Operation not found")
@@ -480,12 +717,12 @@ async def delete_operation(
         ) from error
     try:
         if len(remaining) == 0:
-            await db.delete(bond)
+            await _delete_bond_and_orphaned_schedule(db, bond)
             await db.commit()
             return OperationDeleteResponse(item=None)
         bond.operations.remove(operation)
         await db.flush()
-        card = build_bond_card(bond, today=clock.utc_today())
+        card = build_bond_card(bond, schedule_sync, today=clock.utc_today())
         await db.commit()
         return OperationDeleteResponse(item=card)
     except Exception:
@@ -495,12 +732,15 @@ async def delete_operation(
 
 async def delete_bond(db: AsyncSession, user_id: UUID, bond_id: UUID) -> None:
     bond = await db.scalar(
-        select(Bond).options(*_load_bond_relations()).where(Bond.id == bond_id, Bond.user_id == user_id)
+        select(Bond)
+        .options(*_load_bond_relations())
+        .where(Bond.id == bond_id, Bond.user_id == user_id)
+        .with_for_update()
     )
     if bond is None:
         raise _bond_not_found()
     try:
-        await db.delete(bond)
+        await _delete_bond_and_orphaned_schedule(db, bond)
         await db.commit()
     except Exception:
         await db.rollback()

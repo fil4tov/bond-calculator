@@ -1,4 +1,8 @@
+export { BondDetailsChrome } from './BondDetailsChrome';
+export { BondStatus } from './BondStatus';
 export { CouponMetrics } from './CouponMetrics';
+export { CouponPaymentHistory } from './CouponPaymentHistory';
+export { CouponSchedule } from './CouponSchedule';
 export { IssueInformation } from './IssueInformation';
 export { NextCoupon } from './NextCoupon';
 export { OperationHistory } from './OperationHistory';

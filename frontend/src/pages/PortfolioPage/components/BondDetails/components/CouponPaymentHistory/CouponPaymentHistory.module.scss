@@ -1,0 +1,110 @@
+.history { overflow: hidden; border: 1px solid var(--divider); border-radius: 16px; background: var(--card); }
+
+.summary {
+  display: grid;
+  width: 100%;
+  min-height: 76px;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 17px;
+  border: 0;
+  grid-template-columns: 32px minmax(0, 1fr) auto 22px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.summary:hover { background: color-mix(in srgb, var(--green-soft) 38%, transparent); }
+.summary:focus-visible, .yearSummary:focus-visible { position: relative; z-index: 1; outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+
+.icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 10px; color: var(--accent-text); background: var(--green-soft); }
+.icon svg { width: 16px; height: 16px; }
+.summaryCopy { display: grid; min-width: 0; gap: 4px; }
+.summaryCopy strong { font-size: 14px; font-weight: 850; }
+.summaryCopy small, .latestPayment small { overflow-wrap: anywhere; color: var(--muted); font-size: 11px; }
+.latestPayment { display: grid; justify-items: end; gap: 3px; }
+.latestPayment b { font-size: 12px; white-space: nowrap; }
+
+.chevron { width: 18px; height: 18px; transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1); }
+[aria-expanded='true'] > .chevron { transform: rotate(180deg); }
+
+.collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease,
+    visibility 0s linear 240ms;
+}
+
+.collapse[data-expanded='true'] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+.collapseInner { min-height: 0; overflow: hidden; }
+
+.yearCollapse {
+  transition:
+    grid-template-rows 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 140ms ease,
+    visibility 0s linear 200ms;
+}
+
+.yearCollapse[data-expanded='true'] { transition-delay: 0s; }
+
+.yearList { padding: 8px; border-top: 1px solid var(--divider); background: var(--segment-bg); }
+.yearGroup { overflow: hidden; border: 1px solid var(--divider); border-radius: 11px; background: var(--card); }
+.yearGroup + .yearGroup { margin-top: 6px; }
+
+.yearSummary {
+  display: grid;
+  width: 100%;
+  min-height: 56px;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 13px;
+  border: 0;
+  grid-template-columns: minmax(0, 1fr) auto 20px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.yearSummary:hover { background: color-mix(in srgb, var(--green-soft) 35%, transparent); }
+.yearIdentity { display: flex; align-items: baseline; gap: 9px; }
+.yearIdentity strong { font-size: 16px; }
+.yearIdentity small { color: var(--muted); font-size: 11px; font-weight: 650; }
+.yearSummary > b { color: var(--positive-amount); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.yearPanel { border-top: 1px solid var(--divider); }
+.yearPanel ol { margin: 0; padding: 0 14px; list-style: none; }
+.yearPanel li { display: grid; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--divider); grid-template-columns: 140px minmax(0, 1fr) auto; font-size: 12px; }
+.yearPanel li:last-child { border-bottom: 0; }
+.yearPanel time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.paymentDetails { display: grid; min-width: 0; gap: 3px; }
+.paymentDetails > strong { font-weight: 750; }
+.paymentDetails small { color: var(--muted); }
+.paymentAmount { color: var(--positive-amount); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.empty { display: grid; min-height: 70px; align-items: center; gap: 13px; padding: 14px 17px; grid-template-columns: 32px minmax(0, 1fr); }
+.empty .icon { color: var(--muted); background: var(--segment-bg); }
+
+@media (max-width: 580px) {
+  .summary { grid-template-columns: 32px minmax(0, 1fr) 20px; }
+  .latestPayment { display: none; }
+  .yearPanel li { align-items: start; grid-template-columns: minmax(0, 1fr) auto; }
+  .yearPanel time { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .collapse,
+  .yearCollapse { transition: none; }
+}

@@ -5,6 +5,7 @@ import {
   currentMarketValue,
   formatMoney,
   marketValueAndAciDescription,
+  subtractMoneyValues,
 } from '../../../../utils';
 import styles from '../../BondDetails.module.scss';
 import { formatOperationResult, resultSign } from '../../utils';
@@ -13,6 +14,9 @@ export function PositionMetrics({ bond }: { bond: BondPortfolioItem }) {
   const hasSale = bond.operations.some((operation) => operation.operationType === 'sale');
   const currentAci = bond.positionStatus === 'open' ? bond.accruedCouponIncome : null;
   const totalMarketValue = currentMarketValue(bond);
+  const allTimeResult = totalMarketValue === null
+    ? null
+    : subtractMoneyValues(totalMarketValue, bond.positionCostBasis);
 
   return (
     <dl className={styles.metricsGrid}>
@@ -41,8 +45,22 @@ export function PositionMetrics({ bond }: { bond: BondPortfolioItem }) {
         </dt>
         <dd>{formatMoney(bond.positionCostBasis)}</dd>
       </div>
+      <div className={styles.allTimeMetric}>
+        <dt className={styles.metricLabel}>
+          <span>За всё время</span>
+          <Tooltip label="Что означает результат за всё время">
+            Разница текущей рыночной стоимости с НКД относительно вложенной суммы
+          </Tooltip>
+        </dt>
+        <dd
+          className={allTimeResult === null ? undefined : styles[resultSign(allTimeResult)]}
+          data-result-sign={allTimeResult === null ? undefined : resultSign(allTimeResult)}
+        >
+          {allTimeResult === null ? '—' : formatOperationResult(allTimeResult)}
+        </dd>
+      </div>
       <div><dt>Количество</dt><dd>{bond.totalQuantity.toLocaleString('ru-RU')} шт.</dd></div>
-      <div>
+      <div className={styles.resultMetric}>
         <dt className={styles.metricLabel}>
           <span>Результат сделок</span>
           <Tooltip label="Как рассчитывается результат сделок" align="right">

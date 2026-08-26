@@ -13,6 +13,7 @@ import {
 const makeBond = (overrides: Partial<BondPortfolioItem> = {}): BondPortfolioItem => ({
   id: 'bond-1',
   createdAt: '2026-08-01T10:00:00Z',
+  couponScheduleUpdatedAt: '2026-08-01T10:01:00Z',
   name: 'Облигация 1',
   nominal: '1000.00',
   paymentsPerYear: 2,
@@ -27,6 +28,8 @@ const makeBond = (overrides: Partial<BondPortfolioItem> = {}): BondPortfolioItem
   realizedResult: '0.00',
   positionStatus: 'open',
   paidCouponTotal: '0.00',
+  couponPayments: [],
+  couponSchedule: [],
   holdingPeriodCouponIncome: '0.00',
   calendarYearPaidCouponIncome: '0.00',
   calendarYearCouponYieldPercent: '0.0000',

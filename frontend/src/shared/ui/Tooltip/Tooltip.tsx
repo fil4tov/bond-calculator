@@ -10,25 +10,60 @@ export function Tooltip({ label, children, align = 'left' }: TooltipProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const contentRef = useRef<HTMLSpanElement>(null);
 
-  const updateMobilePosition = () => {
+  const updatePosition = () => {
     const trigger = triggerRef.current;
     const content = contentRef.current;
-    if (!trigger || !content || !window.matchMedia('(max-width: 580px)').matches) return;
+    if (!trigger || !content) return;
 
     const edgeOffset = 16;
     const tooltipGap = 10;
     const maxTooltipHeight = 280;
     const triggerRect = trigger.getBoundingClientRect();
+    let clippingAncestor: HTMLElement | null = trigger.parentElement;
+    while (clippingAncestor) {
+      const { overflowX, overflowY } = window.getComputedStyle(clippingAncestor);
+      if ([overflowX, overflowY].some((overflow) => (
+        overflow === 'auto' || overflow === 'scroll' || overflow === 'hidden'
+      ))) break;
+      clippingAncestor = clippingAncestor.parentElement;
+    }
+    const clippingRect = clippingAncestor?.getBoundingClientRect();
+    const boundaryTop = Math.max(edgeOffset, clippingRect?.top ?? edgeOffset);
+    const boundaryBottom = Math.min(
+      window.innerHeight - edgeOffset,
+      clippingRect?.bottom ?? window.innerHeight - edgeOffset,
+    );
     const tooltipHeight = Math.min(content.scrollHeight, maxTooltipHeight);
-    const availableAbove = triggerRect.top - tooltipGap - edgeOffset;
-    const availableBelow = window.innerHeight - triggerRect.bottom - tooltipGap - edgeOffset;
+    const availableAbove = triggerRect.top - tooltipGap - boundaryTop;
+    const availableBelow = boundaryBottom - triggerRect.bottom - tooltipGap;
     const placeAbove = availableAbove >= tooltipHeight
       || (availableBelow < tooltipHeight && availableAbove >= availableBelow);
     const availableHeight = Math.max(0, placeAbove ? availableAbove : availableBelow);
 
-    content.dataset.mobilePlacement = placeAbove ? 'above' : 'below';
-    content.style.setProperty('--tooltip-mobile-left', `${edgeOffset - triggerRect.left}px`);
-    content.style.setProperty('--tooltip-mobile-max-height', `${availableHeight}px`);
+    content.dataset.placement = placeAbove ? 'above' : 'below';
+    content.style.removeProperty('--tooltip-shift-x');
+    if (window.matchMedia('(max-width: 580px)').matches) {
+      content.style.setProperty('--tooltip-mobile-left', `${edgeOffset - triggerRect.left}px`);
+      content.style.setProperty('--tooltip-mobile-max-height', `${availableHeight}px`);
+      return;
+    }
+
+    const horizontalInset = 12;
+    const boundaryLeft = Math.max(
+      edgeOffset,
+      (clippingRect?.left ?? 0) + horizontalInset,
+    );
+    const boundaryRight = Math.min(
+      window.innerWidth - edgeOffset,
+      (clippingRect?.right ?? window.innerWidth) - horizontalInset,
+    );
+    const contentRect = content.getBoundingClientRect();
+    const shiftX = contentRect.left < boundaryLeft
+      ? boundaryLeft - contentRect.left
+      : contentRect.right > boundaryRight
+        ? boundaryRight - contentRect.right
+        : 0;
+    content.style.setProperty('--tooltip-shift-x', `${shiftX}px`);
   };
 
   return (
@@ -39,9 +74,9 @@ export function Tooltip({ label, children, align = 'left' }: TooltipProps) {
         className={styles.trigger}
         aria-label={label}
         aria-describedby={id}
-        onFocus={updateMobilePosition}
-        onPointerDown={updateMobilePosition}
-        onPointerEnter={updateMobilePosition}
+        onFocus={updatePosition}
+        onPointerDown={updatePosition}
+        onPointerEnter={updatePosition}
       >
         ?
       </button>
