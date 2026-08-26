@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
-import { useDeletePortfolioOperation } from '#entities/bondPortfolio';
+import { useDeletePortfolioOperation, useRefreshCouponSchedule } from '#entities/bondPortfolio';
+import { Modal } from '#shared/ui';
 
 import { BondDetails } from '../BondDetails';
-import { ModalShell } from '../ModalShell';
 import { DeleteOperationModal } from './DeleteOperationModal';
 import type { OperationDeleteConfirmation } from './DeleteOperationModal';
 import type { OpenPortfolioModal, PortfolioModalProps } from './types';
@@ -23,8 +23,14 @@ export function BondDetailsModal({
   onModalChange,
 }: BondDetailsModalProps) {
   const deleteOperation = useDeletePortfolioOperation(userId);
+  const refreshCouponSchedule = useRefreshCouponSchedule(userId);
+  const modalRef = useRef(modal);
   const [confirmation, setConfirmation] = useState<OperationDeleteConfirmation | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    modalRef.current = modal;
+  }, [modal]);
 
   if (modal?.kind !== 'details') return null;
 
@@ -66,30 +72,43 @@ export function BondDetailsModal({
 
   return (
     <>
-      <ModalShell
+      <Modal
         title={modal.bond.name}
-        eyebrow={null}
         busy={false}
         returnFocusTarget={modal.returnFocusTarget}
         onClose={onClose}
-      >
-        <BondDetails
-          bond={modal.bond}
-          focusOperationId={modal.focusOperationId}
-          operationDeleteDisabled={deleteOperation.isPending}
-          onDeleteOperation={(operationId, returnFocusTarget) => {
-            const operation = modal.bond.operations.find((item) => item.id === operationId);
-            if (!operation) return;
-            setDeleteError(null);
-            setConfirmation({
-              bond: modal.bond,
-              operation,
-              detailsReturnFocusTarget: modal.returnFocusTarget,
-              returnFocusTarget,
-            });
-          }}
-        />
-      </ModalShell>
+        width="extraWide"
+        contentLayout="fullBleed"
+        mobileFillHeight
+        renderContent={({ titleId, closeButton }) => (
+          <BondDetails
+            bond={modal.bond}
+            titleId={titleId}
+            closeButton={closeButton}
+            focusOperationId={modal.focusOperationId}
+            operationDeleteDisabled={deleteOperation.isPending}
+            onRefreshCouponSchedule={async () => {
+              const updatedBond = await refreshCouponSchedule.mutateAsync(modal.bond);
+              const currentModal = modalRef.current;
+              if (currentModal?.kind !== 'details' || currentModal.bond.id !== updatedBond.id) {
+                return;
+              }
+              onModalChange({ ...currentModal, bond: updatedBond });
+            }}
+            onDeleteOperation={(operationId, returnFocusTarget) => {
+              const operation = modal.bond.operations.find((item) => item.id === operationId);
+              if (!operation) return;
+              setDeleteError(null);
+              setConfirmation({
+                bond: modal.bond,
+                operation,
+                detailsReturnFocusTarget: modal.returnFocusTarget,
+                returnFocusTarget,
+              });
+            }}
+          />
+        )}
+      />
       <DeleteOperationModal
         confirmation={confirmation}
         busy={deleteOperation.isPending}

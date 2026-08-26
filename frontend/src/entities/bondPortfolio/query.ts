@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { addBondPurchase, addBondSale, checkBondNameAvailability, createBond, deletePortfolioBond, deletePortfolioOperation, getPortfolioBonds, lookupTInvestBond, searchTInvestBonds } from './api';
+import { addBondPurchase, addBondSale, checkBondNameAvailability, createBond, deletePortfolioBond, deletePortfolioOperation, getPortfolioBonds, lookupTInvestBond, refreshCouponSchedule, searchTInvestBonds } from './api';
 import type { AddBondPurchaseInput, AddBondSaleInput, BondPortfolioItem, CreateBondInput } from './types';
 
 export const portfolioQueryKey = (userId: string) => ['bondPortfolio', userId, 'bonds'] as const;
@@ -121,6 +121,26 @@ export function useDeletePortfolioBond(userId: string) {
     onSuccess: (_data, bondId) => {
       queryClient.setQueryData<BondPortfolioItem[]>(portfolioQueryKey(userId), (items) => (
         items?.filter((item) => item.id !== bondId)
+      ));
+      refreshPortfolioBonds(queryClient, userId);
+    },
+  });
+}
+
+export function useRefreshCouponSchedule(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (currentBond: BondPortfolioItem) => {
+      const refreshedBond = await refreshCouponSchedule(currentBond.id);
+      return {
+        ...refreshedBond,
+        marketValueWithoutAci: currentBond.marketValueWithoutAci,
+        accruedCouponIncome: currentBond.accruedCouponIncome,
+      };
+    },
+    onSuccess: (bond) => {
+      queryClient.setQueryData<BondPortfolioItem[]>(portfolioQueryKey(userId), (items) => (
+        upsertPortfolioBond(items, bond)
       ));
       refreshPortfolioBonds(queryClient, userId);
     },

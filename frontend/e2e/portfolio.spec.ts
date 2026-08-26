@@ -7,6 +7,16 @@ async function expectHeaderDivider(dialog: Locator) {
   await expect(header).toHaveCSS('border-bottom-width', '1px');
 }
 
+async function selectBondDetailsSection(
+  dialog: Locator,
+  name: 'Об облигации' | 'Моя позиция' | 'Купоны' | 'Операции',
+) {
+  const tab = dialog.getByRole('tab', { name });
+  await tab.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+  return dialog.getByRole('tabpanel', { name });
+}
+
 function inputDate(date: Date) {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -27,6 +37,7 @@ function sortableBond(id: string, name: string, createdAt: string) {
   return {
     id,
     created_at: createdAt,
+    coupon_schedule_updated_at: createdAt,
     instrument_uid: `instrument-${id}`,
     ticker: `TEST-${id}`,
     name,
@@ -192,6 +203,7 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
   await page.getByRole('article', { name: 'Облигация 10' })
     .getByRole('button', { name: 'Открыть сведения об облигации Облигация 10' })
     .click();
+  await selectBondDetailsSection(detailsDialog, 'Купоны');
   const annualCouponYieldMetric = detailsDialog
     .getByText('Годовая купонная доходность', { exact: true })
     .locator('..')
@@ -201,20 +213,23 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
     .getByText('Ожидаемый купонный доход за весь период владения', { exact: true })
     .locator('../..');
   await expect(holdingPeriodIncomeMetric).toContainText(/\+1.400,70.₽/);
-  const holdingPeriodIncomeGrid = holdingPeriodIncomeMetric.locator('..');
-  const [holdingPeriodIncomeBox, holdingPeriodIncomeGridBox] = await Promise.all([
-    holdingPeriodIncomeMetric.boundingBox(),
-    holdingPeriodIncomeGrid.boundingBox(),
+  const paidCouponMetric = detailsDialog
+    .getByText('Выплачено купонов', { exact: true })
+    .locator('..');
+  const couponMetricsGrid = paidCouponMetric.locator('..');
+  const [paidCouponMetricBox, couponMetricsGridBox] = await Promise.all([
+    paidCouponMetric.boundingBox(),
+    couponMetricsGrid.boundingBox(),
   ]);
-  if (!holdingPeriodIncomeBox || !holdingPeriodIncomeGridBox) {
-    throw new Error('Не удалось измерить показатель купонного дохода за период владения');
+  if (!paidCouponMetricBox || !couponMetricsGridBox) {
+    throw new Error('Не удалось измерить показатель выплаченных купонов');
   }
-  expect(Math.abs(holdingPeriodIncomeBox.x - holdingPeriodIncomeGridBox.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(paidCouponMetricBox.x - couponMetricsGridBox.x)).toBeLessThanOrEqual(2);
   expect(Math.abs(
-    holdingPeriodIncomeBox.x + holdingPeriodIncomeBox.width
-      - (holdingPeriodIncomeGridBox.x + holdingPeriodIncomeGridBox.width),
+    paidCouponMetricBox.x + paidCouponMetricBox.width
+      - (couponMetricsGridBox.x + couponMetricsGridBox.width),
   )).toBeLessThanOrEqual(2);
-  expect(holdingPeriodIncomeGridBox.width).toBeLessThanOrEqual(
+  expect(couponMetricsGridBox.width).toBeLessThanOrEqual(
     await detailsDialog.evaluate((element) => element.clientWidth),
   );
   const year = new Date().getUTCFullYear();
@@ -361,10 +376,18 @@ test('records purchases and sales, restores operations, and removes the position
   await page.setViewportSize({ width: originalViewport.width, height: 600 });
   await detailsTrigger.click();
   const detailsDialog = page.getByRole('dialog', { name: bondName });
-  await expectHeaderDivider(detailsDialog);
-  const modalScrollViewport = detailsDialog.locator('[data-modal-scroll-viewport]');
+  await expect(detailsDialog.getByRole('tablist', { name: 'Разделы сведений об облигации' })).toBeVisible();
+  expect(await detailsDialog.getByRole('tab').allTextContents()).toEqual([
+    'Моя позиция',
+    'Купоны',
+    'Об облигации',
+    'Операции1',
+  ]);
+  await expect(detailsDialog.getByRole('tab', { name: 'Моя позиция' })).toHaveAttribute('aria-selected', 'true');
+  await selectBondDetailsSection(detailsDialog, 'Купоны');
+  const modalScrollViewport = detailsDialog.locator('[data-bond-details-scroll-viewport]');
   const modalScrollMetrics = await modalScrollViewport.evaluate((element) => {
-    const dialog = element.parentElement;
+    const dialog = element.closest('[role="dialog"]');
     if (!dialog) throw new Error('Modal shell is missing');
     return {
       dialogOverflow: getComputedStyle(dialog).overflow,
@@ -377,21 +400,19 @@ test('records purchases and sales, restores operations, and removes the position
   expect(modalScrollMetrics.dialogOverflow).toBe('hidden');
   expect(modalScrollMetrics.dialogRadius).not.toBe('0px');
   expect(modalScrollMetrics.viewportOverflowY).toBe('auto');
-  expect(modalScrollMetrics.scrollHeight).toBeGreaterThan(modalScrollMetrics.clientHeight);
-  await modalScrollViewport.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-  expect(await modalScrollViewport.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(modalScrollMetrics.scrollHeight).toBeGreaterThanOrEqual(modalScrollMetrics.clientHeight);
+  if (modalScrollMetrics.scrollHeight > modalScrollMetrics.clientHeight) {
+    await modalScrollViewport.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expect(await modalScrollViewport.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  }
   await modalScrollViewport.evaluate((element) => { element.scrollTop = 0; });
   await page.setViewportSize(originalViewport);
-  await expect(detailsDialog.getByText('Вложено в облигации')).toBeVisible();
-  await expect(detailsDialog.getByText('Текущая рыночная стоимость', { exact: true })).toBeVisible();
-  await expect(detailsDialog.getByText('10 025,00 ₽', { exact: true })).toBeVisible();
-  await expect(detailsDialog.getByText('+ 25,00 ₽', { exact: false })).toBeVisible();
-  await expect(detailsDialog.getByText(`Ожидаемый купонный доход за ${today.getUTCFullYear()} год`, { exact: true })).toBeVisible();
-  await expect(detailsDialog.getByText(`Доходность отдельных купонов за ${today.getUTCFullYear()} год`, { exact: true })).toBeVisible();
-  await expect(detailsDialog.getByText('Годовая купонная доходность', { exact: true })).toBeVisible();
-  const couponIncomeMetric = detailsDialog.getByText(`Ожидаемый купонный доход за ${today.getUTCFullYear()} год`, { exact: true }).locator('xpath=../..');
-  await expect(couponIncomeMetric).toContainText('+0,00 ₽');
-  const metricsGrid = detailsDialog.getByText('Текущая рыночная стоимость', { exact: true })
+  const positionPanel = await selectBondDetailsSection(detailsDialog, 'Моя позиция');
+  await expect(positionPanel.getByText('Вложено в облигации')).toBeVisible();
+  await expect(positionPanel.getByText('Текущая рыночная стоимость', { exact: true })).toBeVisible();
+  await expect(positionPanel.getByText('10 025,00 ₽', { exact: true })).toBeVisible();
+  await expect(positionPanel.getByText('+ 25,00 ₽', { exact: false })).toBeVisible();
+  const metricsGrid = positionPanel.getByText('Текущая рыночная стоимость', { exact: true })
     .locator('xpath=ancestor::dl');
   const metricsGridLayout = await metricsGrid.evaluate((element) => {
     const cells = Array.from(element.children).map((cell) => cell.getBoundingClientRect());
@@ -412,6 +433,18 @@ test('records purchases and sales, restores operations, and removes the position
     expect(metricsGridLayout.secondCellTop).toBe(metricsGridLayout.firstCellTop);
     expect(metricsGridLayout.secondCellLeft).toBeGreaterThan(metricsGridLayout.firstCellLeft!);
   }
+  await selectBondDetailsSection(detailsDialog, 'Купоны');
+  await expect(detailsDialog.getByText(`Ожидаемый купонный доход за ${today.getUTCFullYear()} год`, { exact: true })).toBeVisible();
+  await expect(detailsDialog.getByText(`Доходность отдельных купонов за ${today.getUTCFullYear()} год`, { exact: true })).toBeVisible();
+  await expect(detailsDialog.getByText('Годовая купонная доходность', { exact: true })).toBeVisible();
+  const couponIncomeMetric = detailsDialog.getByText(`Ожидаемый купонный доход за ${today.getUTCFullYear()} год`, { exact: true }).locator('xpath=../..');
+  await expect(couponIncomeMetric).toContainText('+0,00 ₽');
+  await expect(detailsDialog.getByRole('region', { name: 'История купонных выплат' }))
+    .toContainText('Выплат пока не было');
+  const couponSchedule = detailsDialog.getByRole('region', { name: 'Расписание купонных выплат' });
+  await couponSchedule.getByRole('button', { name: /Расписание выплат/ }).click();
+  await expect(couponSchedule.getByRole('button', { name: 'Обновить расписание' })).toBeVisible();
+  await expect(couponSchedule).toContainText('Обновлено');
   const yieldHelp = detailsDialog.getByRole('button', {
     name: `Как рассчитывается доходность отдельных купонов за ${today.getUTCFullYear()} год`,
   });
@@ -429,7 +462,9 @@ test('records purchases and sales, restores operations, and removes the position
     return hit !== null && element.contains(hit);
   });
   expect(tooltipTopIsInteractive).toBe(true);
+  await selectBondDetailsSection(detailsDialog, 'Об облигации');
   await expect(detailsDialog.getByText('12', { exact: true })).toBeVisible();
+  await selectBondDetailsSection(detailsDialog, 'Моя позиция');
   const realizedMetricLayout = await detailsDialog.getByText('Результат сделок', { exact: true }).evaluate((element) => {
     const cell = element.closest('div');
     if (!cell) throw new Error('Realized result metric cell is missing');
@@ -440,7 +475,25 @@ test('records purchases and sales, restores operations, and removes the position
       gridColumnEnd: style.gridColumnEnd,
     };
   });
-  expect(realizedMetricLayout).toEqual({ borderTopWidth: '1px', gridColumnStart: 'auto', gridColumnEnd: 'auto' });
+  expect(realizedMetricLayout).toEqual({ borderTopWidth: '1px', gridColumnStart: '1', gridColumnEnd: '-1' });
+  const allTimeMetric = detailsDialog.getByText('За всё время', { exact: true }).locator('xpath=..');
+  await expect(allTimeMetric).toBeVisible();
+  const allTimeHelp = detailsDialog.getByRole('button', {
+    name: 'Что означает результат за всё время',
+  });
+  await expect(allTimeHelp).toHaveAccessibleDescription(
+    'Разница текущей рыночной стоимости с НКД относительно вложенной суммы',
+  );
+  await allTimeHelp.hover();
+  const allTimeTooltip = detailsDialog.getByRole('tooltip', {
+    name: 'Разница текущей рыночной стоимости с НКД относительно вложенной суммы',
+  });
+  const tooltipHorizontalBounds = await Promise.all([
+    allTimeTooltip.boundingBox(),
+    detailsDialog.locator('[data-bond-details-scroll-viewport]').boundingBox(),
+  ]);
+  expect(tooltipHorizontalBounds[0]!.x).toBeGreaterThanOrEqual(tooltipHorizontalBounds[1]!.x);
+  await selectBondDetailsSection(detailsDialog, 'Купоны');
   const nextCoupon = detailsDialog.getByRole('region', { name: 'Ближайший купон' });
   await expect(nextCoupon).toContainText(/•.*₽ шт\./);
   await expect(nextCoupon).not.toContainText('Сумма ближайшей выплаты');
@@ -448,7 +501,18 @@ test('records purchases and sales, restores operations, and removes the position
   await detailsDialog.getByRole('button', { name: 'Закрыть окно' }).click();
   await expect(detailsTrigger).toBeFocused();
   await detailsTrigger.click();
-  const initialHistory = page.getByRole('dialog', { name: bondName }).getByRole('region', { name: 'История операций' });
+  const reopenedDetailsDialog = page.getByRole('dialog', { name: bondName });
+  await selectBondDetailsSection(reopenedDetailsDialog, 'Операции');
+  await expect.poll(async () => {
+    const [tabListBox, selectedTabBox] = await Promise.all([
+      reopenedDetailsDialog.getByRole('tablist', { name: 'Разделы сведений об облигации' }).boundingBox(),
+      reopenedDetailsDialog.getByRole('tab', { name: 'Операции' }).boundingBox(),
+    ]);
+    if (!tabListBox || !selectedTabBox) return false;
+    return selectedTabBox.x >= tabListBox.x
+      && selectedTabBox.x + selectedTabBox.width <= tabListBox.x + tabListBox.width;
+  }).toBe(true);
+  const initialHistory = reopenedDetailsDialog.getByRole('region', { name: 'История операций' });
   await expect(initialHistory).toContainText('1 операция');
   await expect(initialHistory.getByRole('listitem')).toContainText(/9.500,70.₽.*\+10 шт\./);
   await expect(initialHistory).not.toContainText('Покупка');
@@ -475,8 +539,10 @@ test('records purchases and sales, restores operations, and removes the position
 
   await detailsTrigger.click();
   const updatedDetailsDialog = page.getByRole('dialog', { name: bondName });
-  await expect(updatedDetailsDialog.getByText('12 030,00 ₽', { exact: true })).toBeVisible();
-  await expect(updatedDetailsDialog.getByText('+ 30,00 ₽', { exact: false })).toBeVisible();
+  const updatedPositionPanel = await selectBondDetailsSection(updatedDetailsDialog, 'Моя позиция');
+  await expect(updatedPositionPanel.getByText('12 030,00 ₽', { exact: true })).toBeVisible();
+  await expect(updatedPositionPanel.getByText('+ 30,00 ₽', { exact: false })).toBeVisible();
+  await selectBondDetailsSection(updatedDetailsDialog, 'Операции');
   const updatedHistory = updatedDetailsDialog.getByRole('region', { name: 'История операций' });
   await expect(updatedHistory).toContainText('2 операции');
   const purchases = updatedHistory.getByRole('listitem');
@@ -509,11 +575,13 @@ test('records purchases and sales, restores operations, and removes the position
 
   await detailsTrigger.click();
   const closedDetails = page.getByRole('dialog', { name: bondName });
+  await selectBondDetailsSection(closedDetails, 'Моя позиция');
   const closedMarketValue = closedDetails.locator('dt')
     .filter({ hasText: 'Текущая рыночная стоимость' })
     .locator('xpath=following-sibling::dd');
   await expect(closedMarketValue).not.toContainText('НКД');
   await expect(closedDetails.getByText('Вложено в оставшиеся облигации')).toBeVisible();
+  await selectBondDetailsSection(closedDetails, 'Операции');
   const closedHistory = closedDetails.getByRole('region', { name: 'История операций' });
   await expect(closedHistory).toContainText('3 операции');
   const saleOperation = closedHistory.getByRole('listitem').first();

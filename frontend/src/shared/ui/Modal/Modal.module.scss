@@ -60,6 +60,8 @@
 
 .narrow { width: min(460px, 100%); }
 .wide { width: min(720px, 100%); }
+.extraWide { width: min(960px, 100%); }
+.fullBleed { overflow: hidden; padding: 0; scrollbar-gutter: auto; }
 
 .header {
   display: flex;
@@ -107,8 +109,9 @@
   .narrow { width: min(460px, calc(100% - 24px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); margin-bottom: 12px; border-radius: 22px; }
   .narrow .scrollViewport { padding: 24px 20px; }
   .narrow .header h2 { font-size: 25px; }
-  .wide { width: 100%; max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 24px 24px 0 0; }
-  .wide .scrollViewport { padding: 24px 18px max(28px, env(safe-area-inset-bottom)); }
+  .wide, .extraWide { width: 100%; max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 24px 24px 0 0; }
+  .wide .scrollViewport, .extraWide .scrollViewport { padding: 24px 18px max(28px, env(safe-area-inset-bottom)); }
+  .wide .scrollViewport.fullBleed, .extraWide .scrollViewport.fullBleed { padding: 0; }
   .mobileFillHeight { height: calc(100vh - 16px); height: calc(100dvh - 16px); }
   .mobileContentFillsHeight { display: flex; flex-direction: column; }
 }

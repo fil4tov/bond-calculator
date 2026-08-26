@@ -115,16 +115,24 @@ export function formatMoney(value: string) {
   return formatExactDecimal(value, MONEY_FORMATTER);
 }
 
-function addMoneyValues(left: string, right: string) {
-  const toKopecks = (value: string) => {
-    const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(value);
-    if (!match) throw new Error('Expected a plain money value');
-    const amount = BigInt(match[2]!) * 100n + BigInt((match[3] ?? '').padEnd(2, '0'));
-    return match[1] ? -amount : amount;
-  };
-  const total = toKopecks(left) + toKopecks(right);
+function moneyToKopecks(value: string) {
+  const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(value);
+  if (!match) throw new Error('Expected a plain money value');
+  const amount = BigInt(match[2]!) * 100n + BigInt((match[3] ?? '').padEnd(2, '0'));
+  return match[1] ? -amount : amount;
+}
+
+function moneyFromKopecks(total: bigint) {
   const absolute = total < 0n ? -total : total;
   return `${total < 0n ? '-' : ''}${absolute / 100n}.${(absolute % 100n).toString().padStart(2, '0')}`;
+}
+
+function addMoneyValues(left: string, right: string) {
+  return moneyFromKopecks(moneyToKopecks(left) + moneyToKopecks(right));
+}
+
+export function subtractMoneyValues(left: string, right: string) {
+  return moneyFromKopecks(moneyToKopecks(left) - moneyToKopecks(right));
 }
 
 export function currentMarketValue(

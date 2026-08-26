@@ -29,6 +29,27 @@ describe('Modal', () => {
     expect(screen.getByRole('button', { name: 'Закрыть окно' })).toBeInTheDocument();
   });
 
+  it('supports a full-bleed custom content layout without replacing modal behavior', () => {
+    render(
+      <Modal
+        title="Сведения об облигации"
+        width="extraWide"
+        contentLayout="fullBleed"
+        onClose={vi.fn()}
+        renderContent={({ titleId, closeButton }) => (
+          <div data-testid="custom-layout">
+            <h2 id={titleId}>Сведения об облигации</h2>
+            {closeButton}
+          </div>
+        )}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Сведения об облигации' });
+    expect(within(dialog).getByTestId('custom-layout')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Закрыть окно' })).toHaveFocus();
+  });
+
   it('traps focus, locks scrolling, and restores the invoking element after Escape', async () => {
     function Example() {
       const [open, setOpen] = useState(false);

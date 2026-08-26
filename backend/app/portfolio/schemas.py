@@ -112,6 +112,22 @@ class NextCoupon(BaseModel):
     elapsed_period_days: int
 
 
+class CouponPaymentItem(BaseModel):
+    coupon_number: int
+    pay_date: date
+    amount_per_bond: str
+    quantity: int
+    amount: str
+
+
+class CouponScheduleItem(BaseModel):
+    coupon_number: int
+    pay_date: date
+    amount_per_bond: str
+    quantity: int
+    amount: str
+
+
 class BondOperationItem(BaseModel):
     id: UUID
     operation_type: Literal["purchase", "sale"]
@@ -125,6 +141,7 @@ class BondCard(BaseModel):
     id: UUID
     created_at: datetime
     instrument_uid: str
+    coupon_schedule_updated_at: datetime
     ticker: str
     name: str
     nominal: str
@@ -138,6 +155,8 @@ class BondCard(BaseModel):
     realized_result: str
     position_status: Literal["open", "closed"]
     paid_coupon_total: str
+    coupon_payments: list[CouponPaymentItem]
+    coupon_schedule: list[CouponScheduleItem]
     holding_period_coupon_income: str
     calendar_year_paid_coupon_income: str
     market_value_without_aci: str | None

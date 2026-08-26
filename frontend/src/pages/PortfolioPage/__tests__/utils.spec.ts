@@ -5,6 +5,7 @@ import {
   currentMarketValue,
   formatMoney,
   formatPercent,
+  subtractMoneyValues,
   todayInputValue,
   availableQuantityOnDate,
   validateQuantity,
@@ -41,6 +42,16 @@ describe('currentMarketValue', () => {
       accruedCouponIncome: '925.93',
       positionStatus: 'open',
     })).toBeNull();
+  });
+});
+
+describe('subtractMoneyValues', () => {
+  it('calculates a positive position result without losing kopecks', () => {
+    expect(subtractMoneyValues('75175.93', '75000.70')).toBe('175.23');
+  });
+
+  it('preserves a negative result', () => {
+    expect(subtractMoneyValues('74250.00', '75000.70')).toBe('-750.70');
   });
 });
 

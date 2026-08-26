@@ -25,7 +25,6 @@ class Bond(Base):
     operations: Mapped[list["BondOperation"]] = relationship(
         back_populates="bond", cascade="all, delete-orphan"
     )
-    coupon_schedules: Mapped[list["BondCouponSchedule"]] = relationship(back_populates="bond", cascade="all, delete-orphan")
     __table_args__ = (
         CheckConstraint("nominal > 0", name="ck_bonds_nominal_positive"),
         CheckConstraint("payments_per_year >= 0", name="ck_bonds_payments_per_year_nonnegative"),
@@ -75,10 +74,31 @@ class BondOperation(Base):
     )
 
 
+class BondCouponScheduleSync(Base):
+    __tablename__ = "bond_coupon_schedule_syncs"
+
+    instrument_uid: Mapped[str] = mapped_column(String(64), primary_key=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    coupon_schedules: Mapped[list["BondCouponSchedule"]] = relationship(
+        back_populates="schedule_sync",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
 class BondCouponSchedule(Base):
     __tablename__ = "bond_coupon_schedules"
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
-    bond_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("bonds.id", ondelete="CASCADE"), nullable=False)
+    instrument_uid: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("bond_coupon_schedule_syncs.instrument_uid", ondelete="CASCADE"),
+        nullable=False,
+    )
     figi: Mapped[str] = mapped_column(String(64), nullable=False)
     coupon_date: Mapped[date] = mapped_column(Date, nullable=False)
     coupon_number: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -89,11 +109,22 @@ class BondCouponSchedule(Base):
     coupon_start_date: Mapped[date] = mapped_column(Date, nullable=False)
     coupon_end_date: Mapped[date] = mapped_column(Date, nullable=False)
     coupon_period: Mapped[int] = mapped_column(Integer, nullable=False)
-    bond: Mapped[Bond] = relationship(back_populates="coupon_schedules")
+    schedule_sync: Mapped[BondCouponScheduleSync] = relationship(
+        back_populates="coupon_schedules"
+    )
     __table_args__ = (
         CheckConstraint("pay_one_bond_amount >= 0", name="ck_bond_coupon_schedule_amount_nonnegative"),
         CheckConstraint("coupon_period >= 0", name="ck_bond_coupon_schedule_period_nonnegative"),
         CheckConstraint("coupon_start_date <= coupon_end_date", name="ck_bond_coupon_schedule_dates_ordered"),
-        UniqueConstraint("bond_id", "coupon_number", "coupon_date", name="uq_bond_coupon_schedule_event"),
-        Index("ix_bond_coupon_schedules_bond_id_coupon_date", "bond_id", "coupon_date"),
+        UniqueConstraint(
+            "instrument_uid",
+            "coupon_number",
+            "coupon_date",
+            name="uq_bond_coupon_schedule_event",
+        ),
+        Index(
+            "ix_bond_coupon_schedules_instrument_uid_coupon_date",
+            "instrument_uid",
+            "coupon_date",
+        ),
     )

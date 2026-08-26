@@ -2,18 +2,19 @@ import type { BondPortfolioItem } from '#entities/bondPortfolio';
 
 import { formatDate, formatMoney } from '../../../../utils';
 import styles from '../../BondDetails.module.scss';
+import { BondStatus } from '../BondStatus';
 import { maturityValue } from './utils';
 
-export function IssueInformation({ bond }: { bond: BondPortfolioItem }) {
-  const statusLabel = bond.status === 'matured'
-    ? 'Погашена'
-    : bond.status === 'payment_pending' ? 'Ожидается выплата' : 'Активна';
-
+export function IssueInformation({
+  bond,
+  showStatus = true,
+}: {
+  bond: BondPortfolioItem;
+  showStatus?: boolean;
+}) {
   return (
     <>
-      <span className={`${styles.status} ${bond.status === 'matured' ? styles.statusMatured : ''}`}>
-        {statusLabel}
-      </span>
+      {showStatus ? <BondStatus bond={bond} /> : null}
       <dl className={styles.issueGrid}>
         <div><dt>Номинал</dt><dd>{formatMoney(bond.nominal)}</dd></div>
         <div><dt>Выплат в год</dt><dd>{bond.paymentsPerYear}</dd></div>
