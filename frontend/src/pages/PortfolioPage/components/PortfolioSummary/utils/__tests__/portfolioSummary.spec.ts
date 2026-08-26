@@ -34,8 +34,8 @@ describe('calculatePortfolioSummary', () => {
     expect(summary).toEqual({
       marketValue: '75175.93',
       investedAmount: '75000.70',
-      openIssueCount: 1,
       currentResult: '175.23',
+      calendarYearYieldPercent: '5.6639',
       couponReceived: '2000.05',
       couponReceivedTotal: '6725.15',
       couponExpected: '4478.05',
@@ -54,7 +54,7 @@ describe('calculatePortfolioSummary', () => {
     expect(summary.marketValue).toBeNull();
     expect(summary.currentResult).toBeNull();
     expect(summary.investedAmount).toBe('150001.40');
-    expect(summary.openIssueCount).toBe(2);
+    expect(summary.calendarYearYieldPercent).toBe('5.6639');
   });
 
   it('uses zero progress when no coupons are expected', () => {
@@ -65,5 +65,37 @@ describe('calculatePortfolioSummary', () => {
     }]);
 
     expect(summary.couponProgress).toBe(0);
+    expect(summary.calendarYearYieldPercent).toBe('0.0000');
+  });
+
+  it('calculates the current-year yield from open positions only', () => {
+    const summary = calculatePortfolioSummary([
+      openBond,
+      {
+        ...openBond,
+        positionCostBasis: '25000.30',
+        calendarYearCouponIncome: '1250.00',
+      },
+      {
+        ...openBond,
+        positionStatus: 'closed',
+        positionCostBasis: '0.00',
+        calendarYearCouponIncome: '99999.99',
+      },
+    ]);
+
+    expect(summary.investedAmount).toBe('100001.00');
+    expect(summary.calendarYearYieldPercent).toBe('5.4979');
+  });
+
+  it('returns an unavailable current-year yield without an invested amount', () => {
+    const summary = calculatePortfolioSummary([{
+      ...openBond,
+      positionStatus: 'closed',
+      positionCostBasis: '0.00',
+    }]);
+
+    expect(summary.investedAmount).toBe('0.00');
+    expect(summary.calendarYearYieldPercent).toBeNull();
   });
 });

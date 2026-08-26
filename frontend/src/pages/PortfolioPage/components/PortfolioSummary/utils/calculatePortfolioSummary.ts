@@ -2,6 +2,7 @@ import { currentMarketValue } from '../../../utils';
 
 import type { PortfolioSummaryBond, PortfolioSummaryData } from '../types';
 import { fromKopecks } from './fromKopecks';
+import { percentOf } from './percentOf';
 import { sumMoney } from './sumMoney';
 
 export function calculatePortfolioSummary(bonds: PortfolioSummaryBond[]): PortfolioSummaryData {
@@ -9,6 +10,9 @@ export function calculatePortfolioSummary(bonds: PortfolioSummaryBond[]): Portfo
   const marketValues = openBonds.map(currentMarketValue);
   const hasUnavailableMarketValue = marketValues.some((value) => value === null);
   const investedAmount = sumMoney(openBonds.map((bond) => bond.positionCostBasis));
+  const openCalendarYearCouponIncome = sumMoney(
+    openBonds.map((bond) => bond.calendarYearCouponIncome),
+  );
   const marketValue = hasUnavailableMarketValue
     ? null
     : sumMoney(marketValues as string[]);
@@ -23,8 +27,8 @@ export function calculatePortfolioSummary(bonds: PortfolioSummaryBond[]): Portfo
   return {
     marketValue: marketValue === null ? null : fromKopecks(marketValue),
     investedAmount: fromKopecks(investedAmount),
-    openIssueCount: openBonds.length,
     currentResult: marketValue === null ? null : fromKopecks(marketValue - investedAmount),
+    calendarYearYieldPercent: percentOf(openCalendarYearCouponIncome, investedAmount),
     couponReceived: fromKopecks(couponReceived),
     couponReceivedTotal: fromKopecks(couponReceivedTotal),
     couponExpected: fromKopecks(couponExpected),

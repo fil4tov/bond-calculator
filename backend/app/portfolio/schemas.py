@@ -138,6 +138,7 @@ class BondCard(BaseModel):
     realized_result: str
     position_status: Literal["open", "closed"]
     paid_coupon_total: str
+    holding_period_coupon_income: str
     calendar_year_paid_coupon_income: str
     market_value_without_aci: str | None
     accrued_coupon_income: str | None

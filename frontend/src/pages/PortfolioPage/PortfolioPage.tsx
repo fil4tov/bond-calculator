@@ -116,6 +116,9 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
                 onFieldChange={handleSortFieldChange}
                 onDirectionToggle={handleSortDirectionToggle}
               />
+              <p className={styles.issueCount} aria-live="polite">
+                Всего выпусков: <strong>{portfolioData?.length ?? 0}</strong>
+              </p>
             </div>
             <div className={styles.cardList}>
               {sortedPortfolioData.map((bond) => (

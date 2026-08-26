@@ -12,6 +12,7 @@
 .issueGrid > div:last-child { grid-column: 1 / -1; }
 .issueGrid dt, .metricsGrid dt { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
 .metricsGrid .metricLabel { display: flex; align-items: center; gap: 7px; }
+.metricsGrid > .holdingPeriodMetric { grid-column: 1 / -1; }
 .issueGrid dd, .metricsGrid dd { margin: 8px 0 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .marketValue { display: grid; min-width: 0; justify-items: start; gap: 4px; }
 .marketValueBreakdown { color: var(--ink); font-size: 13px; }

@@ -27,6 +27,7 @@ const makeBond = (overrides: Partial<BondPortfolioItem> = {}): BondPortfolioItem
   realizedResult: '0.00',
   positionStatus: 'open',
   paidCouponTotal: '0.00',
+  holdingPeriodCouponIncome: '0.00',
   calendarYearPaidCouponIncome: '0.00',
   calendarYearCouponYieldPercent: '0.0000',
   annualCouponYieldPercent: '0.0000',

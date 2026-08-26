@@ -92,10 +92,56 @@ def test_empty_stored_schedule_has_zero_metrics_and_no_next_coupon() -> None:
     )
 
     assert metrics.paid_coupon_total == Decimal("0.00")
+    assert metrics.holding_period_coupon_income == Decimal("0.00")
     assert metrics.calendar_year_coupon_yield_percent == Decimal("0.0000")
     assert metrics.annual_coupon_yield_percent is None
     assert metrics.coupon_yield_year == 2026
     assert metrics.next_coupon_pay_date is None
+
+
+def test_holding_period_coupon_income_replays_entitlement_for_all_known_coupons() -> None:
+    metrics = calculate_bond_metrics(
+        maturity_date=date(2027, 1, 1),
+        payments_per_year=4,
+        operations=(
+            OperationPosition("purchase", Decimal("1000.00"), 2, date(2026, 1, 1)),
+            OperationPosition("purchase", Decimal("1500.00"), 3, date(2026, 1, 15)),
+            OperationPosition("sale", Decimal("2600.00"), 5, date(2026, 2, 15)),
+        ),
+        coupons=(
+            coupon(
+                coupon_date=date(2025, 12, 31),
+                amount="100.00",
+                start=date(2025, 7, 1),
+                end=date(2025, 12, 30),
+            ),
+            coupon(
+                coupon_date=date(2026, 1, 10),
+                amount="10.00",
+                start=date(2026, 1, 1),
+                end=date(2026, 1, 5),
+                fix_date=date(2026, 1, 5),
+            ),
+            coupon(
+                coupon_date=date(2026, 2, 10),
+                amount="12.00",
+                start=date(2026, 1, 6),
+                end=date(2026, 2, 5),
+                fix_date=date(2026, 2, 5),
+            ),
+            coupon(
+                coupon_date=date(2026, 3, 10),
+                amount="15.00",
+                start=date(2026, 2, 6),
+                end=date(2026, 3, 5),
+                fix_date=date(2026, 3, 5),
+            ),
+        ),
+        today=date(2026, 2, 20),
+    )
+
+    assert metrics.paid_coupon_total == Decimal("80.00")
+    assert metrics.holding_period_coupon_income == Decimal("80.00")
 
 
 def test_only_positive_future_eligible_event_is_next_and_maturity_without_it_is_matured() -> None:

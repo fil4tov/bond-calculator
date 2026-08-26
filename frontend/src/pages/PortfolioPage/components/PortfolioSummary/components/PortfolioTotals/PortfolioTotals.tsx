@@ -1,6 +1,6 @@
 import { Tooltip } from '#shared/ui';
 
-import { formatMoney } from '../../../../utils';
+import { formatMoney, formatPercent } from '../../../../utils';
 import styles from '../../PortfolioSummary.module.scss';
 import type { PortfolioSummaryData } from '../../types';
 import { signedMoney } from '../../utils';
@@ -27,11 +27,6 @@ export function PortfolioTotals({ summary }: { summary: PortfolioSummaryData }) 
       </div>
 
       <div className={styles.metric}>
-        <dt>Открытых выпусков</dt>
-        <dd><strong>{summary.openIssueCount}</strong></dd>
-      </div>
-
-      <div className={styles.metric}>
         <dt>Вложено</dt>
         <dd><strong>{formatMoney(summary.investedAmount)}</strong></dd>
       </div>
@@ -45,6 +40,25 @@ export function PortfolioTotals({ summary }: { summary: PortfolioSummaryData }) 
         </dt>
         <dd className={resultClassName(summary.currentResult)}>
           <strong>{summary.currentResult === null ? '—' : signedMoney(summary.currentResult)}</strong>
+        </dd>
+      </div>
+
+      <div className={styles.metric}>
+        <dt className={styles.labelWithHelp}>
+          Доходность за {summary.couponYear} год
+          <Tooltip
+            label={`Как рассчитывается доходность портфеля за ${summary.couponYear} год`}
+            align="right"
+          >
+            Все известные купоны открытых выпусков за {summary.couponYear} год ÷ текущая вложенная сумма
+          </Tooltip>
+        </dt>
+        <dd>
+          <strong>
+            {summary.calendarYearYieldPercent === null
+              ? '—'
+              : formatPercent(summary.calendarYearYieldPercent)}
+          </strong>
         </dd>
       </div>
     </dl>

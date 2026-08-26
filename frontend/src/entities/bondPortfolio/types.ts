@@ -46,6 +46,7 @@ export interface BondPortfolioItem {
   realizedResult: string;
   positionStatus: BondPositionStatus;
   paidCouponTotal: string;
+  holdingPeriodCouponIncome: string;
   calendarYearPaidCouponIncome: string;
   calendarYearCouponYieldPercent: string;
   annualCouponYieldPercent: string | null;

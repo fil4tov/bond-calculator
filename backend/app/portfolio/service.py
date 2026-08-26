@@ -150,6 +150,10 @@ def build_bond_card(
         realized_result=_fixed_decimal(metrics.realized_result, 2),
         position_status=metrics.position_status,
         paid_coupon_total=_fixed_decimal(metrics.paid_coupon_total, 2),
+        holding_period_coupon_income=_fixed_decimal(
+            metrics.holding_period_coupon_income,
+            2,
+        ),
         calendar_year_paid_coupon_income=_fixed_decimal(
             metrics.calendar_year_paid_coupon_income,
             2,

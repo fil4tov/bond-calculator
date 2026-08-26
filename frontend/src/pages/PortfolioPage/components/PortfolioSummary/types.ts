@@ -16,8 +16,8 @@ export type PortfolioSummaryBond = Pick<
 export interface PortfolioSummaryData {
   marketValue: string | null;
   investedAmount: string;
-  openIssueCount: number;
   currentResult: string | null;
+  calendarYearYieldPercent: string | null;
   couponReceived: string;
   couponReceivedTotal: string;
   couponExpected: string;

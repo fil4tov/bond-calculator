@@ -29,7 +29,7 @@ const activeBond = {
   placement_date: '2025-05-15', maturity_date: '2041-05-15', status: 'active',
   total_quantity: 75, total_spent: '75000.70',
   position_cost_basis: '75000.70', market_value_without_aci: '74250.00', accrued_coupon_income: '925.93', realized_result: '0.00', position_status: 'open',
-  paid_coupon_total: '1770.00', calendar_year_paid_coupon_income: '1770.00', calendar_year_coupon_yield_percent: '7.0800', annual_coupon_yield_percent: '14.0070', calendar_year_coupon_income: '4248.00', calendar_month_coupon_income: '0.00', coupon_yield_year: 2026,
+  paid_coupon_total: '1770.00', holding_period_coupon_income: '28500.00', calendar_year_paid_coupon_income: '1770.00', calendar_year_coupon_yield_percent: '7.0800', annual_coupon_yield_percent: '14.0070', calendar_year_coupon_income: '4248.00', calendar_month_coupon_income: '0.00', coupon_yield_year: 2026,
   maturity_remaining: { years: 14, months: 9, days_until: 5392 },
   next_coupon: {
     period_start: '2026-05-15', period_end: '2026-11-15', pay_date: '2026-11-16',
@@ -289,13 +289,31 @@ describe('PortfolioPage', () => {
     const summary = await screen.findByRole('region', { name: 'Сводка портфеля' });
     expect(within(summary).getByText('Рыночная стоимость с НКД')).toBeInTheDocument();
     expect(within(summary).getByText(/75.175,93.₽/)).toBeInTheDocument();
-    expect(within(summary).getByText('Открытых выпусков')).toBeInTheDocument();
     expect(within(summary).getByText('Вложено')).toBeInTheDocument();
     expect(within(summary).getByText('За всё время')).toBeInTheDocument();
+    expect(within(summary).getByText('Доходность за 2026 год')).toBeInTheDocument();
+    expect(within(summary).getByText('5,66 %')).toBeInTheDocument();
     expect(within(summary).getByText(/\+175,23.₽/)).toBeInTheDocument();
     expect(within(summary).getByRole('button', {
       name: 'Что означает результат за всё время',
     })).toHaveAccessibleDescription('Разница текущей рыночной стоимости с НКД относительно вложенной суммы');
+    expect(within(summary).getByRole('button', {
+      name: 'Как рассчитывается доходность портфеля за 2026 год',
+    })).toHaveAccessibleDescription('Все известные купоны открытых выпусков за 2026 год ÷ текущая вложенная сумма');
+    expect(
+      Array.from(within(summary).getByLabelText('Общая информация по облигациям').querySelectorAll('dt'))
+        .map((label) => {
+          const copy = label.cloneNode(true) as HTMLElement;
+          copy.querySelectorAll('button, [role="tooltip"]').forEach((element) => element.remove());
+          return copy.textContent?.replace(/\s+/g, ' ').trim();
+        }),
+    ).toEqual([
+      'Рыночная стоимость с НКД',
+      'Вложено',
+      'За всё время',
+      'Доходность за 2026 год',
+    ]);
+    expect(screen.getByText(/Всего выпусков:/)).toHaveTextContent('Всего выпусков: 1');
     expect(within(summary).getByText('Получено купонами за 2026 год')).toBeInTheDocument();
     expect(within(summary).getByText('Всего ожидается за 2026 год')).toBeInTheDocument();
     expect(within(summary).getByText('Выплаты в этом месяце')).toBeInTheDocument();
@@ -303,6 +321,29 @@ describe('PortfolioPage', () => {
     expect(within(summary).getByRole('progressbar', { name: 'Купоны за 2026 год' }))
       .toHaveAttribute('aria-valuenow', '41.67');
     expect(screen.queryByText('за год.')).not.toBeInTheDocument();
+  });
+
+  it('counts every card next to sorting, including closed issues', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      items: [
+        activeBond,
+        {
+          ...activeBond,
+          id: 'closed-bond',
+          name: 'Закрытый выпуск',
+          position_status: 'closed',
+          position_cost_basis: '0.00',
+          total_quantity: 0,
+          market_value_without_aci: '0.00',
+          accrued_coupon_income: '0.00',
+        },
+      ],
+    })));
+
+    renderPortfolio();
+
+    await screen.findByRole('article', { name: 'Закрытый выпуск' });
+    expect(screen.getByText(/Всего выпусков:/)).toHaveTextContent('Всего выпусков: 2');
   });
 
   it('renders compact active and matured rows with real coupon progress', async () => {
@@ -546,8 +587,18 @@ describe('PortfolioPage', () => {
         'Доходность отдельных купонов за 2026 год',
         'Выплачено купонов',
         'Ожидаемый купонный доход за 2026 год',
+        'Ожидаемый купонный доход за весь период владения',
       ],
     ]);
+    const holdingPeriodIncome = within(dialog)
+      .getByText('Ожидаемый купонный доход за весь период владения')
+      .closest('div')!;
+    expect(holdingPeriodIncome).toHaveTextContent(/\+28.500,00.₽/);
+    expect(within(holdingPeriodIncome).getByRole('button', {
+      name: 'Как рассчитывается ожидаемый купонный доход за весь период владения',
+    })).toHaveAccessibleDescription(
+      'Сумма уже выплаченных и будущих опубликованных купонов за период владения. Ещё не объявленные выплаты не прогнозируются.',
+    );
   });
 
   it('hides accrued coupon income when current data is unavailable', async () => {

@@ -41,6 +41,7 @@ function sortableBond(id: string, name: string, createdAt: string) {
     realized_result: '0.00',
     position_status: 'open',
     paid_coupon_total: '0.00',
+    holding_period_coupon_income: '1400.70',
     calendar_year_paid_coupon_income: '0.00',
     market_value_without_aci: '10000.00',
     accrued_coupon_income: '25.00',
@@ -110,23 +111,30 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
   ]);
 
   const controls = page.locator('[aria-label="Сортировка облигаций"]');
+  const issueCount = page.getByText(/Всего выпусков:/);
+  await expect(issueCount).toHaveText('Всего выпусков: 2');
   const trigger = page.getByRole('button', { name: 'Критерий сортировки: По дате добавления' });
   const direction = page.getByRole('button', { name: 'По убыванию. Переключить по возрастанию' });
-  const [controlsBox, triggerBox, directionBox, cardBox] = await Promise.all([
+  const [controlsBox, issueCountBox, triggerBox, directionBox, cardBox] = await Promise.all([
     controls.boundingBox(),
+    issueCount.boundingBox(),
     trigger.boundingBox(),
     direction.boundingBox(),
     cards.first().boundingBox(),
   ]);
-  if (!controlsBox || !triggerBox || !directionBox || !cardBox) throw new Error('Не удалось измерить панель сортировки');
+  if (!controlsBox || !issueCountBox || !triggerBox || !directionBox || !cardBox) throw new Error('Не удалось измерить панель сортировки');
   expect(Math.abs(controlsBox.x - cardBox.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(issueCountBox.x + issueCountBox.width - (cardBox.x + cardBox.width))).toBeLessThanOrEqual(8);
   expect(Math.abs(triggerBox.y - directionBox.y)).toBeLessThanOrEqual(1);
   expect(Math.abs(directionBox.width - directionBox.height)).toBeLessThanOrEqual(1);
   if (testInfo.project.name === 'mobile') {
     expect(Math.abs(controlsBox.width - cardBox.width)).toBeLessThanOrEqual(2);
     expect(triggerBox.width).toBeGreaterThan(directionBox.width);
+    expect(issueCountBox.y).toBeGreaterThanOrEqual(controlsBox.y + controlsBox.height);
   } else {
     expect(controlsBox.width).toBeLessThan(cardBox.width);
+    expect(issueCountBox.y).toBeLessThan(controlsBox.y + controlsBox.height);
+    expect(issueCountBox.y + issueCountBox.height).toBeGreaterThan(controlsBox.y);
   }
 
   await direction.click();
@@ -189,6 +197,26 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
     .locator('..')
     .locator('..');
   await expect(annualCouponYieldMetric).toContainText('14,01 %');
+  const holdingPeriodIncomeMetric = detailsDialog
+    .getByText('Ожидаемый купонный доход за весь период владения', { exact: true })
+    .locator('../..');
+  await expect(holdingPeriodIncomeMetric).toContainText(/\+1.400,70.₽/);
+  const holdingPeriodIncomeGrid = holdingPeriodIncomeMetric.locator('..');
+  const [holdingPeriodIncomeBox, holdingPeriodIncomeGridBox] = await Promise.all([
+    holdingPeriodIncomeMetric.boundingBox(),
+    holdingPeriodIncomeGrid.boundingBox(),
+  ]);
+  if (!holdingPeriodIncomeBox || !holdingPeriodIncomeGridBox) {
+    throw new Error('Не удалось измерить показатель купонного дохода за период владения');
+  }
+  expect(Math.abs(holdingPeriodIncomeBox.x - holdingPeriodIncomeGridBox.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(
+    holdingPeriodIncomeBox.x + holdingPeriodIncomeBox.width
+      - (holdingPeriodIncomeGridBox.x + holdingPeriodIncomeGridBox.width),
+  )).toBeLessThanOrEqual(2);
+  expect(holdingPeriodIncomeGridBox.width).toBeLessThanOrEqual(
+    await detailsDialog.evaluate((element) => element.clientWidth),
+  );
   const year = new Date().getUTCFullYear();
   await expect(detailsDialog.getByText(`Ожидаемый купонный доход за ${year} год`, { exact: true })).toBeVisible();
   await expect(detailsDialog.getByText(`Доходность отдельных купонов за ${year} год`, { exact: true })).toBeVisible();

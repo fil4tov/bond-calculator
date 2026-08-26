@@ -14,10 +14,24 @@
 
 .portfolioToolbar {
   display: flex;
-  align-items: stretch;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.issueCount {
+  margin: 0 4px 0 auto;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.issueCount strong {
+  color: var(--ink);
+  font-weight: 850;
 }
 
 .cardList, .skeletonList { display: flex; flex-direction: column; }
@@ -63,6 +77,7 @@
   .addButton { width: 100%; }
   .registry { margin-top: 36px; }
   .portfolioToolbar { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .issueCount { margin-right: 4px; justify-self: end; }
   .emptyState, .errorState { grid-template-columns: 1fr; padding: 24px 20px; }
   .emptyCoupon { width: 62px; height: 74px; }
   .skeletonCard { padding: 16px; }

@@ -42,6 +42,7 @@ class BondMetrics:
     realized_result: Decimal
     position_status: Literal["open", "closed"]
     paid_coupon_total: Decimal
+    holding_period_coupon_income: Decimal
     calendar_year_paid_coupon_income: Decimal
     calendar_year_coupon_income: Decimal
     calendar_month_coupon_income: Decimal
@@ -161,6 +162,10 @@ def calculate_bond_metrics(
     ordered_coupons = tuple(sorted(coupons, key=lambda item: (item.coupon_date, item.coupon_number)))
     with localcontext() as context:
         context.prec = 48
+        holding_period_coupon_income = sum(
+            (_payment_amount(coupon, replay_operations) for coupon in ordered_coupons),
+            start=Decimal("0.00"),
+        )
         paid_total = sum(
             (
                 _payment_amount(coupon, replay_operations)
@@ -251,6 +256,7 @@ def calculate_bond_metrics(
             realized_result=realized_result,
             position_status="open" if total_quantity else "closed",
             paid_coupon_total=paid_total,
+            holding_period_coupon_income=holding_period_coupon_income,
             calendar_year_paid_coupon_income=calendar_year_paid_coupon_income,
             calendar_year_coupon_income=calendar_year_coupon_income,
             calendar_month_coupon_income=calendar_month_coupon_income,
@@ -279,6 +285,7 @@ def calculate_bond_metrics(
         realized_result=realized_result,
         position_status="open" if total_quantity else "closed",
         paid_coupon_total=paid_total,
+        holding_period_coupon_income=holding_period_coupon_income,
         calendar_year_paid_coupon_income=calendar_year_paid_coupon_income,
         calendar_year_coupon_income=calendar_year_coupon_income,
         calendar_month_coupon_income=calendar_month_coupon_income,

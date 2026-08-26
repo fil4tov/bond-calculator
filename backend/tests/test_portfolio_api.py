@@ -123,12 +123,14 @@ async def test_create_list_and_add_purchase_return_stored_schedule_card(client: 
     assert card["total_quantity"] == 50 and card["total_spent"] == "50000.35"
     assert card["next_coupon"]["amount_per_bond"] == "35.40"
     assert card["annual_coupon_yield_percent"] == "7.0800"
+    assert card["holding_period_coupon_income"] == "1770.00"
     added = await client.post(f"/api/portfolio/bonds/{card['id']}/purchases", json={"amount_spent": "25000.35", "quantity": 25, "purchase_date": (clock.utc_today() - timedelta(days=1)).isoformat()})
     assert added.status_code == 201
     assert added.json()["created_at"] == card["created_at"]
     assert added.json()["total_quantity"] == 75
     assert added.json()["total_spent"] == "75000.70"
     assert added.json()["annual_coupon_yield_percent"] == "7.0799"
+    assert added.json()["holding_period_coupon_income"] == "2655.00"
     assert "purchases" not in added.json()
     assert [operation["operation_date"] for operation in added.json()["operations"]] == [
         (clock.utc_today() - timedelta(days=1)).isoformat(),

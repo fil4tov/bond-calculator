@@ -41,6 +41,18 @@ export function CouponMetrics({ bond }: { bond: BondPortfolioItem }) {
         </dt>
         <dd className={styles.positive}>+{formatMoney(bond.calendarYearCouponIncome)}</dd>
       </div>
+      <div className={styles.holdingPeriodMetric}>
+        <dt className={styles.metricLabel}>
+          <span>Ожидаемый купонный доход за весь период владения</span>
+          <Tooltip
+            label="Как рассчитывается ожидаемый купонный доход за весь период владения"
+            align="right"
+          >
+            Сумма уже выплаченных и будущих опубликованных купонов за период владения. Ещё не объявленные выплаты не прогнозируются.
+          </Tooltip>
+        </dt>
+        <dd className={styles.positive}>+{formatMoney(bond.holdingPeriodCouponIncome)}</dd>
+      </div>
     </dl>
   );
 }
