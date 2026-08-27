@@ -15,7 +15,7 @@ import { localizedFieldError, localizedSubmitError, previousDate } from './utils
 interface AddSaleFormProps {
   userId: string;
   bond: BondPortfolioItem;
-  onSuccess: () => void;
+  onSuccess: (updatedBond: BondPortfolioItem) => void;
   onBusyChange: (busy: boolean) => void;
 }
 
@@ -47,7 +47,7 @@ export function AddSaleForm({ userId, bond, onSuccess, onBusyChange }: AddSaleFo
   const submit = handleSubmit(async (values) => {
     setSubmitError(null);
     try {
-      await mutation.mutateAsync({
+      const updatedBond = await mutation.mutateAsync({
         bondId: bond.id,
         input: {
           amountReceived: canonicalDecimal(values.amountReceived),
@@ -55,7 +55,7 @@ export function AddSaleForm({ userId, bond, onSuccess, onBusyChange }: AddSaleFo
           saleDate: values.saleDate,
         },
       });
-      onSuccess();
+      onSuccess(updatedBond);
     } catch (error) {
       if (error instanceof ApiError) {
         let mappedAnyField = false;

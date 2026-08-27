@@ -12,6 +12,7 @@ import {
   CouponSchedule,
   IssueInformation,
   NextCoupon,
+  OperationActions,
   OperationHistory,
   PositionMetrics,
 } from './components';
@@ -19,6 +20,9 @@ import type { BondDetailsSection } from './types';
 
 interface BondDetailsProps {
   bond: BondPortfolioItem;
+  onAddPurchase: (returnFocusTarget: HTMLElement) => void;
+  onAddSale: (returnFocusTarget: HTMLElement) => void;
+  onDeleteBond: (returnFocusTarget: HTMLElement) => void;
   onDeleteOperation?: (operationId: string, returnFocusTarget: HTMLElement) => void;
   operationDeleteDisabled?: boolean;
   onRefreshCouponSchedule: () => Promise<void>;
@@ -29,6 +33,9 @@ interface BondDetailsProps {
 
 export function BondDetails({
   bond,
+  onAddPurchase,
+  onAddSale,
+  onDeleteBond,
   onDeleteOperation,
   operationDeleteDisabled = false,
   onRefreshCouponSchedule,
@@ -51,6 +58,7 @@ export function BondDetails({
         activeSection={activeSection}
         closeButton={closeButton}
         onSectionChange={setActiveSection}
+        onDeleteBond={onDeleteBond}
       />
       <div className={styles.content}>
         <div className={styles.contentHeader}>
@@ -91,6 +99,11 @@ export function BondDetails({
             aria-label="Операции"
             hidden={activeSection !== 'operations'}
           >
+            <OperationActions
+              saleDisabled={bond.totalQuantity <= 0}
+              onAddPurchase={onAddPurchase}
+              onAddSale={onAddSale}
+            />
             <OperationHistory
               bond={bond}
               onDeleteOperation={onDeleteOperation}

@@ -172,18 +172,31 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
     return key ? localStorage.getItem(key) : null;
   })).toContain('"field":"name"');
 
-  const actionsTrigger = page.getByRole('article', { name: 'Облигация 10' })
-    .getByRole('button', { name: 'Действия с облигацией Облигация 10' });
-  const [actionsTriggerBox, actionsIconBox] = await Promise.all([
-    actionsTrigger.boundingBox(),
-    actionsTrigger.locator('svg').boundingBox(),
+  const sortedCard = page.getByRole('article', { name: 'Облигация 10' });
+  await expect(sortedCard.getByRole('button', { name: 'Действия с облигацией Облигация 10' }))
+    .toHaveCount(0);
+  await sortedCard.getByRole('button', { name: 'Открыть сведения об облигации Облигация 10' }).click();
+  const detailsDialog = page.getByRole('dialog', { name: 'Облигация 10' });
+  const tabList = detailsDialog.getByRole('tablist', { name: 'Разделы сведений об облигации' });
+  const operationsTab = detailsDialog.getByRole('tab', { name: 'Операции' });
+  const deleteBondAction = detailsDialog.getByRole('button', { name: 'Удалить', exact: true });
+  const [tabListBox, operationsTabBox, deleteBondActionBox] = await Promise.all([
+    tabList.boundingBox(),
+    operationsTab.boundingBox(),
+    deleteBondAction.boundingBox(),
   ]);
-  if (!actionsTriggerBox || !actionsIconBox) throw new Error('Не удалось измерить кнопку действий');
-  expect(Math.abs((actionsIconBox.x + actionsIconBox.width / 2) - (actionsTriggerBox.x + actionsTriggerBox.width / 2))).toBeLessThanOrEqual(1);
-  expect(Math.abs((actionsIconBox.y + actionsIconBox.height / 2) - (actionsTriggerBox.y + actionsTriggerBox.height / 2))).toBeLessThanOrEqual(1);
+  if (!tabListBox || !operationsTabBox || !deleteBondActionBox) throw new Error('Не удалось измерить навигацию облигации');
+  if (testInfo.project.name === 'mobile') {
+    expect(deleteBondActionBox.x).toBeGreaterThanOrEqual(operationsTabBox.x + operationsTabBox.width - 1);
+    expect(Math.abs(deleteBondActionBox.y - operationsTabBox.y)).toBeLessThanOrEqual(1);
+  } else {
+    const positionSummaryBox = await detailsDialog.getByText('Стоимость позиции').boundingBox();
+    if (!positionSummaryBox) throw new Error('Не удалось измерить итог позиции');
+    expect(deleteBondActionBox.y).toBeGreaterThan(tabListBox.y + tabListBox.height);
+    expect(deleteBondActionBox.y + deleteBondActionBox.height).toBeLessThan(positionSummaryBox.y);
+  }
 
-  await actionsTrigger.click();
-  await page.getByRole('button', { name: 'Удалить из портфеля' }).click();
+  await deleteBondAction.click();
   const confirmationDialog = page.getByRole('dialog', { name: 'Удалить облигацию' });
   const closeButton = confirmationDialog.getByRole('button', { name: 'Закрыть окно' });
   const [closeButtonBox, closeIconBox] = await Promise.all([
@@ -199,10 +212,8 @@ test('sorts portfolio cards and keeps responsive controls aligned', async ({ pag
   await expect(confirmationDialog.getByRole('button', { name: 'Удалить' })).toHaveCSS('text-align', 'center');
   await confirmationDialog.getByRole('button', { name: 'Отмена' }).click();
 
-  const detailsDialog = page.getByRole('dialog', { name: 'Облигация 10' });
-  await page.getByRole('article', { name: 'Облигация 10' })
-    .getByRole('button', { name: 'Открыть сведения об облигации Облигация 10' })
-    .click();
+  await expect(detailsDialog).toBeVisible();
+  await expect(deleteBondAction).toBeFocused();
   await selectBondDetailsSection(detailsDialog, 'Купоны');
   const annualCouponYieldMetric = detailsDialog
     .getByText('Годовая купонная доходность', { exact: true })
@@ -504,8 +515,11 @@ test('records purchases and sales, restores operations, and removes the position
   const reopenedDetailsDialog = page.getByRole('dialog', { name: bondName });
   await selectBondDetailsSection(reopenedDetailsDialog, 'Операции');
   await expect.poll(async () => {
+    const navigation = reopenedDetailsDialog
+      .getByRole('tablist', { name: 'Разделы сведений об облигации' })
+      .locator('..');
     const [tabListBox, selectedTabBox] = await Promise.all([
-      reopenedDetailsDialog.getByRole('tablist', { name: 'Разделы сведений об облигации' }).boundingBox(),
+      navigation.boundingBox(),
       reopenedDetailsDialog.getByRole('tab', { name: 'Операции' }).boundingBox(),
     ]);
     if (!tabListBox || !selectedTabBox) return false;
@@ -517,11 +531,8 @@ test('records purchases and sales, restores operations, and removes the position
   await expect(initialHistory.getByRole('listitem')).toContainText(/9.500,70.₽.*\+10 шт\./);
   await expect(initialHistory).not.toContainText('Покупка');
   await expect(initialHistory).not.toContainText('Продажа');
-  await page.getByRole('dialog', { name: bondName }).getByRole('button', { name: 'Закрыть окно' }).click();
-
-  const actions = card.getByRole('button', { name: `Действия с облигацией ${bondName}` });
-  await actions.click();
-  await page.getByRole('button', { name: 'Зафиксировать покупку' }).click();
+  await expect(card.getByRole('button', { name: `Действия с облигацией ${bondName}` })).toHaveCount(0);
+  await reopenedDetailsDialog.getByRole('button', { name: 'Зафиксировать покупку' }).click();
 
   const purchaseDialog = page.getByRole('dialog', { name: 'Зафиксировать покупку' });
   await expectHeaderDivider(purchaseDialog);
@@ -537,7 +548,6 @@ test('records purchases and sales, restores operations, and removes the position
   await expect(card).toContainText('12 030,00 ₽');
   await expect(progress).toBeVisible();
 
-  await detailsTrigger.click();
   const updatedDetailsDialog = page.getByRole('dialog', { name: bondName });
   const updatedPositionPanel = await selectBondDetailsSection(updatedDetailsDialog, 'Моя позиция');
   await expect(updatedPositionPanel.getByText('12 030,00 ₽', { exact: true })).toBeVisible();
@@ -549,10 +559,8 @@ test('records purchases and sales, restores operations, and removes the position
   await expect(purchases).toHaveCount(2);
   await expect(purchases.nth(0)).toContainText(/1.000,05.₽.*\+2 шт\./);
   await expect(purchases.nth(1)).toContainText(/9.500,70.₽.*\+10 шт\./);
-  await updatedDetailsDialog.getByRole('button', { name: 'Закрыть окно' }).click();
 
-  await actions.click();
-  await page.getByRole('button', { name: 'Зафиксировать продажу' }).click();
+  await updatedDetailsDialog.getByRole('button', { name: 'Зафиксировать продажу' }).click();
   const saleDialog = page.getByRole('dialog', { name: 'Зафиксировать продажу' });
   await expectHeaderDivider(saleDialog);
   const saleSubtitle = saleDialog.getByText(bondName, { exact: true });
@@ -567,14 +575,11 @@ test('records purchases and sales, restores operations, and removes the position
   await expect(card).toContainText('0 шт.');
   await expect(card).toContainText('0,00 ₽');
 
-  await actions.click();
-  const disabledSaleAction = page.getByRole('button', { name: 'Зафиксировать продажу' });
+  const closedDetails = page.getByRole('dialog', { name: bondName });
+  const disabledSaleAction = closedDetails.getByRole('button', { name: 'Зафиксировать продажу' });
   await expect(disabledSaleAction).toBeDisabled();
   expect(await disabledSaleAction.evaluate((element) => getComputedStyle(element).cursor)).toBe('not-allowed');
-  await page.keyboard.press('Escape');
 
-  await detailsTrigger.click();
-  const closedDetails = page.getByRole('dialog', { name: bondName });
   await selectBondDetailsSection(closedDetails, 'Моя позиция');
   const closedMarketValue = closedDetails.locator('dt')
     .filter({ hasText: 'Текущая рыночная стоимость' })
@@ -635,10 +640,8 @@ test('records purchases and sales, restores operations, and removes the position
   await expect(restoredDetails.getByRole('region', { name: 'История операций' })).toContainText('2 операции');
   await expect(restoredDetails.getByRole('button', { name: 'Удалить операцию покупки' }).first()).toBeFocused();
   await expect(card).toContainText('12 шт.');
-  await restoredDetails.getByRole('button', { name: 'Закрыть окно' }).click();
 
-  await actions.click();
-  await page.getByRole('button', { name: 'Удалить из портфеля' }).click();
+  await restoredDetails.getByRole('button', { name: 'Удалить', exact: true }).click();
   const deleteBondDialog = page.getByRole('dialog', { name: 'Удалить облигацию' });
   await expect(deleteBondDialog.getByText(bondName, { exact: true })).toBeVisible();
   await deleteBondDialog.getByRole('button', { name: 'Удалить' }).click();

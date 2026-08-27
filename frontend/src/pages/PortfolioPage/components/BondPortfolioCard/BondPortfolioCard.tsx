@@ -1,16 +1,12 @@
 import { useId } from 'react';
 
 import styles from './BondPortfolioCard.module.scss';
-import { BondActionsMenu, BondCardSummary, CouponProgress } from './components';
+import { BondCardSummary, CouponProgress } from './components';
 import type { BondPortfolioCardProps } from './types';
 
 export function BondPortfolioCard({
   bond,
   onOpenDetails,
-  onAddPurchase,
-  onAddSale,
-  onDelete,
-  deleteDisabled = false,
 }: BondPortfolioCardProps) {
   const summaryId = useId();
   const matured = bond.status === 'matured';
@@ -38,14 +34,6 @@ export function BondPortfolioCard({
         />
       </div>
 
-      <BondActionsMenu
-        bondName={bond.name}
-        totalQuantity={bond.totalQuantity}
-        deleteDisabled={deleteDisabled}
-        onAddPurchase={onAddPurchase}
-        onAddSale={onAddSale}
-        onDelete={onDelete}
-      />
     </article>
   );
 }

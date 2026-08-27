@@ -5,7 +5,7 @@
   border-radius: 18px;
   background: var(--card);
   box-shadow: 0 12px 34px rgba(23, 35, 30, 0.06);
-  grid-template-columns: minmax(0, 1fr) 58px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .main {
@@ -17,7 +17,7 @@
   display: grid;
   min-width: 0;
   overflow: visible;
-  border-radius: 17px 0 0 17px;
+  border-radius: 17px;
   color: inherit;
   text-align: left;
   background: transparent;
@@ -79,7 +79,7 @@
   overflow: hidden;
   color: #154535;
   background: #eef5f1;
-  border-radius: 0 0 0 17px;
+  border-radius: 0 0 17px 17px;
 }
 
 .couponFill {
@@ -108,31 +108,6 @@
 .redeemedTrack .couponCopy { justify-content: flex-start; }
 .matured { opacity: 0.82; }
 
-.actions { display: flex; align-items: stretch; border-left: 1px solid var(--divider); }
-.actionsTrigger {
-  display: grid;
-  width: 100%;
-  padding: 0;
-  place-items: center;
-  border: 0;
-  border-radius: 0 17px 17px 0;
-  appearance: none;
-  color: var(--muted);
-  background: transparent;
-  line-height: 0;
-  cursor: pointer;
-  transition: color 160ms ease, background-color 160ms ease;
-}
-.actionsTrigger svg { display: block; width: 28px; height: 28px; }
-.actionsTrigger:hover, .actionsTrigger[aria-expanded='true'] { color: var(--ink); background: var(--green-soft); }
-.actionsTrigger:focus-visible { position: relative; z-index: 2; outline: 3px solid var(--focus-ring); outline-offset: -3px; }
-.actionsMenu { width: 260px; border-radius: 14px; }
-.menuItem { width: 100%; padding: 14px 16px; border: 0; color: var(--ink); text-align: left; background: transparent; cursor: pointer; }
-.menuItem:hover, .menuItem:focus-visible { outline: 0; background: var(--green-soft); }
-.menuItem:disabled { opacity: 0.55; cursor: not-allowed; }
-.deleteMenuItem { border-top: 1px solid var(--divider); color: var(--loss); }
-.deleteMenuItem:hover, .deleteMenuItem:focus-visible { background: var(--loss-soft); }
-
 @media (hover: hover) and (pointer: fine) {
   .main:hover::before { opacity: 1; }
 }
@@ -142,7 +117,6 @@
 }
 
 @media (max-width: 580px) {
-  .card { grid-template-columns: minmax(0, 1fr) 48px; }
   .summary { align-items: start; padding: 17px 16px 14px; grid-template-columns: 1fr; gap: 14px; }
   .name { font-size: 18px; }
   .meta { flex-direction: column; gap: 4px; }
@@ -150,5 +124,4 @@
   .value { align-items: flex-start; text-align: left; }
   .value .yieldLine { justify-content: flex-start; }
   .couponCopy { align-items: flex-start; flex-direction: column; gap: 2px; padding: 8px 16px; }
-  .actionsMenu { right: -1px; }
 }

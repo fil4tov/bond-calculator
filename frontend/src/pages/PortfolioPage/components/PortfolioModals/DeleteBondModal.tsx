@@ -7,9 +7,10 @@ import type { PortfolioModalProps } from './types';
 
 interface DeleteBondModalProps extends PortfolioModalProps {
   userId: string;
+  onDeleted?: () => void;
 }
 
-export function DeleteBondModal({ modal, userId, onClose }: DeleteBondModalProps) {
+export function DeleteBondModal({ modal, userId, onClose, onDeleted }: DeleteBondModalProps) {
   const deleteBond = useDeletePortfolioBond(userId);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -24,7 +25,9 @@ export function DeleteBondModal({ modal, userId, onClose }: DeleteBondModalProps
     setDeleteError(null);
     try {
       await deleteBond.mutateAsync(modal.bond.id);
-      closeModal();
+      setDeleteError(null);
+      if (onDeleted) onDeleted();
+      else onClose();
     } catch {
       setDeleteError('Не удалось удалить облигацию из портфеля. Попробуйте ещё раз.');
     }

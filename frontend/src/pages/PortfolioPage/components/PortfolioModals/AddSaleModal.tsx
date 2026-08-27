@@ -1,14 +1,17 @@
 import { useState } from 'react';
 
+import type { BondPortfolioItem } from '#entities/bondPortfolio';
+
 import { ModalShell } from '../ModalShell';
 import { AddSaleForm } from '../PortfolioForms';
 import type { PortfolioModalProps } from './types';
 
 interface AddSaleModalProps extends PortfolioModalProps {
   userId: string;
+  onSuccess?: (updatedBond: BondPortfolioItem) => void;
 }
 
-export function AddSaleModal({ modal, userId, onClose }: AddSaleModalProps) {
+export function AddSaleModal({ modal, userId, onClose, onSuccess }: AddSaleModalProps) {
   const [busy, setBusy] = useState(false);
 
   if (modal?.kind !== 'sale') return null;
@@ -28,7 +31,7 @@ export function AddSaleModal({ modal, userId, onClose }: AddSaleModalProps) {
         userId={userId}
         bond={modal.bond}
         onBusyChange={setBusy}
-        onSuccess={onClose}
+        onSuccess={(updatedBond) => (onSuccess ? onSuccess(updatedBond) : onClose())}
       />
     </ModalShell>
   );

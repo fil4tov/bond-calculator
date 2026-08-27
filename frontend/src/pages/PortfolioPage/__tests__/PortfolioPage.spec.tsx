@@ -139,10 +139,9 @@ async function openPurchaseForm(
   user: ReturnType<typeof userEvent.setup>,
   card: HTMLElement,
 ) {
-  const actions = within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' });
+  const details = await openOperations(user, card);
+  const actions = within(details).getByRole('button', { name: 'Зафиксировать покупку' });
   await user.click(actions);
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'Зафиксировать покупку' }));
   return {
     actions,
     dialog: screen.getByRole('dialog', { name: 'Зафиксировать покупку' }),
@@ -150,9 +149,22 @@ async function openPurchaseForm(
 }
 
 async function openSaleForm(user: ReturnType<typeof userEvent.setup>, card: HTMLElement) {
-  await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
-  await user.click(screen.getByRole('button', { name: 'Зафиксировать продажу' }));
+  const details = await openOperations(user, card);
+  await user.click(within(details).getByRole('button', { name: 'Зафиксировать продажу' }));
   return screen.getByRole('dialog', { name: 'Зафиксировать продажу' });
+}
+
+async function openOperations(user: ReturnType<typeof userEvent.setup>, card: HTMLElement) {
+  const bondName = card.getAttribute('aria-label') ?? '';
+  let details = screen.queryByRole('dialog', { name: bondName });
+  if (!details) {
+    await user.click(within(card).getByRole('button', {
+      name: `Открыть сведения об облигации ${bondName}`,
+    }));
+    details = screen.getByRole('dialog', { name: bondName });
+  }
+  await user.click(within(details).getByRole('tab', { name: 'Операции' }));
+  return details;
 }
 
 async function selectBondDetailsSection(
@@ -492,7 +504,6 @@ describe('PortfolioPage', () => {
 
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
     const detailsTrigger = within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' });
-    const actionsTrigger = within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' });
     const main = detailsTrigger.parentElement as HTMLElement;
     vi.spyOn(main, 'getBoundingClientRect').mockReturnValue({ left: 100, top: 50 } as DOMRect);
 
@@ -500,11 +511,8 @@ describe('PortfolioPage', () => {
 
     expect(main.style.getPropertyValue('--hover-x')).toBe('64px');
     expect(main.style.getPropertyValue('--hover-y')).toBe('42px');
-    expect(actionsTrigger.style.getPropertyValue('--hover-x')).toBe('');
-    expect(actionsTrigger.style.getPropertyValue('--hover-y')).toBe('');
-
-    fireEvent.pointerMove(actionsTrigger, { clientX: 210, clientY: 92 });
-    expect(main.style.getPropertyValue('--hover-x')).toBe('64px');
+    expect(within(card).queryByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }))
+      .not.toBeInTheDocument();
   });
 
   it('opens complete bond details by click and keyboard and restores focus', async () => {
@@ -688,7 +696,7 @@ describe('PortfolioPage', () => {
     expect(schedule).toHaveTextContent(/15 ноября 2025 г\..*Купон № 31.*35,40.₽ × 0 шт\..*0,00.₽/);
   });
 
-  it('scrolls the tab strip until the selected tab is fully visible', async () => {
+  it('centers the selected tab while scrolling in either direction', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
     renderPortfolio();
@@ -696,11 +704,15 @@ describe('PortfolioPage', () => {
     await user.click(within(card).getByRole('button', { name: 'Открыть сведения об облигации ОФЗ 26238' }));
     const dialog = screen.getByRole('dialog', { name: 'ОФЗ 26238' });
     const tabList = within(dialog).getByRole('tablist', { name: 'Разделы сведений об облигации' });
+    const navigation = tabList.parentElement as HTMLElement;
+    const positionTab = within(tabList).getByRole('tab', { name: 'Моя позиция' });
     const operationsTab = within(tabList).getByRole('tab', { name: 'Операции' });
     const scrollTo = vi.fn();
-    Object.defineProperty(tabList, 'scrollTo', { configurable: true, value: scrollTo });
-    Object.defineProperty(tabList, 'scrollLeft', { configurable: true, value: 0, writable: true });
-    vi.spyOn(tabList, 'getBoundingClientRect').mockReturnValue({
+    Object.defineProperty(navigation, 'scrollTo', { configurable: true, value: scrollTo });
+    Object.defineProperty(navigation, 'scrollLeft', { configurable: true, value: 0, writable: true });
+    Object.defineProperty(navigation, 'clientWidth', { configurable: true, value: 240 });
+    Object.defineProperty(navigation, 'scrollWidth', { configurable: true, value: 500 });
+    vi.spyOn(navigation, 'getBoundingClientRect').mockReturnValue({
       left: 0,
       right: 240,
     } as DOMRect);
@@ -712,10 +724,25 @@ describe('PortfolioPage', () => {
     await user.click(operationsTab);
 
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({
-      left: 74,
+      left: 140,
       behavior: 'smooth',
     }));
     expect(operationsTab).toHaveAttribute('aria-selected', 'true');
+
+    scrollTo.mockClear();
+    navigation.scrollLeft = 140;
+    vi.spyOn(positionTab, 'getBoundingClientRect').mockReturnValue({
+      left: -20,
+      right: 80,
+    } as DOMRect);
+
+    await user.click(positionTab);
+
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({
+      left: 50,
+      behavior: 'smooth',
+    }));
+    expect(positionTab).toHaveAttribute('aria-selected', 'true');
   });
 
   it('refreshes the coupon schedule in place and exposes the pending state', async () => {
@@ -882,24 +909,17 @@ describe('PortfolioPage', () => {
     expect(annualYieldMetric).toHaveTextContent('—');
   });
 
-  it('uses disclosure keyboard behavior and restores purchase focus to ellipsis', async () => {
+  it('opens transaction forms from operations and restores focus inside bond details', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [activeBond] })));
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
-    const actions = within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' });
-
-    actions.focus();
-    await user.keyboard('{Enter}');
-    const purchaseAction = screen.getByRole('button', { name: 'Зафиксировать покупку' });
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    await user.tab();
-    expect(purchaseAction).toHaveFocus();
-    await user.keyboard('{Escape}');
-    expect(purchaseAction).not.toBeInTheDocument();
-    expect(actions).toHaveFocus();
-
-    const { dialog } = await openPurchaseForm(user, card);
+    expect(within(card).queryByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }))
+      .not.toBeInTheDocument();
+    const details = await openOperations(user, card);
+    const purchaseAction = within(details).getByRole('button', { name: 'Зафиксировать покупку' });
+    await user.click(purchaseAction);
+    const dialog = screen.getByRole('dialog', { name: 'Зафиксировать покупку' });
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).queryByText('ПОРТФЕЛЬ')).not.toBeInTheDocument();
     expect(within(dialog).getByText(
@@ -907,7 +927,8 @@ describe('PortfolioPage', () => {
     )).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(dialog).not.toBeInTheDocument();
-    expect(actions).toHaveFocus();
+    expect(details).toBeInTheDocument();
+    expect(purchaseAction).toHaveFocus();
   });
 
   it('cancels bond deletion in the local confirmation dialog', async () => {
@@ -917,16 +938,17 @@ describe('PortfolioPage', () => {
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
 
-    await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
-    expect(screen.getByRole('button', { name: 'Зафиксировать покупку' })).toBeInTheDocument();
-    const deleteAction = screen.getByRole('button', { name: 'Удалить из портфеля' });
+    const details = await openOperations(user, card);
+    expect(within(details).getByRole('button', { name: 'Зафиксировать покупку' })).toBeInTheDocument();
+    const deleteAction = within(details).getByRole('button', { name: 'Удалить' });
     await user.click(deleteAction);
     const confirmation = screen.getByRole('dialog', { name: 'Удалить облигацию' });
     expect(within(confirmation).getByText('ОФЗ 26238')).toBeInTheDocument();
     await user.click(within(confirmation).getByRole('button', { name: 'Отмена' }));
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(card).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(details).toBeInTheDocument();
+    expect(deleteAction).toHaveFocus();
   });
 
   it('deletes a confirmed bond from the cache and shows the empty portfolio state', async () => {
@@ -945,8 +967,8 @@ describe('PortfolioPage', () => {
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
 
-    await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
-    await user.click(screen.getByRole('button', { name: 'Удалить из портфеля' }));
+    const details = await openOperations(user, card);
+    await user.click(within(details).getByRole('button', { name: 'Удалить' }));
     await user.click(within(screen.getByRole('dialog', { name: 'Удалить облигацию' })).getByRole('button', { name: 'Удалить' }));
 
     expect(await screen.findByText('Портфель пока пуст')).toBeInTheDocument();
@@ -968,8 +990,8 @@ describe('PortfolioPage', () => {
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 26238' });
 
-    await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 26238' }));
-    await user.click(screen.getByRole('button', { name: 'Удалить из портфеля' }));
+    const details = await openOperations(user, card);
+    await user.click(within(details).getByRole('button', { name: 'Удалить' }));
     const confirmation = screen.getByRole('dialog', { name: 'Удалить облигацию' });
     await user.click(within(confirmation).getByRole('button', { name: 'Удалить' }));
 
@@ -1604,7 +1626,9 @@ describe('PortfolioPage', () => {
     expect(within(dialog).getByLabelText('Дата покупки')).toHaveValue(todayInput());
     await user.click(within(dialog).getByRole('button', { name: 'Зафиксировать' }));
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Зафиксировать покупку' }))
+      .not.toBeInTheDocument());
+    expect(screen.getByRole('dialog', { name: 'ОФЗ 26238' })).toBeInTheDocument();
     expect(within(screen.getByRole('article', { name: 'ОФЗ 26238' })).getByText('77 шт.')).toBeInTheDocument();
   });
 
@@ -1645,7 +1669,9 @@ describe('PortfolioPage', () => {
     await user.type(quantity, '25');
     await user.click(within(dialog).getByRole('button', { name: 'Зафиксировать' }));
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Зафиксировать продажу' }))
+      .not.toBeInTheDocument());
+    expect(screen.getByRole('dialog', { name: 'ОФЗ 26238' })).toBeInTheDocument();
     expect(requestBody).toEqual({ amount_received: '26000.00', quantity: 25, sale_date: todayInput() });
     expect(screen.getByRole('article', { name: 'ОФЗ 26238' })).toHaveTextContent('50 шт.');
   });
@@ -1683,8 +1709,8 @@ describe('PortfolioPage', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [historicalMaturedBond] })));
     renderPortfolio();
     const card = await screen.findByRole('article', { name: 'ОФЗ 25000' });
-    await user.click(within(card).getByRole('button', { name: 'Действия с облигацией ОФЗ 25000' }));
-    await user.click(screen.getByRole('button', { name: 'Зафиксировать продажу' }));
+    const details = await openOperations(user, card);
+    await user.click(within(details).getByRole('button', { name: 'Зафиксировать продажу' }));
 
     const saleDate = within(screen.getByRole('dialog', { name: 'Зафиксировать продажу' })).getByLabelText('Дата продажи');
     expect(saleDate).toHaveValue('2025-05-14');

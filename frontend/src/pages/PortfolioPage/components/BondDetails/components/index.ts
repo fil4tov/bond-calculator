@@ -5,5 +5,6 @@ export { CouponPaymentHistory } from './CouponPaymentHistory';
 export { CouponSchedule } from './CouponSchedule';
 export { IssueInformation } from './IssueInformation';
 export { NextCoupon } from './NextCoupon';
+export { OperationActions } from './OperationActions';
 export { OperationHistory } from './OperationHistory';
 export { PositionMetrics } from './PositionMetrics';

@@ -63,6 +63,34 @@
 .nextCoupon p { margin: 5px 0 0; font-size: 13px; font-weight: 650; }
 .redeemedCoupon { color: var(--muted); background: var(--disabled-bg); font-weight: 750; }
 
+.operationActionGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.operationAction {
+  display: grid;
+  min-width: 0;
+  min-height: 72px;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 13px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  color: var(--ink);
+  text-align: left;
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.operationAction:hover { border-color: color-mix(in srgb, var(--accent-text) 28%, var(--card-border)); box-shadow: 0 8px 22px rgb(23 35 30 / 7%); transform: translateY(-1px); }
+.operationAction:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.operationAction:disabled { opacity: 0.52; box-shadow: none; cursor: not-allowed; transform: none; }
+.operationAction > span:last-child { display: grid; min-width: 0; gap: 3px; }
+.operationAction strong { font-size: 12px; font-weight: 850; line-height: 1.25; }
+.operationAction small { color: var(--muted); font-size: 10px; font-weight: 700; line-height: 1.2; }
+.operationActionIcon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; }
+.operationActionIcon svg { width: 18px; height: 18px; }
+.purchaseAction .operationActionIcon { color: var(--accent-text); background: var(--green-soft); }
+.saleAction .operationActionIcon { color: var(--ink); background: var(--segment-bg); }
+
 .purchaseHistory { min-width: 0; }
 .purchaseHistoryHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 .purchaseHistoryHeading h3 { margin: 0; color: var(--muted); font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
@@ -87,7 +115,14 @@
 .deleteOperation:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 .deleteOperation:disabled { opacity: 0.45; cursor: wait; }
 
+@media (prefers-reduced-motion: reduce) {
+  .operationAction { transition: none; }
+  .operationAction:hover { transform: none; }
+}
+
 @media (max-width: 580px) {
+  .operationActionGrid { grid-template-columns: 1fr; }
+  .operationAction { min-height: 64px; }
   .issueGrid, .metricsGrid { grid-template-columns: 1fr; }
   .issueGrid > div:nth-child(even), .metricsGrid > div:nth-child(even) { border-left: 0; }
   .issueGrid > div:nth-child(n + 2), .metricsGrid > div:nth-child(n + 2) { border-top: 1px solid var(--divider); }

@@ -13,7 +13,7 @@ import type { PurchaseFormValues } from './types';
 interface AddPurchaseFormProps {
   userId: string;
   bond: BondPortfolioItem;
-  onSuccess: () => void;
+  onSuccess: (updatedBond: BondPortfolioItem) => void;
   onBusyChange: (busy: boolean) => void;
 }
 
@@ -43,7 +43,7 @@ export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPu
   const submit = handleSubmit(async (values) => {
     setSubmitError(null);
     try {
-      await mutation.mutateAsync({
+      const updatedBond = await mutation.mutateAsync({
         bondId: bond.id,
         input: {
           amountSpent: canonicalDecimal(values.amountSpent),
@@ -51,7 +51,7 @@ export function AddPurchaseForm({ userId, bond, onSuccess, onBusyChange }: AddPu
           purchaseDate: values.purchaseDate,
         },
       });
-      onSuccess();
+      onSuccess(updatedBond);
     } catch (error) {
       if (error instanceof ApiError) {
         Object.entries(error.fieldErrors ?? {}).forEach(([field, message]) => {

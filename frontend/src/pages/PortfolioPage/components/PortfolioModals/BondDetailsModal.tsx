@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
-import { useDeletePortfolioOperation, useRefreshCouponSchedule } from '#entities/bondPortfolio';
+import { useDeletePortfolioOperation, usePortfolioBonds, useRefreshCouponSchedule } from '#entities/bondPortfolio';
 import { Modal } from '#shared/ui';
 
 import { BondDetails } from '../BondDetails';
+import { AddPurchaseModal } from './AddPurchaseModal';
+import { AddSaleModal } from './AddSaleModal';
+import { DeleteBondModal } from './DeleteBondModal';
 import { DeleteOperationModal } from './DeleteOperationModal';
 import type { OperationDeleteConfirmation } from './DeleteOperationModal';
 import type { OpenPortfolioModal, PortfolioModalProps } from './types';
@@ -23,16 +26,32 @@ export function BondDetailsModal({
   onModalChange,
 }: BondDetailsModalProps) {
   const deleteOperation = useDeletePortfolioOperation(userId);
+  const portfolio = usePortfolioBonds(userId);
   const refreshCouponSchedule = useRefreshCouponSchedule(userId);
   const modalRef = useRef(modal);
   const [confirmation, setConfirmation] = useState<OperationDeleteConfirmation | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [actionModal, setActionModal] = useState<OpenPortfolioModal>(null);
 
   useEffect(() => {
     modalRef.current = modal;
   }, [modal]);
 
   if (modal?.kind !== 'details') return null;
+  const cachedBond = portfolio.data?.find((bond) => bond.id === modal.bond.id);
+  const modalHasNewerSchedule = Boolean(
+    cachedBond
+    && modal.bond.couponScheduleUpdatedAt
+    && (!cachedBond.couponScheduleUpdatedAt
+      || modal.bond.couponScheduleUpdatedAt > cachedBond.couponScheduleUpdatedAt),
+  );
+  const displayedBond = modalHasNewerSchedule && cachedBond
+    ? {
+        ...modal.bond,
+        marketValueWithoutAci: cachedBond.marketValueWithoutAci,
+        accruedCouponIncome: cachedBond.accruedCouponIncome,
+      }
+    : (cachedBond ?? modal.bond);
 
   const closeConfirmation = () => {
     if (!deleteOperation.isPending) setConfirmation(null);
@@ -82,13 +101,28 @@ export function BondDetailsModal({
         mobileFillHeight
         renderContent={({ titleId, closeButton }) => (
           <BondDetails
-            bond={modal.bond}
+            bond={displayedBond}
             titleId={titleId}
             closeButton={closeButton}
             focusOperationId={modal.focusOperationId}
             operationDeleteDisabled={deleteOperation.isPending}
+            onAddPurchase={(returnFocusTarget) => setActionModal({
+              kind: 'purchase',
+              bond: displayedBond,
+              returnFocusTarget,
+            })}
+            onAddSale={(returnFocusTarget) => setActionModal({
+              kind: 'sale',
+              bond: displayedBond,
+              returnFocusTarget,
+            })}
+            onDeleteBond={(returnFocusTarget) => setActionModal({
+              kind: 'confirm-bond',
+              bond: displayedBond,
+              returnFocusTarget,
+            })}
             onRefreshCouponSchedule={async () => {
-              const updatedBond = await refreshCouponSchedule.mutateAsync(modal.bond);
+              const updatedBond = await refreshCouponSchedule.mutateAsync(displayedBond);
               const currentModal = modalRef.current;
               if (currentModal?.kind !== 'details' || currentModal.bond.id !== updatedBond.id) {
                 return;
@@ -96,11 +130,11 @@ export function BondDetailsModal({
               onModalChange({ ...currentModal, bond: updatedBond });
             }}
             onDeleteOperation={(operationId, returnFocusTarget) => {
-              const operation = modal.bond.operations.find((item) => item.id === operationId);
+              const operation = displayedBond.operations.find((item) => item.id === operationId);
               if (!operation) return;
               setDeleteError(null);
               setConfirmation({
-                bond: modal.bond,
+                bond: displayedBond,
                 operation,
                 detailsReturnFocusTarget: modal.returnFocusTarget,
                 returnFocusTarget,
@@ -115,6 +149,39 @@ export function BondDetailsModal({
         deleteError={deleteError}
         onClose={closeConfirmation}
         onDelete={(target) => void handleOperationDelete(target)}
+      />
+      <AddPurchaseModal
+        modal={actionModal}
+        userId={userId}
+        onClose={() => setActionModal(null)}
+        onSuccess={(updatedBond) => {
+          setActionModal(null);
+          const currentModal = modalRef.current;
+          if (currentModal?.kind === 'details' && currentModal.bond.id === updatedBond.id) {
+            onModalChange({ ...currentModal, bond: updatedBond });
+          }
+        }}
+      />
+      <AddSaleModal
+        modal={actionModal}
+        userId={userId}
+        onClose={() => setActionModal(null)}
+        onSuccess={(updatedBond) => {
+          setActionModal(null);
+          const currentModal = modalRef.current;
+          if (currentModal?.kind === 'details' && currentModal.bond.id === updatedBond.id) {
+            onModalChange({ ...currentModal, bond: updatedBond });
+          }
+        }}
+      />
+      <DeleteBondModal
+        modal={actionModal}
+        userId={userId}
+        onClose={() => setActionModal(null)}
+        onDeleted={() => {
+          setActionModal(null);
+          onModalChange(null);
+        }}
       />
     </>
   );

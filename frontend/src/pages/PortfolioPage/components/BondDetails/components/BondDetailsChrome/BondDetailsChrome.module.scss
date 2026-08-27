@@ -20,7 +20,8 @@
 
 .sidebar > div:first-child > :first-child { margin-left: 10px; }
 
-.navigation { display: grid; gap: 5px; margin-top: 24px; }
+.navigation { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 5px; margin-top: 24px; }
+.tabs { display: grid; gap: 5px; }
 
 .navigationItem {
   display: grid;
@@ -55,7 +56,13 @@
 
 .navigationIcon svg { width: 14px; height: 14px; }
 
-.sidebarSummary { margin-top: auto; padding: 18px 10px 0; border-top: 1px solid var(--divider); }
+.deleteBondAction {
+  margin-top: auto;
+  color: var(--loss);
+}
+.deleteBondAction:hover { color: var(--loss); background: var(--loss-soft); }
+
+.sidebarSummary { margin-top: 8px; padding: 18px 10px 0; border-top: 1px solid var(--divider); }
 .sidebarSummary span { display: block; color: var(--muted); font-size: 10px; font-weight: 850; text-transform: uppercase; }
 .sidebarSummary strong { display: block; margin-top: 6px; font-size: 18px; font-variant-numeric: tabular-nums; }
 
@@ -78,6 +85,8 @@
 
   .navigation {
     display: flex;
+    align-items: stretch;
+    flex-direction: row;
     gap: 3px;
     margin: 18px 0 16px;
     padding: 4px;
@@ -86,6 +95,8 @@
     background: var(--segment-bg);
     scrollbar-width: none;
   }
+
+  .tabs { display: flex; flex: 1 0 auto; gap: 3px; }
 
   .navigation::-webkit-scrollbar { display: none; }
 
@@ -100,5 +111,6 @@
 
   .navigationItem[aria-selected='true'] { background: var(--segment-active); }
   .navigationIcon, .navigationItem small { display: none; }
+  .deleteBondAction { margin-top: 0; color: var(--loss); }
   .closeSlot { top: 22px; right: 18px; }
 }

@@ -8,12 +8,9 @@ import { Button, Typography } from '#shared/ui';
 import { SiteHeader } from '#widgets/SiteHeader';
 
 import {
-  AddPurchaseModal,
-  AddSaleModal,
   BondPortfolioCard,
   BondDetailsModal,
   CreateBondModal,
-  DeleteBondModal,
   PortfolioLoadingState,
   PortfolioSortControls,
   PortfolioSummary,
@@ -68,15 +65,6 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
   const openDetails = (bond: BondPortfolioItem, returnFocusTarget: HTMLElement) => {
     setModal({ kind: 'details', bond, returnFocusTarget });
   };
-  const openPurchase = (bond: BondPortfolioItem, returnFocusTarget: HTMLElement) => {
-    setModal({ kind: 'purchase', bond, returnFocusTarget });
-  };
-  const openSale = (bond: BondPortfolioItem, returnFocusTarget: HTMLElement) => {
-    setModal({ kind: 'sale', bond, returnFocusTarget });
-  };
-  const openBondDelete = (bond: BondPortfolioItem, returnFocusTarget: HTMLElement) => {
-    setModal({ kind: 'confirm-bond', bond, returnFocusTarget });
-  };
   const closeModal = () => setModal(null);
 
   return (
@@ -126,9 +114,6 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
                   key={bond.id}
                   bond={bond}
                   onOpenDetails={(returnFocusTarget) => openDetails(bond, returnFocusTarget)}
-                  onAddPurchase={(returnFocusTarget) => openPurchase(bond, returnFocusTarget)}
-                  onAddSale={(returnFocusTarget) => openSale(bond, returnFocusTarget)}
-                  onDelete={(returnFocusTarget) => openBondDelete(bond, returnFocusTarget)}
                 />
               ))}
             </div>
@@ -137,7 +122,6 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
       </section>
 
       <CreateBondModal modal={modal} userId={userId} onClose={closeModal} />
-      <AddPurchaseModal modal={modal} userId={userId} onClose={closeModal} />
       <BondDetailsModal
         modal={modal}
         userId={userId}
@@ -145,8 +129,6 @@ export function PortfolioPage({ theme, toggleTheme }: PortfolioPageProps) {
         onClose={closeModal}
         onModalChange={setModal}
       />
-      <AddSaleModal modal={modal} userId={userId} onClose={closeModal} />
-      <DeleteBondModal modal={modal} userId={userId} onClose={closeModal} />
     </main>
   );
 }

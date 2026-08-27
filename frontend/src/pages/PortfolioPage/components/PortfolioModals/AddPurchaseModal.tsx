@@ -1,14 +1,17 @@
 import { useState } from 'react';
 
+import type { BondPortfolioItem } from '#entities/bondPortfolio';
+
 import { ModalShell } from '../ModalShell';
 import { AddPurchaseForm } from '../PortfolioForms';
 import type { PortfolioModalProps } from './types';
 
 interface AddPurchaseModalProps extends PortfolioModalProps {
   userId: string;
+  onSuccess?: (updatedBond: BondPortfolioItem) => void;
 }
 
-export function AddPurchaseModal({ modal, userId, onClose }: AddPurchaseModalProps) {
+export function AddPurchaseModal({ modal, userId, onClose, onSuccess }: AddPurchaseModalProps) {
   const [busy, setBusy] = useState(false);
 
   if (modal?.kind !== 'purchase') return null;
@@ -28,7 +31,7 @@ export function AddPurchaseModal({ modal, userId, onClose }: AddPurchaseModalPro
         userId={userId}
         bond={modal.bond}
         onBusyChange={setBusy}
-        onSuccess={onClose}
+        onSuccess={(updatedBond) => (onSuccess ? onSuccess(updatedBond) : onClose())}
       />
     </ModalShell>
   );
